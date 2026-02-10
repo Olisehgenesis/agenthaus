@@ -1,209 +1,14 @@
 /**
- * OpenClaw Runtime Manager
- * 
- * Manages OpenClaw gateway instances for deployed agents.
- * OpenClaw is a self-hosted gateway that connects chat apps (WhatsApp, Telegram, Discord)
- * to AI agents. Each deployed agent gets its own OpenClaw configuration.
- * 
+ * Agent Runtime Manager
+ *
+ * Core message processing pipeline for all channels (web chat, Telegram, cron jobs).
+ * Routes messages through: LLM → Skill Execution → Transaction Execution
+ *
  * Architecture:
- *   Agent Forge Dashboard → OpenClaw Gateway → LLM (OpenRouter / Z.AI)
- *                                  ↕
- *                        Chat Channels (Telegram, Discord, WhatsApp)
+ *   Web Chat / Telegram / Cron → processMessage() → LLM → Skills → Transactions → Reply
  */
 
 import { prisma } from "@/lib/db";
-import { generateOpenClawConfig, type OpenClawAgentConfig } from "./config";
-
-export interface OpenClawInstance {
-  agentId: string;
-  status: "starting" | "running" | "stopped" | "error";
-  port?: number;
-  pid?: number;
-  config: OpenClawAgentConfig;
-  startedAt?: Date;
-  error?: string;
-}
-
-// In-memory store for active OpenClaw instances
-// In production, this would be backed by a process manager or container orchestrator
-const activeInstances = new Map<string, OpenClawInstance>();
-
-// Base port for OpenClaw gateway instances
-const BASE_PORT = 18800;
-
-/**
- * Start an OpenClaw gateway instance for an agent
- */
-export async function startAgent(agentId: string): Promise<OpenClawInstance> {
-  const agent = await prisma.agent.findUnique({
-    where: { id: agentId },
-    include: { owner: true },
-  });
-
-  if (!agent) {
-    throw new Error(`Agent ${agentId} not found`);
-  }
-
-  // Check if already running
-  const existing = activeInstances.get(agentId);
-  if (existing && existing.status === "running") {
-    return existing;
-  }
-
-  // Generate OpenClaw config for this agent
-  const config = generateOpenClawConfig({
-    agentId: agent.id,
-    agentName: agent.name,
-    systemPrompt: agent.systemPrompt || "",
-    llmProvider: agent.llmProvider,
-    llmModel: agent.llmModel,
-    templateType: agent.templateType,
-    spendingLimit: agent.spendingLimit,
-    agentWalletAddress: agent.agentWalletAddress || undefined,
-    configuration: agent.configuration ? JSON.parse(agent.configuration) : {},
-  });
-
-  // Assign a port
-  const port = BASE_PORT + activeInstances.size;
-
-  const instance: OpenClawInstance = {
-    agentId,
-    status: "starting",
-    port,
-    config,
-    startedAt: new Date(),
-  };
-
-  activeInstances.set(agentId, instance);
-
-  // In a real deployment, this would:
-  // 1. Write the config to ~/.openclaw/agents/{agentId}/openclaw.json
-  // 2. Spawn `openclaw gateway --port {port} --config {configPath}`
-  // 3. Monitor the process health
-  //
-  // For the MVP, we manage the agent runtime directly through API calls
-  // and use the LLM providers directly. The OpenClaw config is stored
-  // for when external channel integrations (Telegram, Discord) are enabled.
-
-  try {
-    // Mark as running
-    instance.status = "running";
-    activeInstances.set(agentId, instance);
-
-    // Log to database
-    await prisma.activityLog.create({
-      data: {
-        agentId,
-        type: "action",
-        message: `OpenClaw runtime started on port ${port}`,
-        metadata: JSON.stringify({
-          port,
-          llmProvider: config.agent.llmProvider,
-          llmModel: config.agent.llmModel,
-          channels: Object.keys(config.channels),
-        }),
-      },
-    });
-
-    // Update agent status
-    await prisma.agent.update({
-      where: { id: agentId },
-      data: {
-        status: "active",
-        deployedAt: new Date(),
-      },
-    });
-
-    return instance;
-  } catch (error) {
-    instance.status = "error";
-    instance.error = error instanceof Error ? error.message : "Unknown error";
-    activeInstances.set(agentId, instance);
-
-    await prisma.activityLog.create({
-      data: {
-        agentId,
-        type: "error",
-        message: `Failed to start OpenClaw runtime: ${instance.error}`,
-      },
-    });
-
-    throw error;
-  }
-}
-
-/**
- * Stop an OpenClaw gateway instance
- */
-export async function stopAgent(agentId: string): Promise<void> {
-  const instance = activeInstances.get(agentId);
-  if (!instance) {
-    return; // Not running
-  }
-
-  // In production, this would kill the OpenClaw process
-  instance.status = "stopped";
-  activeInstances.set(agentId, instance);
-
-  await prisma.agent.update({
-    where: { id: agentId },
-    data: { status: "paused" },
-  });
-
-  await prisma.activityLog.create({
-    data: {
-      agentId,
-      type: "info",
-      message: "OpenClaw runtime stopped",
-    },
-  });
-}
-
-/**
- * Restart an OpenClaw gateway instance
- */
-export async function restartAgent(agentId: string): Promise<OpenClawInstance> {
-  await stopAgent(agentId);
-  return startAgent(agentId);
-}
-
-/**
- * Get the status of an OpenClaw instance
- */
-export function getInstanceStatus(agentId: string): OpenClawInstance | null {
-  return activeInstances.get(agentId) || null;
-}
-
-/**
- * Get all active OpenClaw instances
- */
-export function getAllInstances(): OpenClawInstance[] {
-  return Array.from(activeInstances.values());
-}
-
-/**
- * Health check for an OpenClaw instance
- */
-export async function healthCheck(agentId: string): Promise<{
-  healthy: boolean;
-  uptime?: number;
-  error?: string;
-}> {
-  const instance = activeInstances.get(agentId);
-  if (!instance) {
-    return { healthy: false, error: "Instance not found" };
-  }
-
-  if (instance.status !== "running") {
-    return { healthy: false, error: `Instance status: ${instance.status}` };
-  }
-
-  const uptime = instance.startedAt
-    ? Date.now() - instance.startedAt.getTime()
-    : 0;
-
-  return { healthy: true, uptime };
-}
 
 // OpenRouter free model fallback order for rate-limit / provider-error retries.
 // Only models that reliably support system prompts on the free tier.
@@ -230,9 +35,7 @@ export async function processMessage(
   userMessage: string,
   conversationHistory: { role: "user" | "assistant"; content: string }[] = []
 ): Promise<string> {
-  const instance = activeInstances.get(agentId);
-
-  // Load agent config — always fetch from DB to get ownerId for API key lookup
+  // Load agent config from DB
   const agent = await prisma.agent.findUnique({
     where: { id: agentId },
     select: {
@@ -249,11 +52,9 @@ export async function processMessage(
 
   if (!agent) throw new Error(`Agent ${agentId} not found`);
 
-  let systemPrompt = instance?.config.agent.systemPrompt
-    || agent.systemPrompt
-    || "You are a helpful AI agent on the Celo blockchain.";
-  const llmProvider = instance?.config.agent.llmProvider || agent.llmProvider;
-  const llmModel = instance?.config.agent.llmModel || agent.llmModel;
+  let systemPrompt = agent.systemPrompt || "You are a helpful AI agent on the Celo blockchain.";
+  const llmProvider = agent.llmProvider;
+  const llmModel = agent.llmModel;
 
   // ─── Inject transaction execution instructions ──────────────────────
   // This is appended at runtime so even agents with old prompts can execute real txs.

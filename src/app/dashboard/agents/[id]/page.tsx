@@ -116,14 +116,17 @@ export default function AgentDetailPage() {
   const [sendLoading, setSendLoading] = React.useState(false);
   const [sendResult, setSendResult] = React.useState<{ success: boolean; txHash?: string; error?: string } | null>(null);
 
-  // OpenClaw channels & cron
-  const [openclawStatus, setOpenclawStatus] = React.useState<{
-    gateway: { running: boolean };
-    channels: Array<{ name: string; enabled: boolean; state: string; botUsername?: string }>;
-    cronJobs: Array<{ id: string; name: string; cron?: string; every?: string; message: string; enabled: boolean }>;
+  // Channels & cron (native)
+  const [channelData, setChannelData] = React.useState<{
+    channels: Array<{ type: string; enabled: boolean; connectedAt?: string; botUsername?: string }>;
+    cronJobs: Array<{ id: string; name: string; cron: string; skillPrompt: string; enabled: boolean; lastRun?: string; lastResult?: string }>;
+    hasTelegramBot: boolean;
   } | null>(null);
   const [showScheduleForm, setShowScheduleForm] = React.useState(false);
-  const [scheduleForm, setScheduleForm] = React.useState({ name: "", message: "", every: "", channel: "" });
+  const [scheduleForm, setScheduleForm] = React.useState({ name: "", cron: "", skillPrompt: "" });
+  const [showTelegramForm, setShowTelegramForm] = React.useState(false);
+  const [telegramToken, setTelegramToken] = React.useState("");
+  const [telegramConnecting, setTelegramConnecting] = React.useState(false);
 
   // Fetch agent data from API
   React.useEffect(() => {
@@ -167,16 +170,18 @@ export default function AgentDetailPage() {
     }
   }, [agent?.agentWalletAddress, fetchBalance]);
 
-  // Fetch OpenClaw status
+  // Fetch channels & cron data
+  const fetchChannels = React.useCallback(async () => {
+    if (!params.id) return;
+    try {
+      const res = await fetch(`/api/agents/${params.id}/channels`);
+      if (res.ok) setChannelData(await res.json());
+    } catch { /* ignore */ }
+  }, [params.id]);
+
   React.useEffect(() => {
-    async function fetchOpenClaw() {
-      try {
-        const res = await fetch("/api/openclaw/status");
-        if (res.ok) setOpenclawStatus(await res.json());
-      } catch { /* gateway may be offline */ }
-    }
-    fetchOpenClaw();
-  }, []);
+    fetchChannels();
+  }, [fetchChannels]);
 
   // Auto-scroll chat
   React.useEffect(() => {
@@ -652,7 +657,7 @@ export default function AgentDetailPage() {
               )}
               <div className="p-3 rounded-lg bg-slate-800/50">
                 <div className="text-xs text-slate-500 mb-1">Runtime</div>
-                <div className="text-sm text-white">OpenClaw Gateway</div>
+                <div className="text-sm text-white">Agent Forge Native</div>
               </div>
               <div className="p-3 rounded-lg bg-slate-800/50">
                 <div className="text-xs text-slate-500 mb-1">LLM Provider</div>
@@ -746,33 +751,18 @@ export default function AgentDetailPage() {
             </CardContent>
           </Card>
 
-          {/* OpenClaw Channels & Scheduling Card */}
+          {/* Channels & Scheduling Card (Native) */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                🦞 Channels & Tasks
+                📡 Channels & Tasks
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {/* Gateway Status */}
-              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-800/50">
-                <span className="text-xs text-slate-400">Gateway</span>
-                <Badge
-                  variant="default"
-                  className={`text-[10px] ${
-                    openclawStatus?.gateway.running
-                      ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                      : "bg-red-500/20 text-red-400 border-red-500/30"
-                  }`}
-                >
-                  {openclawStatus?.gateway.running ? "Online" : "Offline"}
-                </Badge>
-              </div>
-
               {/* Connected Channels */}
-              <div className="text-xs text-slate-500 mt-2">Connected Channels</div>
+              <div className="text-xs text-slate-500">Connected Channels</div>
               <div className="space-y-1">
-                {/* Web is always on */}
+                {/* Web Chat — always on */}
                 <div className="flex items-center justify-between p-2 rounded-lg bg-slate-800/30">
                   <div className="flex items-center gap-2">
                     <span className="text-sm">💬</span>
@@ -780,97 +770,239 @@ export default function AgentDetailPage() {
                   </div>
                   <Badge variant="default" className="text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Active</Badge>
                 </div>
-                {openclawStatus?.channels.filter(c => c.enabled).map((ch) => (
-                  <div key={ch.name} className="flex items-center justify-between p-2 rounded-lg bg-slate-800/30">
+
+                {/* Telegram Channel */}
+                {channelData?.channels.find(c => c.type === "telegram" && c.enabled) ? (
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-slate-800/30">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm">
-                        {ch.name === "telegram" ? "📱" : ch.name === "discord" ? "🎮" : ch.name === "whatsapp" ? "📞" : "💬"}
-                      </span>
+                      <span className="text-sm">📱</span>
                       <div>
-                        <span className="text-xs text-slate-300 capitalize">{ch.name}</span>
-                        {ch.botUsername && <span className="text-[10px] text-slate-500 ml-1">{ch.botUsername}</span>}
+                        <span className="text-xs text-slate-300">Telegram</span>
+                        {channelData.channels.find(c => c.type === "telegram")?.botUsername && (
+                          <span className="text-[10px] text-slate-500 ml-1">
+                            {channelData.channels.find(c => c.type === "telegram")?.botUsername}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <Badge variant="default" className="text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Active</Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge variant="default" className="text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Active</Badge>
+                      <button
+                        onClick={async () => {
+                          if (!confirm("Disconnect Telegram bot?")) return;
+                          await fetch(`/api/agents/${agent.id}/channels`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ action: "disconnect_telegram" }),
+                          });
+                          fetchChannels();
+                        }}
+                        className="text-red-400 hover:text-red-300 cursor-pointer ml-1"
+                        title="Disconnect"
+                      >
+                        <XCircle className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
-                ))}
-                {(!openclawStatus?.channels || openclawStatus.channels.filter(c => c.enabled).length === 0) && (
-                  <p className="text-[10px] text-slate-600 px-2">
-                    Add channels in Settings → OpenClaw Gateway
-                  </p>
+                ) : (
+                  /* Connect Telegram Button */
+                  <div>
+                    <button
+                      onClick={() => setShowTelegramForm(!showTelegramForm)}
+                      className="w-full flex items-center justify-between p-2 rounded-lg bg-slate-800/30 hover:bg-slate-800/50 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">📱</span>
+                        <span className="text-xs text-slate-400">Telegram</span>
+                      </div>
+                      <span className="text-[10px] text-blue-400">+ Connect</span>
+                    </button>
+
+                    {showTelegramForm && (
+                      <div className="p-3 mt-1 rounded-lg bg-slate-800/50 space-y-2">
+                        <p className="text-[10px] text-slate-400">
+                          Get a bot token from{" "}
+                          <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                            @BotFather
+                          </a>{" "}
+                          on Telegram, then paste it here.
+                        </p>
+                        <input
+                          type="password"
+                          className="w-full h-8 rounded bg-slate-900 border border-slate-700 text-xs text-white px-2 font-mono"
+                          placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v..."
+                          value={telegramToken}
+                          onChange={(e) => setTelegramToken(e.target.value)}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="text-xs h-7"
+                            disabled={!telegramToken || telegramConnecting}
+                            onClick={async () => {
+                              setTelegramConnecting(true);
+                              try {
+                                const res = await fetch(`/api/agents/${agent.id}/channels`, {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ action: "connect_telegram", botToken: telegramToken }),
+                                });
+                                const data = await res.json();
+                                if (res.ok) {
+                                  setShowTelegramForm(false);
+                                  setTelegramToken("");
+                                  fetchChannels();
+                                } else {
+                                  alert(data.error || "Failed to connect Telegram bot");
+                                }
+                              } catch {
+                                alert("Network error");
+                              } finally {
+                                setTelegramConnecting(false);
+                              }
+                            }}
+                          >
+                            {telegramConnecting ? (
+                              <><Loader2 className="w-3 h-3 animate-spin mr-1" /> Connecting...</>
+                            ) : (
+                              "Connect Bot"
+                            )}
+                          </Button>
+                          <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => { setShowTelegramForm(false); setTelegramToken(""); }}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
               {/* Scheduled Tasks */}
               <div className="flex items-center justify-between mt-3">
                 <div className="text-xs text-slate-500">Scheduled Tasks</div>
-                <button
-                  onClick={() => setShowScheduleForm(!showScheduleForm)}
-                  className="text-[10px] text-blue-400 hover:text-blue-300 cursor-pointer"
-                >
-                  + Add
-                </button>
+                <div className="flex gap-2">
+                  {channelData && channelData.cronJobs.length === 0 && (
+                    <button
+                      onClick={async () => {
+                        await fetch(`/api/agents/${agent.id}/channels`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ action: "init_default_crons" }),
+                        });
+                        fetchChannels();
+                      }}
+                      className="text-[10px] text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                    >
+                      Load Defaults
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowScheduleForm(!showScheduleForm)}
+                    className="text-[10px] text-blue-400 hover:text-blue-300 cursor-pointer"
+                  >
+                    + Add
+                  </button>
+                </div>
               </div>
-              {openclawStatus?.cronJobs && openclawStatus.cronJobs.length > 0 ? (
+
+              {channelData?.cronJobs && channelData.cronJobs.length > 0 ? (
                 <div className="space-y-1">
-                  {openclawStatus.cronJobs.map((job) => (
+                  {channelData.cronJobs.map((job) => (
                     <div key={job.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-800/30">
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <div className="text-xs text-slate-300">{job.name}</div>
-                        <div className="text-[10px] text-slate-600">{job.every || job.cron || "one-shot"}</div>
+                        <div className="text-[10px] text-slate-600 font-mono">{job.cron}</div>
+                        {job.lastRun && (
+                          <div className="text-[10px] text-slate-600">
+                            Last: {new Date(job.lastRun).toLocaleString()}
+                          </div>
+                        )}
                       </div>
-                      <Badge variant={job.enabled ? "default" : "outline"} className="text-[10px]">
-                        {job.enabled ? "Active" : "Paused"}
-                      </Badge>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={async () => {
+                            await fetch(`/api/agents/${agent.id}/channels`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ action: "toggle_cron", jobId: job.id }),
+                            });
+                            fetchChannels();
+                          }}
+                          className="cursor-pointer"
+                          title={job.enabled ? "Pause" : "Resume"}
+                        >
+                          <Badge variant={job.enabled ? "default" : "outline"} className="text-[10px]">
+                            {job.enabled ? "Active" : "Paused"}
+                          </Badge>
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`Remove "${job.name}"?`)) return;
+                            await fetch(`/api/agents/${agent.id}/channels`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ action: "remove_cron", jobId: job.id }),
+                            });
+                            fetchChannels();
+                          }}
+                          className="text-red-400 hover:text-red-300 cursor-pointer"
+                          title="Remove"
+                        >
+                          <XCircle className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-[10px] text-slate-600 px-2 pb-1">No scheduled tasks</p>
+                <p className="text-[10px] text-slate-600 px-2 pb-1">No scheduled tasks yet</p>
               )}
 
-              {/* Quick Schedule Form */}
+              {/* Add Cron Form */}
               {showScheduleForm && (
                 <div className="p-3 rounded-lg bg-slate-800/50 space-y-2">
                   <input
                     className="w-full h-8 rounded bg-slate-900 border border-slate-700 text-xs text-white px-2"
-                    placeholder="Task name"
+                    placeholder="Task name (e.g. Rate Monitor)"
                     value={scheduleForm.name}
                     onChange={(e) => setScheduleForm(p => ({ ...p, name: e.target.value }))}
                   />
                   <input
                     className="w-full h-8 rounded bg-slate-900 border border-slate-700 text-xs text-white px-2"
-                    placeholder="Agent instruction / message"
-                    value={scheduleForm.message}
-                    onChange={(e) => setScheduleForm(p => ({ ...p, message: e.target.value }))}
+                    placeholder="Agent instruction / prompt"
+                    value={scheduleForm.skillPrompt}
+                    onChange={(e) => setScheduleForm(p => ({ ...p, skillPrompt: e.target.value }))}
                   />
                   <input
-                    className="w-full h-8 rounded bg-slate-900 border border-slate-700 text-xs text-white px-2"
-                    placeholder="Every (e.g. 1h, 30m, 24h)"
-                    value={scheduleForm.every}
-                    onChange={(e) => setScheduleForm(p => ({ ...p, every: e.target.value }))}
+                    className="w-full h-8 rounded bg-slate-900 border border-slate-700 text-xs text-white px-2 font-mono"
+                    placeholder="Cron expression (e.g. */5 * * * *)"
+                    value={scheduleForm.cron}
+                    onChange={(e) => setScheduleForm(p => ({ ...p, cron: e.target.value }))}
                   />
+                  <p className="text-[10px] text-slate-600">
+                    Examples: <code className="text-slate-400">*/5 * * * *</code> = every 5 min, <code className="text-slate-400">0 * * * *</code> = hourly, <code className="text-slate-400">0 9 * * *</code> = daily 9AM
+                  </p>
                   <div className="flex gap-2">
                     <Button
                       size="sm"
                       className="text-xs h-7"
-                      disabled={!scheduleForm.name || !scheduleForm.message || !scheduleForm.every}
+                      disabled={!scheduleForm.name || !scheduleForm.skillPrompt || !scheduleForm.cron}
                       onClick={async () => {
                         try {
-                          await fetch("/api/openclaw/cron", {
+                          await fetch(`/api/agents/${agent.id}/channels`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
+                              action: "add_cron",
                               name: scheduleForm.name,
-                              message: scheduleForm.message,
-                              every: scheduleForm.every,
+                              skillPrompt: scheduleForm.skillPrompt,
+                              cron: scheduleForm.cron,
                             }),
                           });
                           setShowScheduleForm(false);
-                          setScheduleForm({ name: "", message: "", every: "", channel: "" });
-                          // Refresh status
-                          const res = await fetch("/api/openclaw/status");
-                          if (res.ok) setOpenclawStatus(await res.json());
+                          setScheduleForm({ name: "", cron: "", skillPrompt: "" });
+                          fetchChannels();
                         } catch { /* ignore */ }
                       }}
                     >

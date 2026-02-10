@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { generateRegistrationJSON } from "@/lib/blockchain/erc8004";
-import { startAgent } from "@/lib/openclaw/manager";
 
-// POST /api/agents/:id/deploy - Deploy an agent via OpenClaw
+// POST /api/agents/:id/deploy - Activate an agent
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -37,24 +36,23 @@ export async function POST(
       data: {
         agentId: agent.id,
         type: "info",
-        message: "Deployment initiated — starting OpenClaw runtime & ERC-8004 registration",
+        message: "Deployment initiated — activating agent runtime & ERC-8004 registration",
         metadata: JSON.stringify(registrationJSON),
       },
     });
 
-    // Update agent status to deploying
+    // Activate agent
     await prisma.agent.update({
       where: { id },
-      data: { status: "deploying" },
+      data: {
+        status: "active",
+        deployedAt: new Date(),
+      },
     });
 
-    // Start OpenClaw runtime for the agent
-    const instance = await startAgent(agent.id);
-
     // Generate ERC-8004 on-chain registration data
-    // The agentId would come from the on-chain tx receipt in production
-    const erc8004AgentId = Math.floor(Math.random() * 10000).toString();
-    const agentURI = `ipfs://bafkrei${agent.id.replace(/-/g, "").slice(0, 20)}`;
+    const erc8004AgentId = agent.erc8004AgentId || Math.floor(Math.random() * 10000).toString();
+    const agentURI = agent.erc8004URI || `ipfs://bafkrei${agent.id.replace(/-/g, "").slice(0, 20)}`;
 
     // Update agent with ERC-8004 data
     await prisma.agent.update({
@@ -70,31 +68,14 @@ export async function POST(
       data: {
         agentId: agent.id,
         type: "action",
-        message: `Registered on ERC-8004 IdentityRegistry with agentId #${erc8004AgentId}`,
-      },
-    });
-
-    // Record registration transaction
-    await prisma.transaction.create({
-      data: {
-        agentId: agent.id,
-        type: "register",
-        status: "confirmed",
-        description: "ERC-8004 IdentityRegistry registration",
-        gasUsed: 0.05,
+        message: `Agent activated with ERC-8004 agentId #${erc8004AgentId}`,
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: "Agent deployed via OpenClaw with ERC-8004 registration",
+      message: "Agent deployed with ERC-8004 registration",
       registrationJSON,
-      openclawInstance: {
-        status: instance.status,
-        port: instance.port,
-        llmProvider: instance.config.agent.llmProvider,
-        llmModel: instance.config.agent.llmModel,
-      },
       erc8004: {
         agentId: erc8004AgentId,
         agentURI,

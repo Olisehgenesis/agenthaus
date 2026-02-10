@@ -14,18 +14,11 @@ import {
   Save,
   ExternalLink,
   Copy,
-  Cpu,
   Zap,
   CheckCircle,
   AlertCircle,
   Trash2,
-  RefreshCw,
   MessageSquare,
-  Plus,
-  Power,
-  Timer,
-  Send,
-  Loader2,
 } from "lucide-react";
 import { formatAddress } from "@/lib/utils";
 import { ERC8004_IDENTITY_REGISTRY, ERC8004_REPUTATION_REGISTRY, BLOCK_EXPLORER, LLM_MODELS, LLM_PROVIDER_INFO } from "@/lib/constants";
@@ -49,518 +42,7 @@ const PROVIDERS: {
   { key: "zai", label: "Z.AI (Zhipu) API Key", dbField: "zaiApiKey", hasKeyField: "hasZaiKey", maskedField: "zaiApiKey", badge: "GLM-4 Flash Free" },
 ];
 
-// ---------------------------------------------------------------------------
-// Channel definitions for the UI
-// ---------------------------------------------------------------------------
-interface ChannelDef {
-  key: string;
-  label: string;
-  icon: string;
-  alwaysOn?: boolean;
-  tokenField?: string | null;
-  tokenLabel?: string | null;
-  helpUrl?: string | null;
-  helpLabel?: string | null;
-}
-
-const CHANNEL_DEFS: ChannelDef[] = [
-  { key: "web", label: "Web Chat", icon: "💬", alwaysOn: true },
-  { key: "telegram", label: "Telegram", icon: "📱", tokenField: "botToken", tokenLabel: "Bot Token", helpUrl: "https://core.telegram.org/bots#botfather", helpLabel: "Create with @BotFather" },
-  { key: "discord", label: "Discord", icon: "🎮", tokenField: "botToken", tokenLabel: "Bot Token", helpUrl: "https://discord.com/developers/applications", helpLabel: "Discord Developer Portal" },
-  { key: "whatsapp", label: "WhatsApp", icon: "📞", tokenField: null, tokenLabel: null, helpUrl: "https://docs.openclaw.ai/channels/whatsapp", helpLabel: "Pair via QR" },
-];
-
-// ---------------------------------------------------------------------------
-// OpenClaw Runtime Card (interactive)
-// ---------------------------------------------------------------------------
-function OpenClawRuntimeCard() {
-  const [status, setStatus] = React.useState<{
-    gateway: { running: boolean; port: number; version: string; service?: { installed: boolean; running: boolean; pid?: number; dashboard?: string } };
-    channels: Array<{ name: string; enabled: boolean; state: string; detail: string; botUsername?: string }>;
-    cronJobs: Array<{ id: string; name: string; cron?: string; every?: string; message: string; enabled: boolean }>;
-    sessions: Array<{ key: string; agentId: string; model: string; age: string }>;
-  } | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
-
-  // Channel config form
-  const [configChannel, setConfigChannel] = React.useState<string | null>(null);
-  const [channelToken, setChannelToken] = React.useState("");
-  const [channelSaving, setChannelSaving] = React.useState(false);
-  const [channelMessage, setChannelMessage] = React.useState<{ type: "success" | "error"; text: string } | null>(null);
-
-  // Cron job form
-  const [showCronForm, setShowCronForm] = React.useState(false);
-  const [cronForm, setCronForm] = React.useState({ name: "", message: "", every: "", cron: "", channel: "", to: "" });
-  const [cronSaving, setCronSaving] = React.useState(false);
-
-  const fetchStatus = React.useCallback(async () => {
-    try {
-      const res = await fetch("/api/openclaw/status");
-      const data = await res.json();
-      setStatus(data);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to connect");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  React.useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 30_000); // refresh every 30s
-    return () => clearInterval(interval);
-  }, [fetchStatus]);
-
-  const handleAddChannel = async () => {
-    if (!configChannel) return;
-    setChannelSaving(true);
-    setChannelMessage(null);
-    try {
-      const res = await fetch("/api/openclaw/channels", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel: configChannel, botToken: channelToken || undefined, enabled: true }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setChannelMessage({ type: "success", text: `${configChannel} configured! Gateway restarting to apply changes.` });
-        setConfigChannel(null);
-        setChannelToken("");
-        fetchStatus();
-      } else {
-        setChannelMessage({ type: "error", text: data.message || "Failed to configure channel" });
-      }
-    } catch (err) {
-      setChannelMessage({ type: "error", text: err instanceof Error ? err.message : "Network error" });
-    } finally {
-      setChannelSaving(false);
-    }
-  };
-
-  const handleRemoveChannel = async (channel: string) => {
-    if (!confirm(`Remove ${channel} channel? The gateway will restart.`)) return;
-    try {
-      await fetch("/api/openclaw/channels", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel }),
-      });
-      fetchStatus();
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleAddCron = async () => {
-    setCronSaving(true);
-    try {
-      const res = await fetch("/api/openclaw/cron", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: cronForm.name,
-          message: cronForm.message,
-          every: cronForm.every || undefined,
-          cron: cronForm.cron || undefined,
-          channel: cronForm.channel || undefined,
-          to: cronForm.to || undefined,
-          announce: !!cronForm.channel,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setShowCronForm(false);
-        setCronForm({ name: "", message: "", every: "", cron: "", channel: "", to: "" });
-        fetchStatus();
-      }
-    } catch {
-      // ignore
-    } finally {
-      setCronSaving(false);
-    }
-  };
-
-  const handleDeleteCron = async (jobId: string) => {
-    if (!confirm("Delete this scheduled task?")) return;
-    try {
-      await fetch("/api/openclaw/cron", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId }),
-      });
-      fetchStatus();
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleToggleCron = async (jobId: string, enabled: boolean) => {
-    try {
-      await fetch("/api/openclaw/cron", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "toggle", jobId, enabled }),
-      });
-      fetchStatus();
-    } catch {
-      // ignore
-    }
-  };
-
-  const isChannelConfigured = (name: string) =>
-    status?.channels.some((c) => c.name === name && c.enabled) ?? false;
-
-  const getChannelInfo = (name: string) =>
-    status?.channels.find((c) => c.name === name);
-
-  return (
-    <Card className="border-red-500/20">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Cpu className="w-5 h-5 text-red-400" />
-            <CardTitle>OpenClaw Gateway</CardTitle>
-          </div>
-          <Button variant="ghost" size="sm" onClick={fetchStatus} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          </Button>
-        </div>
-        <CardDescription>
-          Self-hosted AI gateway — connect your agents to Telegram, Discord, WhatsApp, and more
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Gateway Status */}
-        <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50">
-          <div className="flex items-center gap-3">
-            <div className="text-lg">🦞</div>
-            <div>
-              <div className="text-sm text-white font-medium">
-                Gateway {status?.gateway.version && `v${status.gateway.version}`}
-              </div>
-              <div className="text-xs text-slate-500">
-                {status?.gateway.running
-                  ? `Port ${status.gateway.port} · PID ${status.gateway.service?.pid || "—"}`
-                  : "Not detected"}
-              </div>
-              {status?.gateway.service?.dashboard && (
-                <a
-                  href={status.gateway.service.dashboard}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 mt-0.5"
-                >
-                  Open Dashboard <ExternalLink className="w-2.5 h-2.5" />
-                </a>
-              )}
-            </div>
-          </div>
-          {loading ? (
-            <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
-          ) : (
-            <Badge
-              variant="default"
-              className={
-                status?.gateway.running
-                  ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                  : "bg-red-500/20 text-red-400 border-red-500/30"
-              }
-            >
-              <Power className="w-3 h-3 mr-1" />
-              {status?.gateway.running ? "Running" : "Offline"}
-            </Badge>
-          )}
-        </div>
-
-        {/* Channels Grid */}
-        <div>
-          <div className="text-xs text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-            <MessageSquare className="w-3 h-3" />
-            Communication Channels
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {CHANNEL_DEFS.map((ch) => {
-              const info = getChannelInfo(ch.key);
-              const isActive = ch.alwaysOn || isChannelConfigured(ch.key);
-
-              return (
-                <div
-                  key={ch.key}
-                  className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
-                    isActive ? "bg-slate-800/50 border border-emerald-500/20" : "bg-slate-800/30 border border-transparent"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span>{ch.icon}</span>
-                    <div>
-                      <span className="text-sm text-slate-300">{ch.label}</span>
-                      {info?.botUsername && (
-                        <div className="text-[10px] text-slate-500">{info.botUsername}</div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {isActive ? (
-                      <>
-                        <Badge
-                          variant="default"
-                          className="text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                        >
-                          Active
-                        </Badge>
-                        {!ch.alwaysOn && (
-                          <button
-                            onClick={() => handleRemoveChannel(ch.key)}
-                            className="p-1 rounded hover:bg-red-500/10 transition-colors cursor-pointer"
-                            title="Remove channel"
-                          >
-                            <Trash2 className="w-3 h-3 text-red-400" />
-                          </button>
-                        )}
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => setConfigChannel(ch.key)}
-                        className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" /> Configure
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Channel Configuration Form */}
-        {configChannel && (() => {
-          const chDef = CHANNEL_DEFS.find((c) => c.key === configChannel);
-          if (!chDef) return null;
-          return (
-            <div className="p-4 rounded-lg bg-slate-800/50 border border-blue-500/20 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-white font-medium">
-                  Configure {chDef.icon} {chDef.label}
-                </div>
-                <button onClick={() => { setConfigChannel(null); setChannelToken(""); }} className="text-xs text-slate-400 hover:text-white cursor-pointer">
-                  Cancel
-                </button>
-              </div>
-
-              {chDef.tokenField ? (
-                <>
-                  <Input
-                    type="password"
-                    placeholder={`Enter ${chDef.label} ${chDef.tokenLabel}...`}
-                    value={channelToken}
-                    onChange={(e) => setChannelToken(e.target.value)}
-                  />
-                  {chDef.helpUrl && (
-                    <a
-                      href={chDef.helpUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
-                    >
-                      {chDef.helpLabel} <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
-                </>
-              ) : (
-                <div className="text-xs text-slate-400">
-                  {chDef.label} uses QR code pairing. Click Save to enable it, then run{" "}
-                  <code className="text-emerald-400">openclaw channels login</code> in your terminal to pair.
-                </div>
-              )}
-
-              {channelMessage && (
-                <div className={`p-2 rounded text-xs flex items-center gap-2 ${
-                  channelMessage.type === "success"
-                    ? "bg-emerald-500/10 text-emerald-400"
-                    : "bg-red-500/10 text-red-400"
-                }`}>
-                  {channelMessage.type === "success" ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                  {channelMessage.text}
-                </div>
-              )}
-
-              <Button
-                size="sm"
-                onClick={handleAddChannel}
-                disabled={channelSaving || (!!chDef.tokenField && !channelToken)}
-                loading={channelSaving}
-              >
-                <Save className="w-3 h-3" />
-                Save & Enable {chDef.label}
-              </Button>
-            </div>
-          );
-        })()}
-
-        {/* Scheduled Tasks (Cron) */}
-        <div>
-          <div className="text-xs text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-1">
-              <Timer className="w-3 h-3" />
-              Scheduled Tasks
-            </div>
-            <button
-              onClick={() => setShowCronForm(!showCronForm)}
-              className="text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer"
-            >
-              <Plus className="w-3 h-3" /> Add Task
-            </button>
-          </div>
-
-          {status?.cronJobs && status.cronJobs.length > 0 ? (
-            <div className="space-y-2">
-              {status.cronJobs.map((job) => (
-                <div key={job.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/30">
-                  <div>
-                    <div className="text-sm text-white">{job.name}</div>
-                    <div className="text-xs text-slate-500">
-                      {job.cron ? `Cron: ${job.cron}` : job.every ? `Every ${job.every}` : "One-shot"}{" "}
-                      · {job.message.slice(0, 60)}{job.message.length > 60 ? "..." : ""}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={job.enabled}
-                        onChange={() => handleToggleCron(job.id, !job.enabled)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-8 h-4 bg-slate-700 rounded-full peer peer-checked:bg-emerald-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4 peer-checked:after:bg-white" />
-                    </label>
-                    <button
-                      onClick={() => handleDeleteCron(job.id)}
-                      className="p-1 rounded hover:bg-red-500/10 cursor-pointer"
-                    >
-                      <Trash2 className="w-3 h-3 text-red-400" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="p-3 rounded-lg bg-slate-800/30 text-center">
-              <p className="text-xs text-slate-500">
-                No scheduled tasks. Add periodic reports, balance checks, or automated actions.
-              </p>
-            </div>
-          )}
-
-          {/* Cron Form */}
-          {showCronForm && (
-            <div className="p-4 rounded-lg bg-slate-800/50 border border-blue-500/20 space-y-3 mt-2">
-              <div className="text-sm text-white font-medium">New Scheduled Task</div>
-              <Input
-                placeholder="Task name (e.g. Daily Balance Report)"
-                value={cronForm.name}
-                onChange={(e) => setCronForm((p) => ({ ...p, name: e.target.value }))}
-              />
-              <Input
-                placeholder="Message / instruction for the agent"
-                value={cronForm.message}
-                onChange={(e) => setCronForm((p) => ({ ...p, message: e.target.value }))}
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-slate-500">Interval</label>
-                  <Input
-                    placeholder="e.g. 1h, 30m, 24h"
-                    value={cronForm.every}
-                    onChange={(e) => setCronForm((p) => ({ ...p, every: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500">Or Cron Expression</label>
-                  <Input
-                    placeholder="e.g. 0 9 * * *"
-                    value={cronForm.cron}
-                    onChange={(e) => setCronForm((p) => ({ ...p, cron: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-slate-500">Deliver to Channel</label>
-                  <select
-                    value={cronForm.channel}
-                    onChange={(e) => setCronForm((p) => ({ ...p, channel: e.target.value }))}
-                    className="w-full h-9 rounded-md bg-slate-800 border border-slate-700 text-sm text-white px-3"
-                  >
-                    <option value="">None (agent session only)</option>
-                    <option value="telegram">Telegram</option>
-                    <option value="discord">Discord</option>
-                    <option value="whatsapp">WhatsApp</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500">Target (chat ID / number)</label>
-                  <Input
-                    placeholder="e.g. 732186130"
-                    value={cronForm.to}
-                    onChange={(e) => setCronForm((p) => ({ ...p, to: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={handleAddCron} disabled={cronSaving || !cronForm.name || !cronForm.message || (!cronForm.every && !cronForm.cron)} loading={cronSaving}>
-                  <Plus className="w-3 h-3" /> Create Task
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setShowCronForm(false)}>Cancel</Button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Sessions */}
-        {status?.sessions && status.sessions.length > 0 && (
-          <div>
-            <div className="text-xs text-slate-500 uppercase tracking-wider mb-2">Active Sessions</div>
-            {status.sessions.map((s) => (
-              <div key={s.key} className="flex items-center justify-between p-2 rounded-lg bg-slate-800/30">
-                <div className="text-xs text-slate-400 font-mono">{s.key}</div>
-                <div className="text-xs text-slate-500">{s.model} · {s.age}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Webhook Info */}
-        <div className="p-3 rounded-lg bg-slate-800/30">
-          <p className="text-xs text-slate-400">
-            🦞 <strong className="text-white">Webhook Bridge:</strong> OpenClaw routes channel messages through Agent Forge&apos;s LLM pipeline (with wallet context &amp; transaction execution).
-            Endpoint: <code className="text-emerald-400">/api/openclaw/webhook</code>
-          </p>
-        </div>
-
-        {!status?.gateway.running && (
-          <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-xs text-slate-400">
-                  <strong className="text-amber-400">Gateway not detected.</strong> Make sure OpenClaw is installed and the gateway service is running:
-                </p>
-                <div className="mt-1 p-2 rounded bg-slate-900/50 font-mono text-xs text-slate-300">
-                  npm install -g openclaw@latest<br />
-                  openclaw onboard --install-daemon<br />
-                  openclaw gateway start
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+// (OpenClaw runtime card removed — channels are now native per-agent)
 
 export default function SettingsPage() {
   const { address } = useAccount();
@@ -698,7 +180,7 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">Settings</h1>
         <p className="text-slate-400 text-sm mt-1">
-          Manage your API keys, OpenClaw runtime, and preferences
+          Manage your API keys, channels, and preferences
         </p>
       </div>
 
@@ -830,8 +312,51 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* OpenClaw Runtime — Live Gateway Integration */}
-      <OpenClawRuntimeCard />
+      {/* Channel Integration Info */}
+      <Card className="border-blue-500/20">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-blue-400" />
+            <CardTitle>Channel Integrations</CardTitle>
+          </div>
+          <CardDescription>
+            Connect your agents to Telegram, Discord, and more — each agent gets its own bot
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="p-3 rounded-lg bg-slate-800/50 text-center">
+              <div className="text-2xl mb-1">💬</div>
+              <div className="text-xs text-slate-300 font-medium">Web Chat</div>
+              <Badge variant="default" className="text-[10px] mt-1 bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Always On</Badge>
+            </div>
+            <div className="p-3 rounded-lg bg-slate-800/50 text-center">
+              <div className="text-2xl mb-1">📱</div>
+              <div className="text-xs text-slate-300 font-medium">Telegram</div>
+              <Badge variant="secondary" className="text-[10px] mt-1">Per-Agent Bot</Badge>
+            </div>
+            <div className="p-3 rounded-lg bg-slate-800/50 text-center">
+              <div className="text-2xl mb-1">🎮</div>
+              <div className="text-xs text-slate-300 font-medium">Discord</div>
+              <Badge variant="secondary" className="text-[10px] mt-1">Coming Soon</Badge>
+            </div>
+          </div>
+          <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+            <p className="text-xs text-slate-400">
+              📡 <strong className="text-white">Multi-tenant:</strong> Each agent has its own Telegram bot token.
+              Connect channels from the <strong>agent detail page</strong> → Channels &amp; Tasks card.
+              No external gateway needed — everything runs natively in Agent Forge.
+            </p>
+          </div>
+          <div className="p-3 rounded-lg bg-slate-800/30">
+            <p className="text-xs text-slate-400">
+              ⏰ <strong className="text-white">Cron Scheduler:</strong> Schedule periodic tasks per-agent
+              (rate monitoring, portfolio reports, etc). Configure from the agent detail page or call
+              <code className="text-emerald-400 ml-1">POST /api/cron/tick</code> every minute to execute due jobs.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Agent Wallet Configuration */}
       <Card className="border-emerald-500/20">

@@ -40,10 +40,16 @@ model Agent {
   agentWalletAddress    String?
   walletDerivationIndex Int?     // HD derivation index for this agent
   
-  // OpenClaw integration
-  openclawAgentId       String?  // OpenClaw agent id (e.g. "main")
-  openclawChannels      String?  // JSON: [{ channel, enabled, target }]
-  openclawCronJobs      String?  // JSON: [{ id, name, cron, message, enabled }]
+  // Channel integrations (per-agent, multi-tenant)
+  telegramBotToken      String?  // AES-256-GCM encrypted bot token from @BotFather
+  telegramChatIds       String?  // JSON: allowed chat IDs (empty = allow all)
+  discordBotToken       String?  // AES-256-GCM encrypted Discord bot token
+  webhookSecret         String?  // Unique secret for validating inbound webhooks
+  channels              String?  // JSON: [{ type, enabled, config }]
+  cronJobs              String?  // JSON: [{ id, name, cron, skillPrompt, enabled, lastRun }]
+  
+  // Legacy OpenClaw (optional, kept for backward compat)
+  openclawAgentId       String?
   
   // ERC-8004
   erc8004AgentId  String?

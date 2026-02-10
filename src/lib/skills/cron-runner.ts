@@ -1,17 +1,8 @@
 /**
- * Skill Cron Runner
+ * Skill Cron Runner (Legacy — kept for /api/agents/[id]/skills route)
  *
- * Executes skills on a schedule via OpenClaw cron jobs.
- * When a cron fires, it triggers the agent's processMessage()
- * with a system-generated prompt that invokes the skill.
- *
- * This enables agents to run concurrently — each with its own
- * scheduled tasks, all managed by OpenClaw.
- *
- * Example cron jobs for Forex Trader:
- *   - Every 5 min: "Check all exchange rates and report anomalies"
- *   - Every hour: "Analyze portfolio performance and suggest rebalancing"
- *   - Daily: "Generate a daily market summary report"
+ * The primary cron system is now in /src/lib/channels/scheduler.ts.
+ * This file provides CRUD helpers used by the skills API route.
  */
 
 import { prisma } from "@/lib/db";
@@ -118,12 +109,12 @@ export async function executeCronJob(
     // Update last run in agent's cron data
     const agent = await prisma.agent.findUnique({
       where: { id: agentId },
-      select: { openclawCronJobs: true },
+      select: { cronJobs: true },
     });
 
-    if (agent?.openclawCronJobs) {
+    if (agent?.cronJobs) {
       try {
-        const jobs = JSON.parse(agent.openclawCronJobs) as CronSkillJob[];
+        const jobs = JSON.parse(agent.cronJobs) as CronSkillJob[];
         const updated = jobs.map((j) =>
           j.id === jobId
             ? { ...j, lastRun: new Date().toISOString(), lastResult: response.slice(0, 200) }
@@ -131,7 +122,7 @@ export async function executeCronJob(
         );
         await prisma.agent.update({
           where: { id: agentId },
-          data: { openclawCronJobs: JSON.stringify(updated) },
+          data: { cronJobs: JSON.stringify(updated) },
         });
       } catch {
         // ignore parse errors
@@ -174,7 +165,7 @@ export async function executeCronJob(
 export async function saveCronJobs(agentId: string, jobs: CronSkillJob[]): Promise<void> {
   await prisma.agent.update({
     where: { id: agentId },
-    data: { openclawCronJobs: JSON.stringify(jobs) },
+    data: { cronJobs: JSON.stringify(jobs) },
   });
 }
 
@@ -184,13 +175,13 @@ export async function saveCronJobs(agentId: string, jobs: CronSkillJob[]): Promi
 export async function getCronJobs(agentId: string): Promise<CronSkillJob[]> {
   const agent = await prisma.agent.findUnique({
     where: { id: agentId },
-    select: { openclawCronJobs: true },
+    select: { cronJobs: true },
   });
 
-  if (!agent?.openclawCronJobs) return [];
+  if (!agent?.cronJobs) return [];
 
   try {
-    return JSON.parse(agent.openclawCronJobs) as CronSkillJob[];
+    return JSON.parse(agent.cronJobs) as CronSkillJob[];
   } catch {
     return [];
   }

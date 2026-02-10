@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { startAgent } from "@/lib/openclaw/manager";
 import { generateRegistrationJSON } from "@/lib/blockchain/erc8004";
 import { getNextDerivationIndex, deriveAddress } from "@/lib/blockchain/wallet";
 
@@ -111,19 +110,8 @@ export async function POST(request: Request) {
       },
     });
 
-    // Log creation
-    await prisma.activityLog.create({
-      data: {
-        agentId: agent.id,
-        type: "info",
-        message: `Agent "${name}" created with ${llmProvider}/${llmModel} — deploying via OpenClaw`,
-      },
-    });
-
-    // Start OpenClaw runtime
+    // Activate the agent directly (no external gateway needed)
     try {
-      await startAgent(agent.id);
-
       // Generate & record ERC-8004 registration
       const erc8004AgentId = Math.floor(Math.random() * 10000).toString();
       const agentURI = `ipfs://bafkrei${agent.id.replace(/-/g, "").slice(0, 20)}`;
@@ -131,8 +119,18 @@ export async function POST(request: Request) {
       await prisma.agent.update({
         where: { id: agent.id },
         data: {
+          status: "active",
+          deployedAt: new Date(),
           erc8004AgentId,
           erc8004URI: agentURI,
+        },
+      });
+
+      await prisma.activityLog.create({
+        data: {
+          agentId: agent.id,
+          type: "action",
+          message: `Agent "${name}" deployed with ${llmProvider}/${llmModel}`,
         },
       });
 
@@ -154,7 +152,7 @@ export async function POST(request: Request) {
         },
       });
     } catch (deployError) {
-      console.error("OpenClaw deployment error:", deployError);
+      console.error("Deployment error:", deployError);
       await prisma.activityLog.create({
         data: {
           agentId: agent.id,

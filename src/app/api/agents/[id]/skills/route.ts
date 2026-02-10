@@ -17,7 +17,7 @@ export async function GET(
 
     const agent = await prisma.agent.findUnique({
       where: { id },
-      select: { templateType: true, openclawCronJobs: true },
+      select: { templateType: true, cronJobs: true },
     });
 
     if (!agent) {

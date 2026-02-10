@@ -75,16 +75,27 @@ export interface AgentVerificationStatus {
 export async function startVerification(
   req: StartVerificationRequest
 ): Promise<StartVerificationResponse> {
-  const res = await fetch(`${SELFCLAW_BASE_URL}/start-verification`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${SELFCLAW_BASE_URL}/start-verification`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    });
+  } catch (networkError) {
+    throw new Error(`Network error contacting SelfClaw: ${networkError instanceof Error ? networkError.message : "fetch failed"}`);
+  }
 
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(`SelfClaw returned non-JSON response (status ${res.status})`);
+  }
 
   if (!res.ok) {
-    throw new Error(data.error || `SelfClaw API error: ${res.status}`);
+    console.error("[SelfClaw] start-verification error:", res.status, data);
+    throw new Error(data.error || data.message || `SelfClaw API error: ${res.status}`);
   }
 
   return data;
@@ -96,16 +107,27 @@ export async function startVerification(
 export async function signChallenge(
   req: SignChallengeRequest
 ): Promise<SignChallengeResponse> {
-  const res = await fetch(`${SELFCLAW_BASE_URL}/sign-challenge`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${SELFCLAW_BASE_URL}/sign-challenge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    });
+  } catch (networkError) {
+    throw new Error(`Network error contacting SelfClaw: ${networkError instanceof Error ? networkError.message : "fetch failed"}`);
+  }
 
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(`SelfClaw returned non-JSON response (status ${res.status})`);
+  }
 
   if (!res.ok) {
-    throw new Error(data.error || `SelfClaw API error: ${res.status}`);
+    console.error("[SelfClaw] sign-challenge error:", res.status, data);
+    throw new Error(data.error || data.message || `SelfClaw API error: ${res.status}`);
   }
 
   return data;
@@ -118,14 +140,25 @@ export async function signChallenge(
 export async function checkAgentStatus(
   publicKey: string
 ): Promise<AgentVerificationStatus> {
-  const res = await fetch(
-    `${SELFCLAW_BASE_URL}/agent?publicKey=${encodeURIComponent(publicKey)}`
-  );
+  let res: Response;
+  try {
+    res = await fetch(
+      `${SELFCLAW_BASE_URL}/agent?publicKey=${encodeURIComponent(publicKey)}`
+    );
+  } catch (networkError) {
+    throw new Error(`Network error contacting SelfClaw: ${networkError instanceof Error ? networkError.message : "fetch failed"}`);
+  }
 
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(`SelfClaw returned non-JSON response (status ${res.status})`);
+  }
 
   if (!res.ok && res.status !== 404) {
-    throw new Error(data.error || `SelfClaw API error: ${res.status}`);
+    console.error("[SelfClaw] agent status error:", res.status, data);
+    throw new Error(data.error || data.message || `SelfClaw API error: ${res.status}`);
   }
 
   return data;

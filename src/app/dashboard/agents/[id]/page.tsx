@@ -293,6 +293,11 @@ export default function AgentDetailPage() {
       setVerifyPolling(true);
     } catch (err) {
       console.error("Restart verification failed:", err);
+      setVerificationStatus({
+        status: "failed",
+        verified: false,
+        message: err instanceof Error ? err.message : "Failed to restart verification. Check your network.",
+      });
     } finally {
       setVerifyLoading(false);
     }
@@ -626,8 +631,13 @@ export default function AgentDetailPage() {
               className="border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
               onClick={() => {
                 setVerifyModalOpen(true);
-                if (!verificationStatus || verificationStatus.status === "not_started") {
-                  handleStartVerification();
+                const s = verificationStatus?.status;
+                if (!s || s === "not_started" || s === "failed") {
+                  handleRestartVerification();
+                } else if (s === "qr_ready" || s === "pending" || s === "challenge_signed") {
+                  // Stale session — auto-restart
+                  setQrSessionExpired(false);
+                  handleRestartVerification();
                 }
               }}
               disabled={verifyLoading}
@@ -653,8 +663,12 @@ export default function AgentDetailPage() {
           }`}
           onClick={() => {
             setVerifyModalOpen(true);
-            if (!verificationStatus || verificationStatus.status === "not_started") {
-              handleStartVerification();
+            const s = verificationStatus?.status;
+            if (!s || s === "not_started" || s === "failed") {
+              handleRestartVerification();
+            } else if (s === "qr_ready" || s === "pending" || s === "challenge_signed") {
+              setQrSessionExpired(false);
+              handleRestartVerification();
             }
           }}
         >
@@ -1793,6 +1807,7 @@ export default function AgentDetailPage() {
                   {/* The actual Self.xyz QR code with disclosures, deeplinks, websocket status */}
                   <div className="rounded-2xl overflow-hidden bg-white">
                     <SelfQRcodeWrapper
+                      key={verificationStatus.sessionId || "qr"}
                       selfApp={verificationStatus.selfAppConfig as unknown as SelfApp}
                       onSuccess={() => {
                         console.log("[SelfClaw] QR verification succeeded via websocket!");
@@ -1806,20 +1821,11 @@ export default function AgentDetailPage() {
                         fetchVerification();
                       }}
                       onError={(err) => {
-                        console.warn("[SelfClaw] QR websocket error:", err);
-                        const reason = err?.reason || err?.error_code;
-                        if (reason) {
-                          // Real error with a message — show it
-                          setVerificationStatus((prev) => prev ? {
-                            ...prev,
-                            status: "failed",
-                            message: reason,
-                          } : null);
-                          setVerifyPolling(false);
-                        } else {
-                          // Empty {} = session expired on Self.xyz side
-                          setQrSessionExpired(true);
-                        }
+                        console.warn("[SelfClaw] QR websocket error:", JSON.stringify(err));
+                        // QR component errors = session expired or websocket failed
+                        // Don't hard-fail — show "session expired" UI with retry
+                        setQrSessionExpired(true);
+                        setVerifyPolling(false);
                       }}
                       type="websocket"
                       size={280}
@@ -1973,7 +1979,7 @@ export default function AgentDetailPage() {
               <XCircle className="w-10 h-10 text-red-400 mx-auto" />
               <div>
                 <h4 className="text-white font-semibold mb-1">Verification Failed</h4>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-400 max-w-xs mx-auto">
                   {verificationStatus.message || "Something went wrong. Please try again."}
                 </p>
               </div>
@@ -1983,8 +1989,11 @@ export default function AgentDetailPage() {
                 onClick={handleRestartVerification}
                 disabled={verifyLoading}
               >
-                <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-                Try Again
+                {verifyLoading ? (
+                  <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Restarting...</>
+                ) : (
+                  <><RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Try Again</>
+                )}
               </Button>
             </div>
           )}

@@ -71,6 +71,8 @@ export async function GET(
         ? JSON.parse(verification.selfAppConfig)
         : null,
       hasSession: !!verification.sessionId,
+      sessionId: verification.sessionId,
+      createdAt: verification.createdAt,
     });
   } catch (error) {
     console.error("Failed to get verification status:", error);
@@ -149,11 +151,20 @@ async function handleStart(agent: { id: string; name: string }) {
   const encryptedKey = encryptPrivateKey(privateKeyHex);
 
   // Call SelfClaw to start verification
-  const selfClawResponse = await startVerification({
-    agentPublicKey: publicKey,
-    agentName: agent.name,
-  });
-  console.log("[SelfClaw] start-verification response:", JSON.stringify(selfClawResponse, null, 2));
+  let selfClawResponse;
+  try {
+    selfClawResponse = await startVerification({
+      agentPublicKey: publicKey,
+      agentName: agent.name,
+    });
+    console.log("[SelfClaw] start-verification response:", JSON.stringify(selfClawResponse, null, 2));
+  } catch (apiError) {
+    console.error("[SelfClaw] start-verification FAILED:", apiError);
+    return NextResponse.json(
+      { error: `SelfClaw API error: ${apiError instanceof Error ? apiError.message : "Unknown error"}` },
+      { status: 502 }
+    );
+  }
 
   // Upsert verification record
   const verification = await prisma.agentVerification.upsert({
@@ -224,15 +235,33 @@ async function handleSign(agentId: string) {
   }
 
   // Decrypt the private key and sign the challenge
-  const privateKeyHex = decryptPrivateKey(verification.encryptedPrivateKey);
-  const signature = await signMessage(verification.challenge, privateKeyHex);
+  let signature: string;
+  try {
+    const privateKeyHex = decryptPrivateKey(verification.encryptedPrivateKey);
+    signature = await signMessage(verification.challenge, privateKeyHex);
+  } catch (keyError) {
+    console.error("[SelfClaw] Key decryption/signing FAILED:", keyError);
+    return NextResponse.json(
+      { error: `Signing failed: ${keyError instanceof Error ? keyError.message : "Unknown error"}` },
+      { status: 500 }
+    );
+  }
 
   // Submit to SelfClaw
-  const signResponse = await signChallenge({
-    sessionId: verification.sessionId,
-    signature,
-  });
-  console.log("[SelfClaw] sign-challenge response:", JSON.stringify(signResponse, null, 2));
+  let signResponse;
+  try {
+    signResponse = await signChallenge({
+      sessionId: verification.sessionId,
+      signature,
+    });
+    console.log("[SelfClaw] sign-challenge response:", JSON.stringify(signResponse, null, 2));
+  } catch (apiError) {
+    console.error("[SelfClaw] sign-challenge FAILED:", apiError);
+    return NextResponse.json(
+      { error: `SelfClaw sign error: ${apiError instanceof Error ? apiError.message : "Unknown error"}` },
+      { status: 502 }
+    );
+  }
 
   // Update status — after signing, the QR code becomes available
   await prisma.agentVerification.update({

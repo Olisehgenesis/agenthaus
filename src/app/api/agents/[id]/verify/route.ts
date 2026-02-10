@@ -153,6 +153,7 @@ async function handleStart(agent: { id: string; name: string }) {
     agentPublicKey: publicKey,
     agentName: agent.name,
   });
+  console.log("[SelfClaw] start-verification response:", JSON.stringify(selfClawResponse, null, 2));
 
   // Upsert verification record
   const verification = await prisma.agentVerification.upsert({
@@ -231,6 +232,7 @@ async function handleSign(agentId: string) {
     sessionId: verification.sessionId,
     signature,
   });
+  console.log("[SelfClaw] sign-challenge response:", JSON.stringify(signResponse, null, 2));
 
   // Update status — after signing, the QR code becomes available
   await prisma.agentVerification.update({
@@ -318,6 +320,10 @@ async function handleCheck(agentId: string) {
     return NextResponse.json({
       status: verification.status,
       verified: false,
+      selfAppConfig: verification.selfAppConfig
+        ? JSON.parse(verification.selfAppConfig)
+        : null,
+      sessionId: verification.sessionId,
       message: "Verification not yet complete. Scan the QR code with the Self app.",
     });
   } catch (error) {
@@ -325,6 +331,10 @@ async function handleCheck(agentId: string) {
     return NextResponse.json({
       status: verification.status,
       verified: false,
+      selfAppConfig: verification.selfAppConfig
+        ? JSON.parse(verification.selfAppConfig)
+        : null,
+      sessionId: verification.sessionId,
       message: "Waiting for verification to complete...",
     });
   }

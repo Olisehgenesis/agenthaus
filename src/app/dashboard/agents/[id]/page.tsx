@@ -43,6 +43,7 @@ import { getTemplateIcon, getStatusColor, formatAddress, formatCurrency, formatD
 import { BLOCK_EXPLORER, BLOCK_EXPLORERS } from "@/lib/constants";
 import { useERC8004 } from "@/hooks/useERC8004";
 import { Modal } from "@/components/ui/modal";
+import { QRCodeSVG } from "qrcode.react";
 
 interface AgentData {
   id: string;
@@ -186,7 +187,12 @@ export default function AgentDetailPage() {
         });
         if (res.ok) {
           const data = await res.json();
-          setVerificationStatus(data);
+          // Preserve selfAppConfig from previous state if poll doesn't return it
+          setVerificationStatus((prev) => ({
+            ...prev,
+            ...data,
+            selfAppConfig: data.selfAppConfig || prev?.selfAppConfig,
+          }));
           if (data.verified) {
             setVerifyPolling(false);
           }
@@ -220,7 +226,13 @@ export default function AgentDetailPage() {
       const signData = await signRes.json();
       if (!signRes.ok) throw new Error(signData.error);
 
-      setVerificationStatus(signData);
+      // Merge start + sign data to keep selfAppConfig & sessionId
+      setVerificationStatus({
+        ...startData,
+        ...signData,
+        selfAppConfig: signData.selfAppConfig || startData.selfAppConfig,
+        sessionId: signData.sessionId || startData.sessionId,
+      });
       setVerifyPolling(true); // Start polling for QR scan completion
     } catch (err) {
       console.error("Verification failed:", err);
@@ -254,7 +266,12 @@ export default function AgentDetailPage() {
         body: JSON.stringify({ action: "sign" }),
       });
       const signData = await signRes.json();
-      setVerificationStatus(signData);
+      setVerificationStatus({
+        ...data,
+        ...signData,
+        selfAppConfig: signData.selfAppConfig || data.selfAppConfig,
+        sessionId: signData.sessionId || data.sessionId,
+      });
       setVerifyPolling(true);
     } catch (err) {
       console.error("Restart verification failed:", err);
@@ -1754,16 +1771,34 @@ export default function AgentDetailPage() {
                 </p>
               </div>
 
-              {/* QR Code Area */}
+              {/* QR Code */}
               {verificationStatus.selfAppConfig ? (
-                <div className="inline-block p-5 rounded-xl bg-white">
-                  <div className="w-44 h-44 flex items-center justify-center">
-                    <div className="text-center">
-                      <ScanLine className="w-10 h-10 text-slate-400 mx-auto mb-2" />
-                      <p className="text-xs text-slate-600 font-medium">Self App QR</p>
-                      <p className="text-[10px] text-slate-500">Check Self app for scan prompt</p>
-                    </div>
-                  </div>
+                <div className="inline-block p-4 rounded-xl bg-white">
+                  <QRCodeSVG
+                    value={JSON.stringify(verificationStatus.selfAppConfig)}
+                    size={200}
+                    level="M"
+                    includeMargin={false}
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-2 text-center">
+                    Scan with the Self app
+                  </p>
+                </div>
+              ) : verificationStatus.sessionId ? (
+                <div className="inline-block p-4 rounded-xl bg-white">
+                  <QRCodeSVG
+                    value={`https://selfclaw.ai/verify/${verificationStatus.sessionId}`}
+                    size={200}
+                    level="M"
+                    includeMargin={false}
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-2 text-center">
+                    Scan with the Self app
+                  </p>
                 </div>
               ) : (
                 <div className="inline-block p-5 rounded-xl bg-slate-800/50">

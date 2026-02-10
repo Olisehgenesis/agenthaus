@@ -29,10 +29,11 @@ export const ERC8004_CONTRACTS: Record<number, { identity: string; reputation: s
     identity: "0x8004A818BFB912233c491871b3d84c89A494BD9e",
     reputation: "0x8004B663056A597Dffe9eCcC1965A193B7388713",
   },
-  // Celo Sepolia — not yet deployed by ERC-8004 team
-  // To deploy yourself, clone https://github.com/erc-8004/erc-8004-contracts and run:
-  //   npx hardhat ignition deploy ignition/modules/Deploy.ts --network celoSepolia
-  // Then set env vars: NEXT_PUBLIC_ERC8004_IDENTITY, NEXT_PUBLIC_ERC8004_REPUTATION
+  // Celo Sepolia Testnet — official deployment
+  11142220: {
+    identity: "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+    reputation: "0x8004B663056A597Dffe9eCcC1965A193B7388713",
+  },
 } as const;
 
 // Legacy aliases (for backward compatibility)

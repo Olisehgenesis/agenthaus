@@ -44,9 +44,11 @@ export const ERC8004_ADDRESSES: Record<
     identityRegistry: "0x8004A818BFB912233c491871b3d84c89A494BD9e",
     reputationRegistry: "0x8004B663056A597Dffe9eCcC1965A193B7388713",
   },
-  // Celo Sepolia Testnet (11142220) — same vanity addresses if deployed;
-  // falls back to undefined → UI shows "Not deployed on this network"
-  // You can override via env: NEXT_PUBLIC_ERC8004_IDENTITY, NEXT_PUBLIC_ERC8004_REPUTATION
+  // Celo Sepolia Testnet (11142220)
+  11142220: {
+    identityRegistry: "0x8004A818BFB912233c491871b3d84c89A494BD9e",
+    reputationRegistry: "0x8004B663056A597Dffe9eCcC1965A193B7388713",
+  },
 };
 
 /** Resolve contract addresses for a given chain, with env-var overrides */

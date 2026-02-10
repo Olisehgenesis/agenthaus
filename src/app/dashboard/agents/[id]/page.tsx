@@ -572,11 +572,86 @@ export default function AgentDetailPage() {
               </Button>
             </a>
           )}
+          {/* SelfClaw Verify Button */}
+          {verificationStatus?.verified ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+              onClick={() => setActiveTab("verify")}
+            >
+              <BadgeCheck className="w-4 h-4" /> Verified
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+              onClick={() => {
+                setActiveTab("verify");
+                // Auto-start verification if not started yet
+                if (!verificationStatus || verificationStatus.status === "not_started") {
+                  handleStartVerification();
+                }
+              }}
+              disabled={verifyLoading}
+            >
+              {verifyLoading ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Verifying...</>
+              ) : (
+                <><ShieldCheck className="w-4 h-4" /> Verify</>
+              )}
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {/* Verification Status */}
+        <Card
+          className={`cursor-pointer transition-all ${
+            verificationStatus?.verified
+              ? "border-emerald-500/30 hover:border-emerald-500/50"
+              : "border-violet-500/20 hover:border-violet-500/40"
+          }`}
+          onClick={() => {
+            setActiveTab("verify");
+            if (!verificationStatus || verificationStatus.status === "not_started") {
+              handleStartVerification();
+            }
+          }}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1">
+              {verificationStatus?.verified ? (
+                <BadgeCheck className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <ShieldCheck className="w-4 h-4 text-violet-400" />
+              )}
+              <span className="text-xs text-slate-500">Verification</span>
+            </div>
+            {verificationStatus?.verified ? (
+              <>
+                <div className="text-xl font-bold text-emerald-400">Active</div>
+                <div className="text-xs text-emerald-400/60 mt-1">✅ Human Verified</div>
+              </>
+            ) : verificationStatus && ["pending", "qr_ready", "challenge_signed"].includes(verificationStatus.status) ? (
+              <>
+                <div className="text-xl font-bold text-violet-400">Pending</div>
+                <div className="text-xs text-violet-400/60 mt-1 flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Scan QR
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-xl font-bold text-slate-400">—</div>
+                <div className="text-xs text-violet-400 mt-1">Click to verify</div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-1">

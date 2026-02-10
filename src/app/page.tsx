@@ -20,14 +20,14 @@ export default function HomePage() {
   const { isConnected } = useAccount();
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-gypsum">
       {/* Navigation */}
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-slate-800/50 backdrop-blur-sm sticky top-0 z-50 bg-slate-950/80">
+      <nav className="flex items-center justify-between px-6 py-4 border-b border-forest/10 backdrop-blur-sm sticky top-0 z-50 bg-gypsum/80">
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20">
-            <Zap className="w-5 h-5 text-white" />
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-celo shadow-lg shadow-celo/20">
+            <Zap className="w-5 h-5 text-forest" />
           </div>
-          <span className="text-xl font-bold text-white tracking-tight">Agent Forge</span>
+          <span className="text-xl font-bold text-forest tracking-tight">Agent Forge</span>
         </div>
         <div className="flex items-center gap-4">
           <ConnectButton
@@ -49,27 +49,27 @@ export default function HomePage() {
       <section className="relative overflow-hidden">
         {/* Background effects */}
         <div className="absolute inset-0 grid-pattern" />
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-celo/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-forest/5 rounded-full blur-3xl" />
 
         <div className="relative max-w-6xl mx-auto px-6 py-24 text-center">
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-8 rounded-full bg-forest/10 border border-forest/15 text-forest text-sm font-medium">
             <Sparkles className="w-4 h-4" />
             Built on Celo with ERC-8004
           </div>
 
           {/* Heading */}
-          <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 leading-tight">
+          <h1 className="text-5xl md:text-7xl font-bold text-forest mb-6 leading-tight">
             Deploy AI Agents
             <br />
-            <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-forest-light to-forest bg-clip-text text-transparent">
               Without Code
             </span>
           </h1>
 
           {/* Subtitle */}
-          <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto mb-12 leading-relaxed">
+          <p className="text-lg md:text-xl text-forest-muted max-w-2xl mx-auto mb-12 leading-relaxed">
             Create, deploy, and manage AI agents on the Celo blockchain. 
             Automatic ERC-8004 registration, secure wallet management, 
             and real-time monitoring — all from a visual dashboard.
@@ -102,8 +102,8 @@ export default function HomePage() {
               { label: "Registration", value: "ERC-8004" },
             ].map((stat) => (
               <div key={stat.label} className="text-center">
-                <div className="text-2xl font-bold text-white">{stat.value}</div>
-                <div className="text-sm text-slate-500">{stat.label}</div>
+                <div className="text-2xl font-bold text-forest">{stat.value}</div>
+                <div className="text-sm text-forest-muted">{stat.label}</div>
               </div>
             ))}
           </div>
@@ -113,10 +113,10 @@ export default function HomePage() {
       {/* Features Section */}
       <section id="features" className="max-w-6xl mx-auto px-6 py-24">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl md:text-4xl font-bold text-forest mb-4">
             Everything You Need
           </h2>
-          <p className="text-slate-400 max-w-xl mx-auto">
+          <p className="text-forest-muted max-w-xl mx-auto">
             From creation to monitoring, Agent Forge handles the entire lifecycle 
             of your AI agents on Celo.
           </p>
@@ -128,62 +128,62 @@ export default function HomePage() {
               icon: Bot,
               title: "No-Code Builder",
               description: "Choose from pre-built templates or create custom agents with a visual interface. No coding required.",
-              color: "from-emerald-500 to-teal-600",
+              color: "from-forest to-forest-light",
             },
             {
               icon: Shield,
               title: "ERC-8004 Identity",
               description: "Automatic on-chain registration with the ERC-8004 standard. Give your agents a verified identity.",
-              color: "from-blue-500 to-indigo-600",
+              color: "from-blue-600 to-indigo-600",
             },
             {
               icon: Lock,
               title: "Secure Wallets",
               description: "Agent wallets with spending limits, multi-sig for high-value ops, and emergency pause controls.",
-              color: "from-purple-500 to-pink-600",
+              color: "from-purple-600 to-pink-600",
             },
             {
               icon: BarChart3,
               title: "Real-time Monitoring",
               description: "Track transactions, spending, reputation scores, and agent activity in real-time.",
-              color: "from-amber-500 to-orange-600",
+              color: "from-amber-500 to-orange-500",
             },
             {
               icon: Globe,
               title: "Multi-Currency",
               description: "Support for cUSD, cEUR, USDC, USDT and CELO. Process payments in any Celo stablecoin.",
-              color: "from-cyan-500 to-blue-600",
+              color: "from-cyan-500 to-blue-500",
             },
             {
               icon: Sparkles,
               title: "AI Powered",
               description: "Powered by GPT-4 and Claude. Choose your preferred LLM provider for each agent.",
-              color: "from-rose-500 to-red-600",
+              color: "from-rose-500 to-red-500",
             },
           ].map((feature) => (
             <div
               key={feature.title}
-              className="group p-6 rounded-xl border border-slate-800 bg-slate-900/50 hover:border-slate-700 transition-all duration-300 hover:-translate-y-1"
+              className="group p-6 rounded-xl border border-forest/10 bg-white hover:border-forest/20 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-forest/5"
             >
               <div
                 className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} mb-4 shadow-lg`}
               >
                 <feature.icon className="w-6 h-6 text-white" />
               </div>
-              <h3 className="text-lg font-semibold text-white mb-2">{feature.title}</h3>
-              <p className="text-sm text-slate-400 leading-relaxed">{feature.description}</p>
+              <h3 className="text-lg font-semibold text-forest mb-2">{feature.title}</h3>
+              <p className="text-sm text-forest-muted leading-relaxed">{feature.description}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* How It Works */}
-      <section className="max-w-6xl mx-auto px-6 py-24 border-t border-slate-800/50">
+      <section className="max-w-6xl mx-auto px-6 py-24 border-t border-forest/10">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl md:text-4xl font-bold text-forest mb-4">
             How It Works
           </h2>
-          <p className="text-slate-400 max-w-xl mx-auto">
+          <p className="text-forest-muted max-w-xl mx-auto">
             Deploy your first AI agent in minutes, not days.
           </p>
         </div>
@@ -196,26 +196,26 @@ export default function HomePage() {
             { step: "04", title: "Deploy", desc: "One-click deployment with automatic ERC-8004 registration" },
           ].map((item) => (
             <div key={item.step} className="text-center">
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xl font-bold mb-4">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-celo/20 border border-celo/30 text-forest text-xl font-bold mb-4">
                 {item.step}
               </div>
-              <h3 className="text-white font-semibold mb-2">{item.title}</h3>
-              <p className="text-sm text-slate-400">{item.desc}</p>
+              <h3 className="text-forest font-semibold mb-2">{item.title}</h3>
+              <p className="text-sm text-forest-muted">{item.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/50 py-8">
+      <footer className="border-t border-forest/10 py-8">
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-emerald-400" />
-            <span className="text-sm text-slate-500">
+            <Zap className="w-4 h-4 text-forest" />
+            <span className="text-sm text-forest-muted">
               Celo Agent Forge © 2026
             </span>
           </div>
-          <div className="flex items-center gap-4 text-sm text-slate-500">
+          <div className="flex items-center gap-4 text-sm text-forest-muted">
             <span>Built with ERC-8004</span>
             <span>•</span>
             <span>Powered by Celo</span>

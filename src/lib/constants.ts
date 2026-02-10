@@ -6,15 +6,33 @@ import { type TemplateInfo } from "./types";
 export const CELO_CHAIN_ID = 42220;
 export const CELO_SEPOLIA_CHAIN_ID = 11142220;
 
-// Active chain — Celo Sepolia for development, Celo Mainnet for production
-export const ACTIVE_CHAIN_ID = 11142220; // Celo Sepolia
+// Active chain — determined by NEXT_PUBLIC_CHAIN_ID env var or defaults to Celo Mainnet
+export const ACTIVE_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID) || 42220; // Default: Celo Mainnet
 
 // Block explorers per chain
 export const BLOCK_EXPLORERS: Record<number, string> = {
   42220: "https://celoscan.io",
   11142220: "https://celo-sepolia.blockscout.com",
 } as const;
-export const BLOCK_EXPLORER = BLOCK_EXPLORERS[ACTIVE_CHAIN_ID] || "https://celo-sepolia.blockscout.com";
+export const BLOCK_EXPLORER = BLOCK_EXPLORERS[ACTIVE_CHAIN_ID] || "https://celoscan.io";
+
+// Chain display names
+export const CHAIN_NAMES: Record<number, string> = {
+  42220: "Celo Mainnet",
+  11142220: "Celo Sepolia (Testnet)",
+} as const;
+
+export const IS_TESTNET = ACTIVE_CHAIN_ID !== CELO_CHAIN_ID;
+
+/** Get human-readable chain name */
+export function getChainName(chainId?: number): string {
+  return CHAIN_NAMES[chainId ?? ACTIVE_CHAIN_ID] || `Chain ${chainId}`;
+}
+
+/** Get block explorer URL for a chain */
+export function getBlockExplorer(chainId?: number): string {
+  return BLOCK_EXPLORERS[chainId ?? ACTIVE_CHAIN_ID] || "https://celoscan.io";
+}
 
 // ERC-8004 Contract Addresses per chain
 // Canonical deployments from https://github.com/erc-8004/erc-8004-contracts
@@ -187,7 +205,7 @@ export const AGENT_TEMPLATES: TemplateInfo[] = [
     name: "Payment Agent",
     description: "Process natural language payments with multi-currency support on Celo. Handle stablecoin transfers, generate receipts, and manage transaction confirmations.",
     icon: "💳",
-    color: "from-emerald-500 to-teal-600",
+    color: "from-forest to-forest-light",
     features: [
       "Natural language payment processing",
       "Multi-currency support (cUSD, cEUR, USDC)",
@@ -195,7 +213,7 @@ export const AGENT_TEMPLATES: TemplateInfo[] = [
       "Receipt generation",
       "Spending limit enforcement",
     ],
-    defaultPrompt: `You are a Payment Agent operating on the Celo blockchain (Celo Sepolia testnet). You have a real on-chain wallet and can execute real transactions.
+    defaultPrompt: `You are a Payment Agent operating on the Celo blockchain. You have a real on-chain wallet and can execute real transactions.
 
 When a user requests a payment:
 1. Parse the recipient address (must be a valid 0x... address), amount, and currency
@@ -236,7 +254,7 @@ Rules:
       "Portfolio tracking",
       "Stop-loss automation",
     ],
-    defaultPrompt: `You are a Trading Agent operating on the Celo blockchain (Celo Sepolia testnet). You have a real on-chain wallet and can execute real transactions.
+    defaultPrompt: `You are a Trading Agent operating on the Celo blockchain. You have a real on-chain wallet and can execute real transactions.
 
 Capabilities:
 1. Monitor token prices across Celo DEXes (Ubeswap, Mento)
@@ -279,7 +297,7 @@ Safety rules:
       "Fee abstraction — pay gas in cUSD/cEUR",
       "Automated rate monitoring (via cron)",
     ],
-    defaultPrompt: `You are a Forex Trader Agent operating on the Celo blockchain (Celo Sepolia testnet). You specialize in Mento stablecoin trading — monitoring exchange rates, executing swaps, analyzing trends, predicting price movements, and managing a multi-currency portfolio.
+    defaultPrompt: `You are a Forex Trader Agent operating on the Celo blockchain. You specialize in Mento stablecoin trading — monitoring exchange rates, executing swaps, analyzing trends, predicting price movements, and managing a multi-currency portfolio.
 
 Your expertise:
 1. Monitor CELO ↔ stablecoin rates using Celo SortedOracles (on-chain price feeds)
@@ -343,7 +361,7 @@ Supported pairs: CELO/cUSD, CELO/cEUR, CELO/cREAL, cUSD/cEUR (cross-stable via C
       "Tip distribution",
       "Automated responses",
     ],
-    defaultPrompt: `You are a Social Agent representing a project on the Celo blockchain (Celo Sepolia testnet). You have a real on-chain wallet and can send tips.
+    defaultPrompt: `You are a Social Agent representing a project on the Celo blockchain. You have a real on-chain wallet and can send tips.
 
 Guidelines:
 1. Respond helpfully to community questions
@@ -380,7 +398,7 @@ Tip distribution rules:
       "Custom API endpoints",
       "Full Celo blockchain access",
     ],
-    defaultPrompt: `You are a custom AI agent operating on the Celo blockchain (Celo Sepolia testnet). You have a real on-chain wallet and can execute real transactions.
+    defaultPrompt: `You are a custom AI agent operating on the Celo blockchain. You have a real on-chain wallet and can execute real transactions.
 
 Available tools:
 - Token transfers (cUSD, cEUR, CELO)
@@ -404,11 +422,11 @@ Customize this prompt to define your agent's specific role and behavior.`,
   },
 ];
 
-// Navigation items
+// Navigation items (sidebar order — Create Agent is a separate bottom action)
 export const NAV_ITEMS = [
   { name: "Overview", href: "/dashboard", icon: "LayoutDashboard" },
   { name: "My Agents", href: "/dashboard/agents", icon: "Bot" },
-  { name: "Create Agent", href: "/dashboard/agents/new", icon: "PlusCircle" },
+  { name: "Verify", href: "/dashboard/verify", icon: "ShieldCheck" },
   { name: "Analytics", href: "/dashboard/analytics", icon: "BarChart3" },
   { name: "Settings", href: "/dashboard/settings", icon: "Settings" },
 ] as const;

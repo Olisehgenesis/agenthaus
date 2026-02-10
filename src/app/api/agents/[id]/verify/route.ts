@@ -46,6 +46,7 @@ export async function GET(
         selfxyzVerified: true,
         selfxyzRegisteredAt: true,
         selfAppConfig: true,
+        challenge: true,
         verifiedAt: true,
         createdAt: true,
         sessionId: true,
@@ -57,6 +58,17 @@ export async function GET(
         status: "not_started",
         verified: false,
       });
+    }
+
+    // Extract challenge expiry if available
+    let challengeExpiresAt: number | null = null;
+    if (verification.status !== "verified" && verification.challenge) {
+      try {
+        const parsed = JSON.parse(verification.challenge);
+        challengeExpiresAt = parsed.expiresAt || null;
+      } catch {
+        // ignore
+      }
     }
 
     return NextResponse.json({
@@ -72,6 +84,7 @@ export async function GET(
         : null,
       hasSession: !!verification.sessionId,
       sessionId: verification.sessionId,
+      challengeExpiresAt,
       createdAt: verification.createdAt,
     });
   } catch (error) {
@@ -166,8 +179,17 @@ async function handleStart(agent: { id: string; name: string }) {
     );
   }
 
+  // Parse challenge to extract expiry timestamp
+  let challengeExpiresAt: number | null = null;
+  try {
+    const challengeObj = JSON.parse(selfClawResponse.challenge);
+    challengeExpiresAt = challengeObj.expiresAt || null;
+  } catch {
+    console.warn("[SelfClaw] Could not parse challenge JSON for expiry");
+  }
+
   // Upsert verification record
-  const verification = await prisma.agentVerification.upsert({
+  await prisma.agentVerification.upsert({
     where: { agentId: agent.id },
     create: {
       agentId: agent.id,
@@ -204,6 +226,7 @@ async function handleStart(agent: { id: string; name: string }) {
     signatureRequired: selfClawResponse.signatureRequired,
     selfAppConfig: selfClawResponse.selfApp || null,
     publicKey,
+    challengeExpiresAt, // So the frontend can track session lifetime
     message: "Verification started. Next step: call with action 'sign' to sign the challenge.",
   });
 }
@@ -234,10 +257,29 @@ async function handleSign(agentId: string) {
     );
   }
 
-  // Decrypt the private key and sign the challenge
+  // Check if challenge has expired (10 minute window)
+  let challengeExpiresAt: number | null = null;
+  try {
+    const challengeObj = JSON.parse(verification.challenge);
+    challengeExpiresAt = challengeObj.expiresAt || null;
+    if (challengeExpiresAt && Date.now() > challengeExpiresAt) {
+      console.warn("[SelfClaw] Challenge has expired — need to restart verification");
+      return NextResponse.json(
+        { error: "Challenge has expired. Please restart verification.", expired: true },
+        { status: 400 }
+      );
+    }
+  } catch {
+    // Continue — we'll let SelfClaw reject if expired
+  }
+
+  // Decrypt the private key and sign the EXACT challenge string from SelfClaw
   let signature: string;
   try {
     const privateKeyHex = decryptPrivateKey(verification.encryptedPrivateKey);
+    console.log(
+      `[SelfClaw] Signing challenge (${verification.challenge.length} chars) for session ${verification.sessionId}`
+    );
     signature = await signMessage(verification.challenge, privateKeyHex);
   } catch (keyError) {
     console.error("[SelfClaw] Key decryption/signing FAILED:", keyError);
@@ -264,18 +306,22 @@ async function handleSign(agentId: string) {
   }
 
   // Update status — after signing, the QR code becomes available
+  const updatedSelfAppConfig = signResponse.selfApp
+    ? JSON.stringify(signResponse.selfApp)
+    : verification.selfAppConfig;
+
   await prisma.agentVerification.update({
     where: { agentId },
     data: {
       status: "qr_ready",
-      selfAppConfig: signResponse.selfApp
-        ? JSON.stringify(signResponse.selfApp)
-        : verification.selfAppConfig,
+      selfAppConfig: updatedSelfAppConfig,
     },
   });
 
   return NextResponse.json({
     status: "qr_ready",
+    sessionId: verification.sessionId, // Return sessionId so frontend can track it
+    challengeExpiresAt, // So frontend knows when to restart
     message: "Challenge signed. Scan the QR code with the Self app to complete verification.",
     selfAppConfig: signResponse.selfApp || (
       verification.selfAppConfig ? JSON.parse(verification.selfAppConfig) : null
@@ -307,6 +353,7 @@ async function handleCheck(agentId: string) {
   // Poll SelfClaw for status
   try {
     const agentStatus = await checkAgentStatus(verification.publicKey);
+    console.log("[SelfClaw] check status for", verification.publicKey.slice(0, 20) + "...", "→", JSON.stringify(agentStatus));
 
     if (agentStatus.verified) {
       // Verification complete! Update database.
@@ -357,6 +404,8 @@ async function handleCheck(agentId: string) {
     });
   } catch (error) {
     // SelfClaw API may return 404 for not-yet-verified agents
+    console.warn("[SelfClaw] checkAgentStatus error (may be normal for pending agents):", 
+      error instanceof Error ? error.message : error);
     return NextResponse.json({
       status: verification.status,
       verified: false,
@@ -364,6 +413,7 @@ async function handleCheck(agentId: string) {
         ? JSON.parse(verification.selfAppConfig)
         : null,
       sessionId: verification.sessionId,
+      createdAt: verification.createdAt,
       message: "Waiting for verification to complete...",
     });
   }

@@ -28,7 +28,8 @@ interface UseERC8004Return {
   // Registration
   register: (
     ownerAddress: Address,
-    internalAgentId: string // Our DB agent ID
+    internalAgentId: string, // Our DB agent ID
+    agentName?: string // Optional — stored on-chain as "name" metadata
   ) => Promise<RegistrationResult>;
 
   // Read operations
@@ -97,7 +98,8 @@ export function useERC8004(): UseERC8004Return {
   const register = useCallback(
     async (
       ownerAddress: Address,
-      internalAgentId: string
+      internalAgentId: string,
+      agentName?: string
     ): Promise<RegistrationResult> => {
       if (!walletClient) throw new Error("Wallet not connected");
       if (!publicClient) throw new Error("Public client not available");
@@ -123,11 +125,13 @@ export function useERC8004(): UseERC8004Return {
 
         // 2. Call register() on the IdentityRegistry
         // The user's wallet signs and pays gas
+        // If agentName is provided, it's stored on-chain as "name" metadata
         const txHash = await registerAgent(
           walletClient,
           contractAddresses.identityRegistry,
           ownerAddress,
-          agentURI
+          agentURI,
+          agentName
         );
 
         // 3. Wait for the transaction to be confirmed

@@ -1,21 +1,59 @@
 @import "tailwindcss";
 
+/*
+ * Celo Brand Theme
+ * ─────────────────
+ * Gypsum:            #FCF6F1  → main background (calm, breathable)
+ * Forest:            #476520  → primary text, structure (trust, grounded)
+ * Prosperity Yellow: #FCFF52  → CTAs, highlights, action (optimism)
+ */
+
 :root {
-  --background: #020617;
-  --foreground: #e2e8f0;
+  --background: #FCF6F1;
+  --foreground: #476520;
+
+  /* Core palette */
+  --gypsum: #FCF6F1;
+  --gypsum-dark: #F0E7DE;
+  --gypsum-darker: #E3D9CF;
+
+  --forest: #476520;
+  --forest-light: #5A8229;
+  --forest-muted: #8BA870;
+  --forest-faint: #C5D4B3;
+
+  --celo-yellow: #FCFF52;
+  --celo-yellow-hover: #F0F34A;
+  --celo-yellow-muted: #FCFF5233; /* 20% opacity */
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+
+  /* Gypsum (background shades) */
+  --color-gypsum: #FCF6F1;
+  --color-gypsum-dark: #F0E7DE;
+  --color-gypsum-darker: #E3D9CF;
+
+  /* Forest (text / structure) */
+  --color-forest: #476520;
+  --color-forest-light: #5A8229;
+  --color-forest-muted: #8BA870;
+  --color-forest-faint: #C5D4B3;
+
+  /* Prosperity Yellow (CTAs / highlights) */
+  --color-celo: #FCFF52;
+  --color-celo-hover: #F0F34A;
+
+  --font-sans: var(--font-playfair);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), "Playfair Display", Georgia, serif;
 }
 
 /* Custom scrollbar */
@@ -29,28 +67,32 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--gypsum-darker);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: var(--forest-faint);
 }
 
-/* Glow effects */
-.glow-emerald {
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.15), 0 0 60px rgba(16, 185, 129, 0.05);
+/* Glow effects (forest-tinted) */
+.glow-forest {
+  box-shadow: 0 0 20px rgba(71, 101, 32, 0.12), 0 0 60px rgba(71, 101, 32, 0.04);
 }
 
 .glow-text {
-  text-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+  text-shadow: 0 0 20px rgba(71, 101, 32, 0.3);
+}
+
+.glow-yellow {
+  box-shadow: 0 0 20px rgba(252, 255, 82, 0.25), 0 0 60px rgba(252, 255, 82, 0.08);
 }
 
 /* Grid pattern background */
 .grid-pattern {
   background-image: 
-    linear-gradient(rgba(16, 185, 129, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(16, 185, 129, 0.03) 1px, transparent 1px);
+    linear-gradient(rgba(71, 101, 32, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(71, 101, 32, 0.04) 1px, transparent 1px);
   background-size: 60px 60px;
 }
 

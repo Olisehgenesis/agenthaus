@@ -16,19 +16,19 @@ export default function DashboardLayout({
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+      <div className="min-h-screen flex items-center justify-center bg-gypsum">
         <div className="text-center space-y-6 max-w-md">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20 mx-auto">
-            <Shield className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-celo shadow-lg shadow-celo/20 mx-auto">
+            <Shield className="w-8 h-8 text-forest" />
           </div>
-          <h2 className="text-2xl font-bold text-white">Connect Your Wallet</h2>
-          <p className="text-slate-400">
+          <h2 className="text-2xl font-bold text-forest">Connect Your Wallet</h2>
+          <p className="text-forest-muted">
             Connect your Celo wallet to access the Agent Forge dashboard.
           </p>
           <div className="flex justify-center">
             <ConnectButton />
           </div>
-          <div className="flex items-center justify-center gap-2 text-xs text-slate-600">
+          <div className="flex items-center justify-center gap-2 text-xs text-forest-faint">
             <Zap className="w-3 h-3" />
             <span>Supports WalletConnect & MiniPay</span>
           </div>
@@ -38,7 +38,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-950">
+    <div className="flex h-screen overflow-hidden bg-gypsum">
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header />
@@ -49,4 +49,3 @@ export default function DashboardLayout({
     </div>
   );
 }
-

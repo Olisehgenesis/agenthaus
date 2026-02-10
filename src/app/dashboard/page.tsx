@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { useAccount } from "wagmi";
+import { useAccount, useChainId } from "wagmi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +51,7 @@ interface RecentActivityItem {
 
 export default function DashboardPage() {
   const { address, isConnected } = useAccount();
+  const chainId = useChainId();
   const [stats, setStats] = React.useState<DashboardStats | null>(null);
   const [agents, setAgents] = React.useState<AgentSummary[]>([]);
   const [activity, setActivity] = React.useState<RecentActivityItem[]>([]);
@@ -84,10 +85,10 @@ export default function DashboardPage() {
   if (!isConnected) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-        <Wallet className="w-16 h-16 text-slate-600 mb-4" />
-        <h2 className="text-xl font-bold text-white mb-2">Connect Your Wallet</h2>
-        <p className="text-slate-400 max-w-sm">
-          Connect your wallet to view your dashboard, manage agents, and interact with the Celo Sepolia testnet.
+        <Wallet className="w-16 h-16 text-forest-faint mb-4" />
+        <h2 className="text-xl font-bold text-forest mb-2">Connect Your Wallet</h2>
+        <p className="text-forest-muted max-w-sm">
+          Connect your wallet to view your dashboard, manage agents, and interact with the Celo blockchain.
         </p>
       </div>
     );
@@ -96,7 +97,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-forest animate-spin" />
       </div>
     );
   }
@@ -106,10 +107,12 @@ export default function DashboardPage() {
       {/* Welcome */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <h1 className="text-2xl font-bold text-forest">Dashboard</h1>
+          <p className="text-forest-muted text-sm mt-1">
             Welcome back, {address ? formatAddress(address) : "user"}
-            <Badge variant="outline" className="ml-2 text-[10px]">Celo Sepolia Testnet</Badge>
+            <Badge variant="outline" className="ml-2 text-[10px]">
+              {chainId === 42220 ? "Celo Mainnet" : chainId === 11142220 ? "Celo Sepolia Testnet" : `Chain ${chainId}`}
+            </Badge>
           </p>
         </div>
         <Link href="/dashboard/agents/new">
@@ -123,20 +126,20 @@ export default function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
-          { label: "Total Agents", value: stats?.totalAgents ?? 0, icon: Bot, color: "text-emerald-400" },
-          { label: "Active", value: stats?.activeAgents ?? 0, icon: Activity, color: "text-green-400" },
-          { label: "Transactions", value: stats?.totalTransactions ?? 0, icon: TrendingUp, color: "text-blue-400" },
-          { label: "Value Moved", value: formatCurrency(stats?.totalValueTransferred ?? 0), icon: DollarSign, color: "text-purple-400" },
-          { label: "Avg Reputation", value: stats?.averageReputation ? `${stats.averageReputation}/5` : "—", icon: Star, color: "text-amber-400" },
-          { label: "Gas Spent", value: stats?.totalGasSpent ? `${stats.totalGasSpent} CELO` : "0 CELO", icon: Fuel, color: "text-orange-400" },
+          { label: "Total Agents", value: stats?.totalAgents ?? 0, icon: Bot, color: "text-forest" },
+          { label: "Active", value: stats?.activeAgents ?? 0, icon: Activity, color: "text-forest-light" },
+          { label: "Transactions", value: stats?.totalTransactions ?? 0, icon: TrendingUp, color: "text-blue-600" },
+          { label: "Value Moved", value: formatCurrency(stats?.totalValueTransferred ?? 0), icon: DollarSign, color: "text-purple-600" },
+          { label: "Avg Reputation", value: stats?.averageReputation ? `${stats.averageReputation}/5` : "—", icon: Star, color: "text-amber-600" },
+          { label: "Gas Spent", value: stats?.totalGasSpent ? `${stats.totalGasSpent} CELO` : "0 CELO", icon: Fuel, color: "text-orange-600" },
         ].map((stat) => (
           <Card key={stat.label}>
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <stat.icon className={`w-4 h-4 ${stat.color}`} />
-                <span className="text-xs text-slate-500">{stat.label}</span>
+                <span className="text-xs text-forest-muted">{stat.label}</span>
               </div>
-              <div className="text-lg font-bold text-white">{stat.value}</div>
+              <div className="text-lg font-bold text-forest">{stat.value}</div>
             </CardContent>
           </Card>
         ))}
@@ -159,8 +162,8 @@ export default function DashboardPage() {
             <CardContent>
               {agents.length === 0 ? (
                 <div className="text-center py-8">
-                  <Bot className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                  <p className="text-sm text-slate-500 mb-3">No agents yet</p>
+                  <Bot className="w-10 h-10 text-forest-faint mx-auto mb-3" />
+                  <p className="text-sm text-forest-muted mb-3">No agents yet</p>
                   <Link href="/dashboard/agents/new">
                     <Button variant="secondary" size="sm">
                       <Plus className="w-3 h-3" /> Create First Agent
@@ -171,12 +174,12 @@ export default function DashboardPage() {
                 <div className="space-y-3">
                   {agents.map((agent) => (
                     <Link key={agent.id} href={`/dashboard/agents/${agent.id}`}>
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition-colors cursor-pointer">
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-gypsum hover:bg-gypsum-dark transition-colors cursor-pointer">
                         <div className="flex items-center gap-3">
                           <div className="text-xl">{getTemplateIcon(agent.templateType)}</div>
                           <div>
-                            <div className="text-sm font-medium text-white">{agent.name}</div>
-                            <div className="text-xs text-slate-500 capitalize">{agent.templateType}</div>
+                            <div className="text-sm font-medium text-forest">{agent.name}</div>
+                            <div className="text-xs text-forest-muted capitalize">{agent.templateType}</div>
                           </div>
                         </div>
                         <Badge variant={agent.status === "active" ? "default" : "warning"}>
@@ -203,8 +206,8 @@ export default function DashboardPage() {
             <CardContent>
               {activity.length === 0 ? (
                 <div className="text-center py-8">
-                  <Activity className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                  <p className="text-sm text-slate-500">
+                  <Activity className="w-10 h-10 text-forest-faint mx-auto mb-3" />
+                  <p className="text-sm text-forest-muted">
                     No activity yet. Create and deploy an agent to get started.
                   </p>
                 </div>
@@ -213,19 +216,19 @@ export default function DashboardPage() {
                   {activity.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-start gap-3 p-3 rounded-lg bg-slate-800/30"
+                      className="flex items-start gap-3 p-3 rounded-lg bg-gypsum"
                     >
                       <div className={`w-2 h-2 mt-2 rounded-full flex-shrink-0 ${
-                        item.type === "action" ? "bg-emerald-500" :
+                        item.type === "action" ? "bg-forest" :
                         item.type === "warning" ? "bg-amber-500" :
                         item.type === "error" ? "bg-red-500" : "bg-blue-500"
                       }`} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-slate-300">{item.message}</p>
+                        <p className="text-sm text-forest">{item.message}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-slate-500">{item.agentName}</span>
-                          <span className="text-slate-700">•</span>
-                          <span className="text-xs text-slate-600 flex items-center gap-1">
+                          <span className="text-xs text-forest-muted">{item.agentName}</span>
+                          <span className="text-forest-faint">•</span>
+                          <span className="text-xs text-forest-muted flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             {formatDate(item.createdAt)}
                           </span>

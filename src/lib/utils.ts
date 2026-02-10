@@ -31,14 +31,14 @@ export function formatDate(date: Date | string): string {
 
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
-    active: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
-    deploying: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-    draft: "bg-slate-500/10 text-slate-400 border-slate-500/20",
-    paused: "bg-orange-500/10 text-orange-500 border-orange-500/20",
-    stopped: "bg-red-500/10 text-red-500 border-red-500/20",
-    pending: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-    confirmed: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
-    failed: "bg-red-500/10 text-red-500 border-red-500/20",
+    active: "bg-forest/10 text-forest border-forest/20",
+    deploying: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+    draft: "bg-forest/5 text-forest-muted border-forest/10",
+    paused: "bg-orange-500/10 text-orange-600 border-orange-500/20",
+    stopped: "bg-red-500/10 text-red-600 border-red-500/20",
+    pending: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+    confirmed: "bg-forest/10 text-forest border-forest/20",
+    failed: "bg-red-500/10 text-red-600 border-red-500/20",
   };
   return colors[status] || colors.draft;
 }

@@ -13,7 +13,7 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
     const percentage = Math.min((value / max) * 100, 100);
     
     const barColors = {
-      default: "bg-emerald-500",
+      default: "bg-forest",
       warning: "bg-amber-500",
       danger: "bg-red-500",
     };
@@ -23,14 +23,14 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
     return (
       <div className="space-y-1">
         {showLabel && (
-          <div className="flex justify-between text-xs text-slate-400">
+          <div className="flex justify-between text-xs text-forest-muted">
             <span>{value.toFixed(1)}</span>
             <span>{max.toFixed(1)}</span>
           </div>
         )}
         <div
           ref={ref}
-          className={cn("h-2 w-full overflow-hidden rounded-full bg-slate-800", className)}
+          className={cn("h-2 w-full overflow-hidden rounded-full bg-gypsum-dark", className)}
           {...props}
         >
           <div
@@ -45,4 +45,3 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
 Progress.displayName = "Progress";
 
 export { Progress };
-

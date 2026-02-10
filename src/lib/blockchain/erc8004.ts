@@ -8,13 +8,12 @@
  *   2. ReputationRegistry — Signed fixed-point feedback signals
  *   3. ValidationRegistry — TEE / zkTLS / crypto-economic validation hooks
  *
- * Deployed addresses (vanity 0x8004…):
- *   Celo Mainnet:
- *     Identity:   0x8004A169FB4a3325136EB29fA0ceB6D2e539a432
- *     Reputation: 0x8004BAa17C55a88189AE136b182e5fdA19dE9b63
- *   BSC Testnet:
- *     Identity:   0x8004A818BFB912233c491871b3d84c89A494BD9e
- *     Reputation: 0x8004B663056A597Dffe9eCcC1965A193B7388713
+ * Deployed on 20+ chains with vanity addresses (0x8004…):
+ *   Mainnets: Identity 0x8004A169…, Reputation 0x8004BAa1…
+ *   Testnets: Identity 0x8004A818…, Reputation 0x8004B663…
+ *
+ * Supported chains: Celo, Ethereum, Base, Polygon, Arbitrum, Optimism,
+ *   Linea, Avalanche, BSC, Scroll, Gnosis, Taiko, MegaETH, Monad
  */
 
 import {
@@ -28,27 +27,78 @@ import {
   getAddress,
 } from "viem";
 import { type ERC8004Registration } from "@/lib/types";
+import { IDENTITY_REGISTRY_ABI, REPUTATION_REGISTRY_ABI } from "./erc8004-abis";
 
 // ─── Per-chain contract addresses ──────────────────────────────────────────────
+// Source: https://github.com/erc-8004/erc-8004-contracts#contract-addresses
+//
+// Mainnet vanity addresses: Identity 0x8004A169…, Reputation 0x8004BAa1…
+// Testnet vanity addresses: Identity 0x8004A818…, Reputation 0x8004B663…
+const MAINNET_CONTRACTS = {
+  identityRegistry: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" as Address,
+  reputationRegistry: "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63" as Address,
+};
+const TESTNET_CONTRACTS = {
+  identityRegistry: "0x8004A818BFB912233c491871b3d84c89A494BD9e" as Address,
+  reputationRegistry: "0x8004B663056A597Dffe9eCcC1965A193B7388713" as Address,
+};
+
 export const ERC8004_ADDRESSES: Record<
   number,
   { identityRegistry: Address; reputationRegistry: Address } | undefined
 > = {
-  // Celo Mainnet (42220)
-  42220: {
-    identityRegistry: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
-    reputationRegistry: "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63",
-  },
-  // BSC Testnet (97)
-  97: {
-    identityRegistry: "0x8004A818BFB912233c491871b3d84c89A494BD9e",
-    reputationRegistry: "0x8004B663056A597Dffe9eCcC1965A193B7388713",
-  },
-  // Celo Sepolia Testnet (11142220)
-  11142220: {
-    identityRegistry: "0x8004A818BFB912233c491871b3d84c89A494BD9e",
-    reputationRegistry: "0x8004B663056A597Dffe9eCcC1965A193B7388713",
-  },
+  // ── Celo ──
+  42220: MAINNET_CONTRACTS,       // Celo Mainnet
+  11142220: TESTNET_CONTRACTS,    // Celo Testnet (Alfajores / Sepolia)
+
+  // ── Ethereum ──
+  1: MAINNET_CONTRACTS,           // Ethereum Mainnet
+  11155111: TESTNET_CONTRACTS,    // Ethereum Sepolia
+
+  // ── Base ──
+  8453: MAINNET_CONTRACTS,        // Base Mainnet
+  84532: TESTNET_CONTRACTS,       // Base Sepolia
+
+  // ── Polygon ──
+  137: MAINNET_CONTRACTS,         // Polygon Mainnet
+  80002: TESTNET_CONTRACTS,       // Polygon Amoy
+
+  // ── Arbitrum ──
+  42161: MAINNET_CONTRACTS,       // Arbitrum One
+  421614: TESTNET_CONTRACTS,      // Arbitrum Sepolia
+
+  // ── Optimism ──
+  10: MAINNET_CONTRACTS,          // Optimism Mainnet
+  11155420: TESTNET_CONTRACTS,    // Optimism Sepolia
+
+  // ── Linea ──
+  59144: MAINNET_CONTRACTS,       // Linea Mainnet
+  59141: TESTNET_CONTRACTS,       // Linea Sepolia
+
+  // ── Avalanche ──
+  43114: MAINNET_CONTRACTS,       // Avalanche C-Chain
+  43113: TESTNET_CONTRACTS,       // Avalanche Fuji
+
+  // ── BSC ──
+  56: MAINNET_CONTRACTS,          // BSC Mainnet
+  97: TESTNET_CONTRACTS,          // BSC Testnet
+
+  // ── Scroll ──
+  534352: MAINNET_CONTRACTS,      // Scroll Mainnet
+  534351: TESTNET_CONTRACTS,      // Scroll Sepolia
+
+  // ── Gnosis ──
+  100: MAINNET_CONTRACTS,         // Gnosis Mainnet
+
+  // ── Taiko ──
+  167000: MAINNET_CONTRACTS,      // Taiko Mainnet
+
+  // ── MegaETH ──
+  // 6342: MAINNET_CONTRACTS,     // MegaETH Mainnet (uncomment when chain ID confirmed)
+  // 6342001: TESTNET_CONTRACTS,  // MegaETH Testnet
+
+  // ── Monad ──
+  // 10143: TESTNET_CONTRACTS,    // Monad Testnet (uncomment when chain ID confirmed)
 };
 
 /** Resolve contract addresses for a given chain, with env-var overrides */
@@ -70,259 +120,8 @@ export function getERC8004Addresses(chainId: number): {
   return ERC8004_ADDRESSES[chainId] ?? null;
 }
 
-// ─── IdentityRegistry ABI (IdentityRegistryUpgradeable.sol) ────────────────────
-// Official ABI from: https://github.com/erc-8004/erc-8004-contracts/tree/master/abis
-//
-// Key difference from earlier spec drafts:
-//   • register() takes ONLY agentURI (string) — the owner is msg.sender
-//   • Metadata keys are strings, not bytes32
-//   • Registration event is "Registered", not "AgentRegistered"
-export const IDENTITY_REGISTRY_ABI = [
-  // ── Registration (3 overloads) ──
-  {
-    name: "register",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [],
-    outputs: [{ name: "agentId", type: "uint256" }],
-  },
-  {
-    name: "register",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "agentURI", type: "string" },
-    ],
-    outputs: [{ name: "agentId", type: "uint256" }],
-  },
-  {
-    name: "register",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "agentURI", type: "string" },
-      {
-        name: "metadata",
-        type: "tuple[]",
-        components: [
-          { name: "metadataKey", type: "string" },
-          { name: "metadataValue", type: "bytes" },
-        ],
-      },
-    ],
-    outputs: [{ name: "agentId", type: "uint256" }],
-  },
-  // ── URI Management ──
-  {
-    name: "setAgentURI",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "agentId", type: "uint256" },
-      { name: "newURI", type: "string" },
-    ],
-    outputs: [],
-  },
-  // ── Agent Wallet ──
-  // setAgentWallet requires proof of control of the new wallet (EIP-712 signature)
-  {
-    name: "setAgentWallet",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "agentId", type: "uint256" },
-      { name: "newWallet", type: "address" },
-      { name: "deadline", type: "uint256" },
-      { name: "signature", type: "bytes" },
-    ],
-    outputs: [],
-  },
-  {
-    name: "getAgentWallet",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "agentId", type: "uint256" }],
-    outputs: [{ name: "wallet", type: "address" }],
-  },
-  {
-    name: "unsetAgentWallet",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "agentId", type: "uint256" }],
-    outputs: [],
-  },
-  // ── On-chain Metadata (keys are strings, not bytes32) ──
-  {
-    name: "getMetadata",
-    type: "function",
-    stateMutability: "view",
-    inputs: [
-      { name: "agentId", type: "uint256" },
-      { name: "metadataKey", type: "string" },
-    ],
-    outputs: [{ name: "value", type: "bytes" }],
-  },
-  {
-    name: "setMetadata",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "agentId", type: "uint256" },
-      { name: "metadataKey", type: "string" },
-      { name: "metadataValue", type: "bytes" },
-    ],
-    outputs: [],
-  },
-  // ── ERC-721 reads ──
-  {
-    name: "tokenURI",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "tokenId", type: "uint256" }],
-    outputs: [{ name: "", type: "string" }],
-  },
-  {
-    name: "ownerOf",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "tokenId", type: "uint256" }],
-    outputs: [{ name: "", type: "address" }],
-  },
-  {
-    name: "balanceOf",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "owner", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  // ── Events ──
-  {
-    name: "Registered",
-    type: "event",
-    inputs: [
-      { name: "agentId", type: "uint256", indexed: true },
-      { name: "agentURI", type: "string", indexed: false },
-      { name: "owner", type: "address", indexed: true },
-    ],
-  },
-  {
-    name: "URIUpdated",
-    type: "event",
-    inputs: [
-      { name: "agentId", type: "uint256", indexed: true },
-      { name: "newURI", type: "string", indexed: false },
-      { name: "updatedBy", type: "address", indexed: true },
-    ],
-  },
-  {
-    name: "MetadataSet",
-    type: "event",
-    inputs: [
-      { name: "agentId", type: "uint256", indexed: true },
-      { name: "indexedMetadataKey", type: "string", indexed: true },
-      { name: "metadataKey", type: "string", indexed: false },
-      { name: "metadataValue", type: "bytes", indexed: false },
-    ],
-  },
-  {
-    name: "Transfer",
-    type: "event",
-    inputs: [
-      { name: "from", type: "address", indexed: true },
-      { name: "to", type: "address", indexed: true },
-      { name: "tokenId", type: "uint256", indexed: true },
-    ],
-  },
-] as const;
-
-// ─── ReputationRegistry ABI (ReputationRegistryUpgradeable.sol) ──────────────
-// Official ABI from: https://github.com/erc-8004/erc-8004-contracts/tree/master/abis
-// Feedback signals use signed fixed-point: value (int128) + valueDecimals (uint8)
-// e.g. value=9977, decimals=2 → 99.77
-// Key difference from earlier drafts: tags are strings, not bytes32
-export const REPUTATION_REGISTRY_ABI = [
-  // ── Give Feedback ──
-  {
-    name: "giveFeedback",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "agentId", type: "uint256" },
-      { name: "value", type: "int128" },
-      { name: "valueDecimals", type: "uint8" },
-      { name: "tag1", type: "string" },
-      { name: "tag2", type: "string" },
-      { name: "endpointURI", type: "string" },
-      { name: "feedbackURI", type: "string" },
-      { name: "feedbackHash", type: "bytes32" },
-    ],
-    outputs: [],
-  },
-  // ── Read Feedback ──
-  {
-    name: "readFeedback",
-    type: "function",
-    stateMutability: "view",
-    inputs: [
-      { name: "agentId", type: "uint256" },
-      { name: "clientAddress", type: "address" },
-      { name: "feedbackIndex", type: "uint64" },
-    ],
-    outputs: [
-      { name: "value", type: "int128" },
-      { name: "valueDecimals", type: "uint8" },
-      { name: "tag1", type: "string" },
-      { name: "tag2", type: "string" },
-      { name: "endpointURI", type: "string" },
-      { name: "feedbackURI", type: "string" },
-      { name: "feedbackHash", type: "bytes32" },
-      { name: "revoked", type: "bool" },
-      { name: "timestamp", type: "uint256" },
-    ],
-  },
-  // ── Aggregation ──
-  {
-    name: "getSummary",
-    type: "function",
-    stateMutability: "view",
-    inputs: [
-      { name: "agentId", type: "uint256" },
-      { name: "clientAddresses", type: "address[]" },
-      { name: "tag1", type: "string" },
-      { name: "tag2", type: "string" },
-    ],
-    outputs: [
-      { name: "count", type: "uint256" },
-      { name: "summaryValue", type: "int128" },
-      { name: "summaryValueDecimals", type: "uint8" },
-    ],
-  },
-  // ── Revocation ──
-  {
-    name: "revokeFeedback",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "agentId", type: "uint256" },
-      { name: "feedbackIndex", type: "uint64" },
-    ],
-    outputs: [],
-  },
-  // ── Responses ──
-  {
-    name: "appendResponse",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "agentId", type: "uint256" },
-      { name: "clientAddress", type: "address" },
-      { name: "feedbackIndex", type: "uint64" },
-      { name: "responseURI", type: "string" },
-      { name: "responseHash", type: "bytes32" },
-    ],
-    outputs: [],
-  },
-] as const;
+// Re-export ABIs for consumers that import from this file
+export { IDENTITY_REGISTRY_ABI, REPUTATION_REGISTRY_ABI } from "./erc8004-abis";
 
 // ─── Helper Functions ──────────────────────────────────────────────────────────
 
@@ -376,19 +175,40 @@ export function generateRegistrationJSON(
  * The contract's register(string agentURI) mints the identity NFT
  * to msg.sender, so the connected wallet becomes the agent owner on-chain.
  *
+ * If `agentName` is provided, uses the register(agentURI, metadata[]) overload
+ * to store the name on-chain as a "name" metadata entry.
+ *
  * @returns Transaction hash
  */
 export async function registerAgent(
   walletClient: WalletClient,
   identityRegistryAddress: Address,
   ownerAddress: Address,
-  agentURI: string
+  agentURI: string,
+  agentName?: string
 ): Promise<Hash> {
-  const data = encodeFunctionData({
-    abi: IDENTITY_REGISTRY_ABI,
-    functionName: "register",
-    args: [agentURI],
-  });
+  let data: `0x${string}`;
+
+  if (agentName) {
+    // Use the register(agentURI, metadata[]) overload to store name on-chain
+    // metadata is tuple[]: [{ metadataKey: string, metadataValue: bytes }]
+    // Encode the name as UTF-8 bytes for the metadataValue
+    const nameBytes = `0x${Buffer.from(agentName, "utf-8").toString("hex")}` as `0x${string}`;
+    data = encodeFunctionData({
+      abi: IDENTITY_REGISTRY_ABI,
+      functionName: "register",
+      args: [
+        agentURI,
+        [{ metadataKey: "name", metadataValue: nameBytes }],
+      ],
+    });
+  } else {
+    data = encodeFunctionData({
+      abi: IDENTITY_REGISTRY_ABI,
+      functionName: "register",
+      args: [agentURI],
+    });
+  }
 
   const hash = await walletClient.sendTransaction({
     to: identityRegistryAddress,

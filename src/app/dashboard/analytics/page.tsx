@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useChainId } from "wagmi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -45,6 +45,7 @@ interface AgentPerformance {
 
 export default function AnalyticsPage() {
   const { address, isConnected } = useAccount();
+  const chainId = useChainId();
   const [metrics, setMetrics] = React.useState<Metrics | null>(null);
   const [dailyData, setDailyData] = React.useState<DailyData[]>([]);
   const [agentPerformance, setAgentPerformance] = React.useState<AgentPerformance[]>([]);
@@ -78,9 +79,9 @@ export default function AnalyticsPage() {
   if (!isConnected) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-        <Wallet className="w-16 h-16 text-slate-600 mb-4" />
-        <h2 className="text-xl font-bold text-white mb-2">Connect Your Wallet</h2>
-        <p className="text-slate-400 max-w-sm">
+        <Wallet className="w-16 h-16 text-forest-faint mb-4" />
+        <h2 className="text-xl font-bold text-forest mb-2">Connect Your Wallet</h2>
+        <p className="text-forest-muted max-w-sm">
           Connect your wallet to view analytics across your agents.
         </p>
       </div>
@@ -90,7 +91,7 @@ export default function AnalyticsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-forest animate-spin" />
       </div>
     );
   }
@@ -103,7 +104,7 @@ export default function AnalyticsPage() {
       label: "Total Value Transferred",
       value: metrics ? `$${metrics.totalValueTransferred.toFixed(2)}` : "$0.00",
       icon: DollarSign,
-      color: "text-emerald-400",
+      color: "text-forest",
     },
     {
       label: "Total Transactions",
@@ -135,10 +136,12 @@ export default function AnalyticsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white">Analytics</h1>
-        <p className="text-slate-400 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-forest">Analytics</h1>
+        <p className="text-forest-muted text-sm mt-1">
           Performance metrics and insights across all agents
-          <Badge variant="outline" className="ml-2 text-[10px]">Celo Sepolia Testnet</Badge>
+          <Badge variant="outline" className="ml-2 text-[10px]">
+            {chainId === 42220 ? "Celo Mainnet" : chainId === 11142220 ? "Celo Sepolia Testnet" : `Chain ${chainId}`}
+          </Badge>
         </p>
       </div>
 
@@ -149,9 +152,9 @@ export default function AnalyticsPage() {
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <metric.icon className={`w-4 h-4 ${metric.color}`} />
-                <span className="text-[11px] text-slate-500 leading-tight">{metric.label}</span>
+                <span className="text-[11px] text-forest-muted/70 leading-tight">{metric.label}</span>
               </div>
-              <div className="text-lg font-bold text-white">{metric.value}</div>
+              <div className="text-lg font-bold text-forest">{metric.value}</div>
             </CardContent>
           </Card>
         ))}
@@ -171,11 +174,11 @@ export default function AnalyticsPage() {
               <div className="flex items-end justify-between gap-2 h-48">
                 {dailyData.map((day) => (
                   <div key={day.date} className="flex-1 flex flex-col items-center gap-2">
-                    <div className="text-xs text-slate-500">${day.volume}</div>
+                    <div className="text-xs text-forest-muted/70">${day.volume}</div>
                     <div className="w-full relative" style={{ height: `${Math.max((day.volume / maxVolume) * 150, 4)}px` }}>
-                      <div className="absolute inset-0 bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-md opacity-80 hover:opacity-100 transition-opacity" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-forest to-forest-light rounded-t-md opacity-80 hover:opacity-100 transition-opacity" />
                     </div>
-                    <div className="text-xs text-slate-400">{day.day}</div>
+                    <div className="text-xs text-forest-muted">{day.day}</div>
                   </div>
                 ))}
               </div>
@@ -194,11 +197,11 @@ export default function AnalyticsPage() {
               <div className="flex items-end justify-between gap-2 h-48">
                 {dailyData.map((day) => (
                   <div key={day.date} className="flex-1 flex flex-col items-center gap-2">
-                    <div className="text-xs text-slate-500">{day.transactions}</div>
+                    <div className="text-xs text-forest-muted/70">{day.transactions}</div>
                     <div className="w-full relative" style={{ height: `${Math.max((day.transactions / maxTxns) * 150, 4)}px` }}>
                       <div className="absolute inset-0 bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-md opacity-80 hover:opacity-100 transition-opacity" />
                     </div>
-                    <div className="text-xs text-slate-400">{day.day}</div>
+                    <div className="text-xs text-forest-muted">{day.day}</div>
                   </div>
                 ))}
               </div>
@@ -208,9 +211,9 @@ export default function AnalyticsPage() {
       ) : (
         <Card>
           <CardContent className="p-12 text-center">
-            <BarChart3 className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-white mb-2">No Data Yet</h3>
-            <p className="text-slate-400">
+            <BarChart3 className="w-12 h-12 text-forest-faint mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-forest mb-2">No Data Yet</h3>
+            <p className="text-forest-muted">
               Deploy agents and process transactions to see analytics here.
             </p>
           </CardContent>
@@ -230,34 +233,34 @@ export default function AnalyticsPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-slate-800">
-                    <th className="text-left text-xs font-medium text-slate-500 pb-3">Agent</th>
-                    <th className="text-right text-xs font-medium text-slate-500 pb-3">Transactions</th>
-                    <th className="text-right text-xs font-medium text-slate-500 pb-3">Volume</th>
-                    <th className="text-right text-xs font-medium text-slate-500 pb-3">Reputation</th>
-                    <th className="text-right text-xs font-medium text-slate-500 pb-3">Gas Spent</th>
+                  <tr className="border-b border-forest/10">
+                    <th className="text-left text-xs font-medium text-forest-muted/70 pb-3">Agent</th>
+                    <th className="text-right text-xs font-medium text-forest-muted/70 pb-3">Transactions</th>
+                    <th className="text-right text-xs font-medium text-forest-muted/70 pb-3">Volume</th>
+                    <th className="text-right text-xs font-medium text-forest-muted/70 pb-3">Reputation</th>
+                    <th className="text-right text-xs font-medium text-forest-muted/70 pb-3">Gas Spent</th>
                   </tr>
                 </thead>
                 <tbody>
                   {agentPerformance.map((agent) => (
-                    <tr key={agent.id} className="border-b border-slate-800/50 last:border-0">
+                    <tr key={agent.id} className="border-b border-forest/10/50 last:border-0">
                       <td className="py-3">
                         <div className="flex items-center gap-2">
                           <div className="text-lg">{getTemplateIcon(agent.templateType)}</div>
-                          <span className="text-sm font-medium text-white">{agent.name}</span>
+                          <span className="text-sm font-medium text-forest">{agent.name}</span>
                         </div>
                       </td>
-                      <td className="py-3 text-right text-sm text-slate-300">{agent.transactions}</td>
-                      <td className="py-3 text-right text-sm text-slate-300">${agent.volume.toFixed(2)}</td>
+                      <td className="py-3 text-right text-sm text-forest/80">{agent.transactions}</td>
+                      <td className="py-3 text-right text-sm text-forest/80">${agent.volume.toFixed(2)}</td>
                       <td className="py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                          <span className="text-sm text-slate-300">
+                          <span className="text-sm text-forest/80">
                             {agent.reputation > 0 ? agent.reputation : "—"}
                           </span>
                         </div>
                       </td>
-                      <td className="py-3 text-right text-sm text-slate-300">{agent.gasSpent} CELO</td>
+                      <td className="py-3 text-right text-sm text-forest/80">{agent.gasSpent} CELO</td>
                     </tr>
                   ))}
                 </tbody>

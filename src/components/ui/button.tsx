@@ -7,13 +7,13 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm",
-        destructive: "bg-red-600 text-white hover:bg-red-700 shadow-sm",
-        outline: "border border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800 hover:text-white",
-        secondary: "bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white",
-        ghost: "text-slate-400 hover:bg-slate-800 hover:text-white",
-        link: "text-emerald-500 underline-offset-4 hover:underline",
-        glow: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)]",
+        default: "bg-celo text-forest hover:bg-celo-hover shadow-sm font-semibold",
+        destructive: "bg-red-500 text-white hover:bg-red-600 shadow-sm",
+        outline: "border border-forest/20 bg-transparent text-forest hover:bg-forest/5 hover:border-forest/30",
+        secondary: "bg-white text-forest border border-forest/10 hover:bg-gypsum-dark hover:border-forest/20",
+        ghost: "text-forest/60 hover:bg-forest/5 hover:text-forest",
+        link: "text-forest-light underline-offset-4 hover:underline",
+        glow: "bg-celo text-forest font-semibold hover:bg-celo-hover shadow-[0_0_20px_rgba(252,255,82,0.3)] hover:shadow-[0_0_30px_rgba(252,255,82,0.5)]",
       },
       size: {
         default: "h-10 px-4 py-2",
@@ -58,4 +58,3 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = "Button";
 
 export { Button, buttonVariants };
-

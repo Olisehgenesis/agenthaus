@@ -48,6 +48,10 @@ model Agent {
   channels              String?  // JSON: [{ type, enabled, config }]
   cronJobs              String?  // JSON: [{ id, name, cron, skillPrompt, enabled, lastRun }]
   
+  // OpenClaw pairing — 6-char code for shared-bot channel binding
+  pairingCode           String?  @unique  // e.g. "AF7X2K"
+  pairingCodeExpiresAt  DateTime?         // codes expire after 24h (regenerated on demand)
+  
   // Legacy OpenClaw (optional, kept for backward compat)
   openclawAgentId       String?
   
@@ -70,8 +74,111 @@ model Agent {
   updatedAt       DateTime @updatedAt
   deployedAt      DateTime?
   
-  transactions    Transaction[]
-  activityLogs    ActivityLog[]
+  transactions      Transaction[]
+  activityLogs      ActivityLog[]
+  channelBindings   ChannelBinding[]
+  verification      AgentVerification?
+}
+
+// ─── OpenClaw Channel Binding ──────────────────────────────────────────────
+// Maps a sender on a channel to an AgentForge agent.
+// Created when a user sends a pairing code to the shared bot,
+// or auto-created for dedicated per-agent bots (Telegram, Discord).
+//
+// Routing: (channelType + senderIdentifier) → agentId
+// One active binding per sender per channel type at a time.
+
+model ChannelBinding {
+  id                String   @id @default(uuid())
+  
+  agentId           String
+  agent             Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  // Channel identification
+  channelType       String   // whatsapp, telegram, discord, imessage, web
+  senderIdentifier  String   // e.g. "+15555550123", "telegram:12345", "discord:98765"
+  senderName        String?  // display name at pairing time
+  chatIdentifier    String?  // group/channel ID (for group chats)
+  
+  // Pairing metadata
+  pairingCode       String?  // the code used to pair (for audit)
+  bindingType       String   @default("pairing") // "pairing" (shared bot) | "dedicated" (per-agent bot) | "direct" (web)
+  
+  // State
+  isActive          Boolean  @default(true)
+  
+  // Timestamps
+  pairedAt          DateTime @default(now())
+  lastMessageAt     DateTime @default(now())
+  
+  // Conversation session
+  sessionMessages   SessionMessage[]
+  
+  // Unique constraint: one active binding per sender per channel
+  @@unique([channelType, senderIdentifier, isActive])
+  @@index([agentId])
+  @@index([channelType, senderIdentifier])
+}
+
+// ─── Session Messages ──────────────────────────────────────────────────────
+// Persistent conversation history for each channel binding.
+// Replaces the in-memory / activity-log-based history hack.
+// Loaded by processMessage() for context continuity across restarts.
+
+model SessionMessage {
+  id                String   @id @default(uuid())
+  
+  bindingId         String
+  binding           ChannelBinding @relation(fields: [bindingId], references: [id], onDelete: Cascade)
+  
+  role              String   // "user" | "assistant" | "system"
+  content           String
+  
+  // Optional metadata — tx results, skill outputs, etc.
+  metadata          String?  // JSON
+  
+  createdAt         DateTime @default(now())
+  
+  @@index([bindingId, createdAt])
+}
+
+// ─── SelfClaw Agent Verification ─────────────────────────────────────────────
+// Stores verification state from SelfClaw (selfclaw.ai).
+// Each agent can be verified via SelfClaw's Self.xyz passport-based ZK proof.
+// This proves a real human backs the agent — without exposing personal data.
+
+model AgentVerification {
+  id                  String   @id @default(uuid())
+  
+  agentId             String   @unique
+  agent               Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  // Ed25519 key pair (SPKI base64 public key, AES-encrypted private key)
+  publicKey           String   // Ed25519 public key in SPKI base64
+  encryptedPrivateKey String   // AES-256-GCM encrypted Ed25519 private key (hex)
+  
+  // Verification state
+  status              String   @default("pending") // pending, challenge_signed, qr_ready, verified, failed, expired
+  sessionId           String?  // SelfClaw session ID
+  challenge           String?  // Challenge string from SelfClaw (to be signed)
+  
+  // Data returned after verification
+  humanId             String?  // Privacy-preserving human identifier
+  agentKeyHash        String?  // SHA-256 of agent public key
+  agentName           String?  // Name registered with SelfClaw
+  swarmUrl            String?  // URL to view all agents by this human
+  
+  // Self.xyz specific
+  selfxyzVerified     Boolean  @default(false)
+  selfxyzRegisteredAt DateTime?
+  
+  // QR code / Self app configuration (JSON from SelfClaw)
+  selfAppConfig       String?  // JSON: Self.xyz QR code config
+  
+  // Timestamps
+  verifiedAt          DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 model Transaction {

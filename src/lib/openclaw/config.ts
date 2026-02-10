@@ -1,15 +1,28 @@
 /**
  * OpenClaw Configuration Generator
  * 
- * Generates openclaw.json configuration files for agent instances.
- * Config reference: ~/.openclaw/openclaw.json
- * 
- * OpenClaw config structure:
- * - channels: WhatsApp, Telegram, Discord settings
- * - messages: routing and mention patterns
- * - agent: LLM provider, model, system prompt
- * - sessions: per-sender isolation
+ * Generates openclaw.json for the unified Gateway mode.
+ *
+ * Architecture:
+ *   OpenClaw Gateway is a single process that bridges ALL channels
+ *   (WhatsApp, Telegram, Discord, iMessage) to AgentForge's webhook.
+ *
+ *   The gateway doesn't run its own LLM — it forwards every message to:
+ *     POST {AGENTFORGE_URL}/api/openclaw/webhook
+ *
+ *   AgentForge handles routing (via ChannelBinding), LLM, skills, and transactions,
+ *   then returns the reply in the response body. OpenClaw relays it back.
+ *
+ * Two modes:
+ *   1. Shared Bot — one bot per channel for the whole platform.
+ *      All messages → webhook → AgentForge routes by pairing code.
+ *   2. Dedicated Bot — per-agent bots (existing Telegram/Discord setup).
+ *      OpenClaw manages multiple bot accounts, tags each with meta.botId = agentId.
+ *
+ * Config reference: https://docs.openclaw.ai/
  */
+
+// ─── Per-Agent Config (for dedicated bot mode) ─────────────────────────────
 
 export interface OpenClawAgentConfig {
   agent: {
@@ -51,7 +64,7 @@ export interface OpenClawAgentConfig {
   };
   sessions: {
     isolation: "per-sender" | "per-channel" | "global";
-    timeout: number; // minutes
+    timeout: number;
     maxHistory: number;
   };
   tools: {
@@ -60,7 +73,7 @@ export interface OpenClawAgentConfig {
     contractInteraction: boolean;
     customEndpoints: string[];
   };
-  skills: string[]; // skill IDs enabled for this agent
+  skills: string[];
   safety: {
     spendingLimit: number;
     maxTransactionAmount: number;
@@ -68,6 +81,83 @@ export interface OpenClawAgentConfig {
     blockedAddresses: string[];
   };
 }
+
+// ─── Unified Gateway Config ────────────────────────────────────────────────
+
+export interface OpenClawGatewayConfig {
+  /** Gateway identification */
+  gateway: {
+    name: string;
+    version: string;
+  };
+
+  /** Where to forward all messages */
+  webhook: {
+    url: string;
+    secret: string;
+    timeout: number;   // seconds
+    retries: number;
+  };
+
+  /** Shared bot channels — one per channel, all messages → webhook */
+  channels: {
+    telegram?: {
+      enabled: boolean;
+      botToken: string;                  // shared @AgentForgeBot token
+      allowedUpdates: string[];          // ["message", "callback_query"]
+    };
+    discord?: {
+      enabled: boolean;
+      botToken: string;                  // shared Discord bot token
+      applicationId: string;
+    };
+    whatsapp?: {
+      enabled: boolean;
+      sessionName: string;               // OpenClaw WhatsApp session name
+      phoneNumber?: string;
+    };
+    imessage?: {
+      enabled: boolean;
+      applescriptBridge: boolean;        // macOS only
+    };
+    web?: {
+      enabled: boolean;
+      port: number;
+      corsOrigins: string[];
+    };
+  };
+
+  /** Dedicated bots — per-agent Telegram/Discord accounts */
+  dedicatedBots?: {
+    telegram?: Array<{
+      botToken: string;
+      agentId: string;                   // maps to meta.botId in webhook payload
+      label: string;                     // human-readable name
+    }>;
+    discord?: Array<{
+      botToken: string;
+      agentId: string;
+      applicationId: string;
+      label: string;
+    }>;
+  };
+
+  /** Session management (OpenClaw side — lightweight, real history in AgentForge) */
+  sessions: {
+    isolation: "per-sender";
+    timeout: number;
+    maxHistory: number;                  // keep minimal on gateway side
+  };
+
+  /** Rate limiting */
+  rateLimit: {
+    maxPerMinute: number;
+    maxPerHour: number;
+    cooldownMessage: string;
+  };
+}
+
+// ─── Generate Per-Agent Config (existing — for backward compat) ────────────
 
 interface GenerateConfigParams {
   agentId: string;
@@ -81,9 +171,6 @@ interface GenerateConfigParams {
   configuration: Record<string, unknown>;
 }
 
-/**
- * Generate a full OpenClaw configuration for an agent
- */
 export function generateOpenClawConfig(params: GenerateConfigParams): OpenClawAgentConfig {
   const {
     agentName,
@@ -96,7 +183,6 @@ export function generateOpenClawConfig(params: GenerateConfigParams): OpenClawAg
     configuration,
   } = params;
 
-  // Base config
   const config: OpenClawAgentConfig = {
     agent: {
       name: agentName,
@@ -108,10 +194,7 @@ export function generateOpenClawConfig(params: GenerateConfigParams): OpenClawAg
       walletAddress: agentWalletAddress,
     },
     channels: {
-      web: {
-        enabled: true,
-        port: 0, // Will be assigned by the runtime manager
-      },
+      web: { enabled: true, port: 0 },
     },
     messages: {
       groupChat: {
@@ -130,7 +213,7 @@ export function generateOpenClawConfig(params: GenerateConfigParams): OpenClawAg
       contractInteraction: false,
       customEndpoints: [],
     },
-    skills: [], // populated below from template
+    skills: [],
     safety: {
       spendingLimit,
       maxTransactionAmount: (configuration.maxTransactionAmount as number) || 1000,
@@ -139,41 +222,25 @@ export function generateOpenClawConfig(params: GenerateConfigParams): OpenClawAg
     },
   };
 
-  // Template-specific tool and skill configuration
   switch (templateType) {
     case "payment":
       config.tools.celoTransfer = true;
       config.tools.priceQuery = true;
       config.skills = ["send_celo", "send_token", "check_balance", "query_rate", "gas_price"];
       break;
-
     case "trading":
-      config.tools.priceQuery = true;
-      config.tools.celoTransfer = true;
-      config.tools.contractInteraction = true;
-      config.skills = ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status"];
-      break;
-
     case "forex":
       config.tools.priceQuery = true;
       config.tools.celoTransfer = true;
       config.tools.contractInteraction = true;
       config.skills = ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status"];
       break;
-
     case "social":
-      // Enable social channels
-      config.channels.telegram = {
-        enabled: true,
-        groups: { "*": { requireMention: true } },
-      };
-      config.channels.discord = {
-        enabled: false,
-      };
-      config.tools.celoTransfer = true; // For tips
+      config.channels.telegram = { enabled: true, groups: { "*": { requireMention: true } } };
+      config.channels.discord = { enabled: false };
+      config.tools.celoTransfer = true;
       config.skills = ["send_celo", "send_token", "check_balance"];
       break;
-
     case "custom":
       config.tools.celoTransfer = true;
       config.tools.priceQuery = true;
@@ -188,20 +255,122 @@ export function generateOpenClawConfig(params: GenerateConfigParams): OpenClawAg
   return config;
 }
 
-/**
- * Generate OpenClaw CLI command for an agent
- */
-export function generateOpenClawCommand(
-  configPath: string,
-  port: number
-): string {
+// ─── Generate Unified Gateway Config ───────────────────────────────────────
+
+interface GatewayConfigParams {
+  /** AgentForge public URL (where OpenClaw can reach the webhook) */
+  appUrl: string;
+  /** Shared secret for webhook auth */
+  webhookSecret: string;
+  /** Shared Telegram bot token (for @AgentForgeBot) */
+  telegramBotToken?: string;
+  /** Shared Discord bot token */
+  discordBotToken?: string;
+  discordApplicationId?: string;
+  /** WhatsApp session */
+  whatsappEnabled?: boolean;
+  whatsappPhone?: string;
+  /** iMessage */
+  imessageEnabled?: boolean;
+  /** Web widget */
+  webEnabled?: boolean;
+  webPort?: number;
+  webCorsOrigins?: string[];
+  /** Dedicated per-agent bots to also manage */
+  dedicatedTelegramBots?: Array<{ botToken: string; agentId: string; label: string }>;
+  dedicatedDiscordBots?: Array<{ botToken: string; agentId: string; applicationId: string; label: string }>;
+}
+
+export function generateGatewayConfig(params: GatewayConfigParams): OpenClawGatewayConfig {
+  const config: OpenClawGatewayConfig = {
+    gateway: {
+      name: "agentforge-gateway",
+      version: "1.0.0",
+    },
+    webhook: {
+      url: `${params.appUrl}/api/openclaw/webhook`,
+      secret: params.webhookSecret,
+      timeout: 30,
+      retries: 2,
+    },
+    channels: {},
+    sessions: {
+      isolation: "per-sender",
+      timeout: 60,
+      maxHistory: 5, // minimal on gateway — real history lives in AgentForge DB
+    },
+    rateLimit: {
+      maxPerMinute: 30,
+      maxPerHour: 500,
+      cooldownMessage: "⏳ You're sending messages too quickly. Please wait a moment.",
+    },
+  };
+
+  // Shared Telegram bot
+  if (params.telegramBotToken) {
+    config.channels.telegram = {
+      enabled: true,
+      botToken: params.telegramBotToken,
+      allowedUpdates: ["message", "callback_query"],
+    };
+  }
+
+  // Shared Discord bot
+  if (params.discordBotToken && params.discordApplicationId) {
+    config.channels.discord = {
+      enabled: true,
+      botToken: params.discordBotToken,
+      applicationId: params.discordApplicationId,
+    };
+  }
+
+  // WhatsApp
+  if (params.whatsappEnabled) {
+    config.channels.whatsapp = {
+      enabled: true,
+      sessionName: "agentforge-wa",
+      phoneNumber: params.whatsappPhone,
+    };
+  }
+
+  // iMessage (macOS only)
+  if (params.imessageEnabled) {
+    config.channels.imessage = {
+      enabled: true,
+      applescriptBridge: true,
+    };
+  }
+
+  // Web widget
+  if (params.webEnabled !== false) {
+    config.channels.web = {
+      enabled: true,
+      port: params.webPort || 3100,
+      corsOrigins: params.webCorsOrigins || [params.appUrl],
+    };
+  }
+
+  // Dedicated bots (per-agent)
+  if (params.dedicatedTelegramBots?.length || params.dedicatedDiscordBots?.length) {
+    config.dedicatedBots = {};
+
+    if (params.dedicatedTelegramBots?.length) {
+      config.dedicatedBots.telegram = params.dedicatedTelegramBots;
+    }
+    if (params.dedicatedDiscordBots?.length) {
+      config.dedicatedBots.discord = params.dedicatedDiscordBots;
+    }
+  }
+
+  return config;
+}
+
+// ─── Serialization ─────────────────────────────────────────────────────────
+
+export function generateOpenClawCommand(configPath: string, port: number): string {
   return `openclaw gateway --port ${port} --config ${configPath}`;
 }
 
-/**
- * Generate the openclaw.json file content for writing to disk
- */
-export function serializeConfig(config: OpenClawAgentConfig): string {
+export function serializeConfig(config: OpenClawAgentConfig | OpenClawGatewayConfig): string {
   return JSON.stringify(config, null, 2);
 }
-

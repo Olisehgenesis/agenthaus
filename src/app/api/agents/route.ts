@@ -33,6 +33,13 @@ export async function GET(request: Request) {
           orderBy: { createdAt: "desc" },
           take: 10,
         },
+        verification: {
+          select: {
+            selfxyzVerified: true,
+            humanId: true,
+            verifiedAt: true,
+          },
+        },
       },
     });
 
@@ -92,8 +99,9 @@ export async function POST(request: Request) {
       console.warn("Could not derive agent wallet (AGENT_MNEMONIC not set?):", walletErr);
     }
 
-    // Create agent in database — immediately active (usable for chat & transactions)
-    // On-chain ERC-8004 registration is a separate, optional step done from the client
+    // Create agent in database with status "deploying".
+    // The client will trigger ERC-8004 on-chain registration (wallet signature),
+    // then call /api/agents/{id}/deploy to activate once the tx confirms.
     const agent = await prisma.agent.create({
       data: {
         name,
@@ -107,8 +115,8 @@ export async function POST(request: Request) {
         ownerId: user.id,
         agentWalletAddress,
         walletDerivationIndex,
-        status: "active",
-        deployedAt: new Date(),
+        status: "deploying",
+        deployedAt: null,
       },
     });
 
@@ -135,7 +143,7 @@ export async function POST(request: Request) {
       data: {
         agentId: agent.id,
         type: "info",
-        message: "Agent is active. Register on-chain via ERC-8004 to make it discoverable.",
+        message: "Agent created — awaiting on-chain ERC-8004 registration to activate.",
       },
     });
 

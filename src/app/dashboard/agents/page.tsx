@@ -20,6 +20,7 @@ import {
   Trash2,
   Loader2,
   Wallet,
+  BadgeCheck,
 } from "lucide-react";
 import { getTemplateIcon, getStatusColor, formatCurrency, formatDate, formatAddress } from "@/lib/utils";
 import { BLOCK_EXPLORER } from "@/lib/constants";
@@ -40,6 +41,11 @@ interface AgentData {
   createdAt: string;
   deployedAt: string | null;
   transactions: { id: string }[];
+  verification?: {
+    selfxyzVerified: boolean;
+    humanId: string | null;
+    verifiedAt: string | null;
+  } | null;
 }
 
 export default function AgentsPage() {
@@ -174,7 +180,14 @@ export default function AgentsPage() {
                   <div className="flex items-center gap-3">
                     <div className="text-2xl">{getTemplateIcon(agent.templateType)}</div>
                     <div>
-                      <h3 className="font-semibold text-white">{agent.name}</h3>
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="font-semibold text-white">{agent.name}</h3>
+                        {agent.verification?.selfxyzVerified && (
+                          <span title="SelfClaw Verified">
+                            <BadgeCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-500 capitalize">{agent.templateType} agent</p>
                     </div>
                   </div>
@@ -242,6 +255,12 @@ export default function AgentsPage() {
                   {agent.erc8004AgentId && (
                     <Badge variant="outline" className="text-[10px]">
                       ERC-8004 #{agent.erc8004AgentId}
+                    </Badge>
+                  )}
+                  {agent.verification?.selfxyzVerified && (
+                    <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-400 gap-1">
+                      <BadgeCheck className="w-3 h-3" />
+                      Verified
                     </Badge>
                   )}
                 </div>

@@ -1,14 +1,19 @@
 /**
  * Agent Runtime Manager
  *
- * Core message processing pipeline for all channels (web chat, Telegram, cron jobs).
- * Routes messages through: LLM → Skill Execution → Transaction Execution
+ * Core message processing pipeline for all channels:
+ *   Web Chat / Telegram / OpenClaw Gateway / Cron
  *
  * Architecture:
- *   Web Chat / Telegram / Cron → processMessage() → LLM → Skills → Transactions → Reply
+ *   Channel → route (pairing/binding) → processMessage() → LLM → Skills → Transactions → Reply
+ *
+ * Two entry points:
+ *   1. processMessage()        — raw pipeline, caller provides history (web chat, cron, direct)
+ *   2. processChannelMessage() — session-aware wrapper, loads history from ChannelBinding
  */
 
 import { prisma } from "@/lib/db";
+import { loadSessionHistory, saveSessionMessages } from "./router";
 
 // OpenRouter free model fallback order for rate-limit / provider-error retries.
 // Only models that reliably support system prompts on the free tier.
@@ -231,5 +236,44 @@ Example — user says "send 5 cUSD to 0xDEF...456":
   }
 
   return txResult.text;
+}
+
+// ─── Session-Aware Channel Processing ──────────────────────────────────────
+
+/**
+ * Process a message with automatic session history management.
+ * Used by the OpenClaw webhook and Telegram webhook.
+ *
+ * - Loads conversation history from the ChannelBinding's SessionMessages
+ * - Runs the full pipeline (LLM → Skills → Transactions)
+ * - Saves the user message + assistant reply back to session
+ *
+ * @param agentId     - Agent to process with
+ * @param bindingId   - ChannelBinding ID (null for web chat / cron)
+ * @param userMessage - The user's message text
+ * @param metadata    - Optional metadata to store with the session message
+ */
+export async function processChannelMessage(
+  agentId: string,
+  bindingId: string | null,
+  userMessage: string,
+  metadata?: Record<string, unknown>
+): Promise<string> {
+  // Load session history (empty if no binding)
+  let history: { role: "user" | "assistant"; content: string }[] = [];
+
+  if (bindingId) {
+    history = await loadSessionHistory(bindingId, 20);
+  }
+
+  // Run the main pipeline
+  const response = await processMessage(agentId, userMessage, history);
+
+  // Persist the exchange
+  if (bindingId) {
+    await saveSessionMessages(bindingId, userMessage, response, metadata);
+  }
+
+  return response;
 }
 

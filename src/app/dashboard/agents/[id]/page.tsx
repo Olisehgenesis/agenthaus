@@ -18,6 +18,7 @@ import {
   Play,
   Copy,
   Shield,
+  ShieldCheck,
   TrendingUp,
   Fuel,
   AlertCircle,
@@ -31,6 +32,10 @@ import {
   Loader2,
   Wallet,
   RefreshCw,
+  ScanLine,
+  BadgeCheck,
+  RotateCcw,
+  UserCheck,
 } from "lucide-react";
 import { useAccount } from "wagmi";
 import { type Address } from "viem";
@@ -132,6 +137,129 @@ export default function AgentDetailPage() {
   const [showTelegramForm, setShowTelegramForm] = React.useState(false);
   const [telegramToken, setTelegramToken] = React.useState("");
   const [telegramConnecting, setTelegramConnecting] = React.useState(false);
+
+  // ── SelfClaw Verification ──
+  const [verificationStatus, setVerificationStatus] = React.useState<{
+    status: string;
+    verified: boolean;
+    publicKey?: string;
+    humanId?: string;
+    agentKeyHash?: string;
+    swarmUrl?: string;
+    verifiedAt?: string;
+    selfAppConfig?: Record<string, unknown>;
+    hasSession?: boolean;
+    message?: string;
+    sessionId?: string;
+  } | null>(null);
+  const [verifyLoading, setVerifyLoading] = React.useState(false);
+  const [verifyPolling, setVerifyPolling] = React.useState(false);
+
+  // Fetch verification status
+  const fetchVerification = React.useCallback(async () => {
+    if (!params.id) return;
+    try {
+      const res = await fetch(`/api/agents/${params.id}/verify`);
+      if (res.ok) {
+        setVerificationStatus(await res.json());
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [params.id]);
+
+  React.useEffect(() => {
+    fetchVerification();
+  }, [fetchVerification]);
+
+  // Poll for verification completion when QR is shown
+  React.useEffect(() => {
+    if (!verifyPolling || !params.id) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/agents/${params.id}/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "check" }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setVerificationStatus(data);
+          if (data.verified) {
+            setVerifyPolling(false);
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 5000); // Poll every 5 seconds
+    return () => clearInterval(interval);
+  }, [verifyPolling, params.id]);
+
+  const handleStartVerification = async () => {
+    if (!params.id) return;
+    setVerifyLoading(true);
+    try {
+      // Step 1: Start
+      const startRes = await fetch(`/api/agents/${params.id}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start" }),
+      });
+      const startData = await startRes.json();
+      if (!startRes.ok) throw new Error(startData.error);
+
+      // Step 2: Sign challenge automatically (server-side)
+      const signRes = await fetch(`/api/agents/${params.id}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sign" }),
+      });
+      const signData = await signRes.json();
+      if (!signRes.ok) throw new Error(signData.error);
+
+      setVerificationStatus(signData);
+      setVerifyPolling(true); // Start polling for QR scan completion
+    } catch (err) {
+      console.error("Verification failed:", err);
+      setVerificationStatus({
+        status: "failed",
+        verified: false,
+        message: err instanceof Error ? err.message : "Verification failed",
+      });
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  const handleRestartVerification = async () => {
+    if (!params.id) return;
+    setVerifyLoading(true);
+    setVerifyPolling(false);
+    try {
+      const res = await fetch(`/api/agents/${params.id}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "restart" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      // Auto-sign after restart
+      const signRes = await fetch(`/api/agents/${params.id}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sign" }),
+      });
+      const signData = await signRes.json();
+      setVerificationStatus(signData);
+      setVerifyPolling(true);
+    } catch (err) {
+      console.error("Restart verification failed:", err);
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
 
   // ERC-8004 on-chain registration
   const { address: userAddress } = useAccount();
@@ -411,6 +539,11 @@ export default function AgentDetailPage() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-white">{agent.name}</h1>
+                {verificationStatus?.verified && (
+                  <span title="SelfClaw Verified">
+                    <BadgeCheck className="w-5 h-5 text-emerald-400" />
+                  </span>
+                )}
                 <Badge className={getStatusColor(agent.status)}>
                   {agent.status === "active" && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1 animate-pulse" />}
                   {agent.status}
@@ -1208,6 +1341,7 @@ export default function AgentDetailPage() {
               <Tabs
                 tabs={[
                   { id: "chat", label: "Chat", icon: <MessageSquare className="w-4 h-4" /> },
+                  { id: "verify", label: verificationStatus?.verified ? "✅ Verified" : "Verify", icon: <ShieldCheck className="w-4 h-4" /> },
                   { id: "activity", label: `Activity (${activityLogs.length})`, icon: <Activity className="w-4 h-4" /> },
                   { id: "transactions", label: `Txns (${transactions.length})`, icon: <TrendingUp className="w-4 h-4" /> },
                 ]}
@@ -1292,6 +1426,261 @@ export default function AgentDetailPage() {
                       <Send className="w-4 h-4" />
                     </Button>
                   </div>
+                </div>
+              )}
+
+              {/* Verification Tab */}
+              {activeTab === "verify" && (
+                <div className="space-y-6 py-2">
+                  {/* SelfClaw Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                        <ShieldCheck className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-white font-semibold">SelfClaw Verification</h3>
+                        <p className="text-xs text-slate-500">
+                          Powered by{" "}
+                          <a href="https://selfclaw.ai" target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300">
+                            selfclaw.ai
+                          </a>
+                          {" "}× Self.xyz zero-knowledge proofs
+                        </p>
+                      </div>
+                    </div>
+                    {verificationStatus?.verified && (
+                      <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1.5">
+                        <BadgeCheck className="w-3.5 h-3.5" />
+                        Verified Human
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* ── Verified State ── */}
+                  {verificationStatus?.verified && (
+                    <div className="space-y-4">
+                      <div className="p-5 rounded-xl bg-gradient-to-br from-emerald-900/30 to-emerald-800/10 border border-emerald-500/30">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                            <UserCheck className="w-6 h-6 text-emerald-400" />
+                          </div>
+                          <div>
+                            <h4 className="text-white font-semibold">Agent Verified</h4>
+                            <p className="text-xs text-emerald-400/80">
+                              This agent is backed by a verified human via passport verification
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          {verificationStatus.humanId && (
+                            <div className="p-3 rounded-lg bg-slate-800/50">
+                              <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Human ID</div>
+                              <div className="text-sm text-white font-mono truncate">
+                                {verificationStatus.humanId.slice(0, 12)}...
+                              </div>
+                            </div>
+                          )}
+                          {verificationStatus.verifiedAt && (
+                            <div className="p-3 rounded-lg bg-slate-800/50">
+                              <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Verified At</div>
+                              <div className="text-sm text-white">
+                                {new Date(verificationStatus.verifiedAt).toLocaleDateString()}
+                              </div>
+                            </div>
+                          )}
+                          {verificationStatus.publicKey && (
+                            <div className="p-3 rounded-lg bg-slate-800/50 col-span-2">
+                              <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Public Key</div>
+                              <div className="text-xs text-slate-300 font-mono break-all">
+                                {verificationStatus.publicKey}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {verificationStatus.swarmUrl && (
+                          <a
+                            href={verificationStatus.swarmUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-3 inline-flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300"
+                          >
+                            View all agents by this human <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
+
+                      {/* What Verification Means */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="p-3 rounded-lg bg-slate-800/30 text-center">
+                          <Shield className="w-5 h-5 text-emerald-400 mx-auto mb-1.5" />
+                          <div className="text-[10px] text-slate-400">Passport Verified</div>
+                          <div className="text-xs text-white font-medium">ZK Proof</div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-slate-800/30 text-center">
+                          <ScanLine className="w-5 h-5 text-violet-400 mx-auto mb-1.5" />
+                          <div className="text-[10px] text-slate-400">Privacy</div>
+                          <div className="text-xs text-white font-medium">Zero-Knowledge</div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-slate-800/30 text-center">
+                          <BadgeCheck className="w-5 h-5 text-blue-400 mx-auto mb-1.5" />
+                          <div className="text-[10px] text-slate-400">Coverage</div>
+                          <div className="text-xs text-white font-medium">180+ Countries</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Not Started State ── */}
+                  {(!verificationStatus || verificationStatus.status === "not_started") && (
+                    <div className="space-y-4">
+                      <div className="p-6 rounded-xl bg-slate-800/30 border border-slate-700/50 text-center">
+                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center mx-auto mb-4">
+                          <ShieldCheck className="w-8 h-8 text-violet-400" />
+                        </div>
+                        <h4 className="text-white font-semibold text-lg mb-2">Verify Your Agent</h4>
+                        <p className="text-sm text-slate-400 max-w-md mx-auto mb-6">
+                          Prove your agent is backed by a real human using passport-based
+                          zero-knowledge proofs. Your personal data never leaves your device — only
+                          the cryptographic proof is shared.
+                        </p>
+
+                        <Button
+                          variant="glow"
+                          onClick={handleStartVerification}
+                          disabled={verifyLoading}
+                          className="px-8"
+                        >
+                          {verifyLoading ? (
+                            <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Starting Verification...</>
+                          ) : (
+                            <><ShieldCheck className="w-4 h-4 mr-2" /> Start Verification</>
+                          )}
+                        </Button>
+                      </div>
+
+                      {/* How It Works */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="p-4 rounded-lg bg-slate-800/30 border border-slate-700/30">
+                          <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center mb-2">
+                            <span className="text-violet-400 font-bold text-sm">1</span>
+                          </div>
+                          <h5 className="text-xs font-medium text-white mb-1">Generate Keys</h5>
+                          <p className="text-[10px] text-slate-500">Ed25519 key pair created and challenge signed automatically</p>
+                        </div>
+                        <div className="p-4 rounded-lg bg-slate-800/30 border border-slate-700/30">
+                          <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center mb-2">
+                            <span className="text-violet-400 font-bold text-sm">2</span>
+                          </div>
+                          <h5 className="text-xs font-medium text-white mb-1">Scan QR Code</h5>
+                          <p className="text-[10px] text-slate-500">Open the Self app and scan the QR code with your NFC passport</p>
+                        </div>
+                        <div className="p-4 rounded-lg bg-slate-800/30 border border-slate-700/30">
+                          <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center mb-2">
+                            <span className="text-violet-400 font-bold text-sm">3</span>
+                          </div>
+                          <h5 className="text-xs font-medium text-white mb-1">Verified!</h5>
+                          <p className="text-[10px] text-slate-500">Agent gets a verification badge — trustless, on-chain ready</p>
+                        </div>
+                      </div>
+
+                      {/* Self app link */}
+                      <div className="p-3 rounded-lg bg-violet-500/5 border border-violet-500/20">
+                        <div className="flex items-start gap-2">
+                          <Info className="w-4 h-4 text-violet-400 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-slate-400">
+                              You&apos;ll need the{" "}
+                              <a href="https://self.xyz" target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300 font-medium">
+                                Self app
+                              </a>{" "}
+                              and an NFC-enabled passport. Works in 180+ countries.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── QR Ready / In Progress State ── */}
+                  {verificationStatus && !verificationStatus.verified &&
+                    ["qr_ready", "challenge_signed", "pending"].includes(verificationStatus.status) && (
+                    <div className="space-y-4">
+                      <div className="p-6 rounded-xl bg-violet-900/10 border border-violet-500/30 text-center">
+                        <div className="w-16 h-16 rounded-2xl bg-violet-500/20 flex items-center justify-center mx-auto mb-4 animate-pulse">
+                          <ScanLine className="w-8 h-8 text-violet-400" />
+                        </div>
+                        <h4 className="text-white font-semibold text-lg mb-2">Scan with Self App</h4>
+                        <p className="text-sm text-slate-400 max-w-md mx-auto mb-4">
+                          Open the Self app on your phone and scan the QR code below. Tap your NFC-enabled
+                          passport when prompted.
+                        </p>
+
+                        {/* QR Code placeholder — SelfClaw provides the config to render it */}
+                        {verificationStatus.selfAppConfig ? (
+                          <div className="inline-block p-6 rounded-xl bg-white mb-4">
+                            <div className="w-48 h-48 flex items-center justify-center">
+                              {/* The selfAppConfig contains the Self.xyz QR configuration.
+                                  In production, render it with Self's QR component.
+                                  For now, show the config link. */}
+                              <div className="text-center">
+                                <ScanLine className="w-12 h-12 text-slate-400 mx-auto mb-2" />
+                                <p className="text-xs text-slate-600 font-medium">
+                                  Self App QR
+                                </p>
+                                <p className="text-[10px] text-slate-500">
+                                  Check Self app for scan prompt
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="inline-block p-6 rounded-xl bg-slate-800/50 mb-4">
+                            <Loader2 className="w-12 h-12 text-violet-400 animate-spin mx-auto" />
+                            <p className="text-xs text-slate-400 mt-2">Loading QR configuration...</p>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-center gap-2 text-xs text-slate-500 mb-4">
+                          <Loader2 className="w-3 h-3 animate-spin text-violet-400" />
+                          Waiting for verification...
+                        </div>
+
+                        <div className="flex items-center justify-center gap-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRestartVerification}
+                            disabled={verifyLoading}
+                          >
+                            <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                            Restart
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Failed State ── */}
+                  {verificationStatus?.status === "failed" && (
+                    <div className="p-6 rounded-xl bg-red-900/10 border border-red-500/30 text-center">
+                      <XCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+                      <h4 className="text-white font-semibold mb-2">Verification Failed</h4>
+                      <p className="text-sm text-slate-400 mb-4">
+                        {verificationStatus.message || "Something went wrong. Please try again."}
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={handleRestartVerification}
+                        disabled={verifyLoading}
+                      >
+                        <RotateCcw className="w-4 h-4 mr-2" />
+                        Try Again
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
 

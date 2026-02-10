@@ -3,6 +3,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
+import { type Address } from "viem";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,9 +23,11 @@ import {
   Key,
   ExternalLink,
   Info,
+  Loader2,
 } from "lucide-react";
 import { AGENT_TEMPLATES, LLM_MODELS, LLM_PROVIDER_INFO } from "@/lib/constants";
 import type { AgentTemplate, LLMProvider, AgentConfig } from "@/lib/types";
+import { useERC8004 } from "@/hooks/useERC8004";
 
 const steps = [
   { id: "template", label: "Choose Template", icon: <Sparkles className="w-4 h-4" /> },
@@ -38,6 +41,27 @@ export default function NewAgentPage() {
   const { address } = useAccount();
   const [currentStep, setCurrentStep] = React.useState("template");
   const [isDeploying, setIsDeploying] = React.useState(false);
+  const [deployStatus, setDeployStatus] = React.useState<
+    "idle" | "creating" | "signing" | "confirming" | "activating" | "done" | "error"
+  >("idle");
+  const [deployError, setDeployError] = React.useState<string | null>(null);
+
+  // ERC-8004 on-chain registration
+  const {
+    register: registerOnChain,
+    checkDeployed,
+    isRegistering,
+    error: erc8004Error,
+    chainId: currentChainId,
+    contractAddresses: erc8004Contracts,
+    blockExplorerUrl,
+  } = useERC8004();
+  const [erc8004Deployed, setErc8004Deployed] = React.useState<boolean | null>(null);
+
+  // Check ERC-8004 contract deployment
+  React.useEffect(() => {
+    checkDeployed().then(setErc8004Deployed);
+  }, [checkDeployed, currentChainId]);
 
   // Form State
   const [selectedTemplate, setSelectedTemplate] = React.useState<AgentTemplate | null>(null);
@@ -136,13 +160,16 @@ export default function NewAgentPage() {
   };
 
   const handleDeploy = async () => {
+    if (!address) return;
     setIsDeploying(true);
+    setDeployError(null);
+    setDeployStatus("creating");
+
     try {
-      // If user entered an API key but hasn't saved it yet, save it before deploying
+      // ── Step 0: Save unsaved API key ──────────────────────────────
       if (apiKey && address) {
         const body: Record<string, string> = { walletAddress: address };
         body[providerKeyField[llmProvider]] = apiKey;
-
         await fetch("/api/settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -150,7 +177,8 @@ export default function NewAgentPage() {
         });
       }
 
-      const response = await fetch("/api/agents", {
+      // ── Step 1: Create agent in DB (status: "deploying") ──────────
+      const createRes = await fetch("/api/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -166,12 +194,46 @@ export default function NewAgentPage() {
         }),
       });
 
-      if (response.ok) {
-        const agent = await response.json();
-        router.push(`/dashboard/agents/${agent.id}`);
+      if (!createRes.ok) {
+        const err = await createRes.json();
+        throw new Error(err.error || "Failed to create agent");
       }
+
+      const agent = await createRes.json();
+
+      // ── Step 2: ERC-8004 On-Chain Registration ────────────────────
+      setDeployStatus("signing");
+
+      // This triggers the wallet popup for the user to sign
+      const result = await registerOnChain(
+        address as Address,
+        agent.id
+      );
+
+      setDeployStatus("confirming");
+
+      // ── Step 3: Record on-chain data + activate the agent ─────────
+      setDeployStatus("activating");
+      await fetch(`/api/agents/${agent.id}/deploy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "register",
+          erc8004AgentId: result.agentId,
+          erc8004TxHash: result.txHash,
+          erc8004ChainId: result.chainId,
+          erc8004URI: result.agentURI,
+        }),
+      });
+
+      setDeployStatus("done");
+
+      // Navigate to agent detail page
+      router.push(`/dashboard/agents/${agent.id}`);
     } catch (error) {
       console.error("Failed to deploy agent:", error);
+      setDeployError(error instanceof Error ? error.message : "Deployment failed");
+      setDeployStatus("error");
     } finally {
       setIsDeploying(false);
     }
@@ -663,19 +725,115 @@ export default function NewAgentPage() {
                 </div>
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-white mb-1">Ready to Deploy</h3>
-                  <p className="text-sm text-slate-400 mb-4">
-                    Your agent will be deployed with automatic ERC-8004 registration on Celo. 
-                    This process creates an on-chain identity and a dedicated agent wallet.
-                  </p>
+
+                  {/* Deploy status steps */}
+                  {deployStatus !== "idle" && deployStatus !== "error" && (
+                    <div className="space-y-2 mb-4">
+                      {[
+                        { key: "creating", label: "Creating agent & HD wallet..." },
+                        { key: "signing", label: "Sign ERC-8004 registration transaction..." },
+                        { key: "confirming", label: "Waiting for on-chain confirmation..." },
+                        { key: "activating", label: "Activating agent & generating pairing code..." },
+                        { key: "done", label: "Agent deployed!" },
+                      ].map((step) => {
+                        const stepOrder = ["creating", "signing", "confirming", "activating", "done"];
+                        const currentIdx = stepOrder.indexOf(deployStatus);
+                        const stepIdx = stepOrder.indexOf(step.key);
+                        const isDone = stepIdx < currentIdx;
+                        const isCurrent = step.key === deployStatus;
+
+                        return (
+                          <div key={step.key} className="flex items-center gap-2">
+                            {isDone ? (
+                              <Check className="w-4 h-4 text-emerald-400" />
+                            ) : isCurrent ? (
+                              <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+                            ) : (
+                              <div className="w-4 h-4 rounded-full border border-slate-600" />
+                            )}
+                            <span className={`text-sm ${isCurrent ? "text-white" : isDone ? "text-emerald-400" : "text-slate-500"}`}>
+                              {step.label}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Error message */}
+                  {(deployError || erc8004Error) && (
+                    <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 mb-4">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+                        <p className="text-sm text-red-300">{deployError || erc8004Error}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {deployStatus === "idle" && (
+                    <>
+                      <p className="text-sm text-slate-400 mb-4">
+                        Your agent will be registered on-chain via the ERC-8004 IdentityRegistry.
+                        This mints an identity NFT and requires a wallet signature to pay gas.
+                      </p>
+
+                      {/* ERC-8004 deployment status */}
+                      {erc8004Deployed === false && (
+                        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 mb-4">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="text-sm text-amber-300">
+                                ERC-8004 contracts not found on chain {currentChainId}.
+                              </p>
+                              <p className="text-xs text-slate-400 mt-1">
+                                Switch to Celo Mainnet (42220) to deploy your agent.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {erc8004Contracts && (
+                        <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 mb-4">
+                          <p className="text-xs text-emerald-400">
+                            ✓ ERC-8004 IdentityRegistry found on chain {currentChainId}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Contract: {erc8004Contracts.identityRegistry.slice(0, 18)}...
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+
                   <Button
                     variant="glow"
                     size="lg"
                     loading={isDeploying}
+                    disabled={
+                      isDeploying ||
+                      !address ||
+                      erc8004Deployed === false
+                    }
                     onClick={handleDeploy}
                   >
                     <Rocket className="w-5 h-5" />
-                    {isDeploying ? "Deploying..." : "Deploy Agent"}
+                    {isDeploying
+                      ? deployStatus === "signing"
+                        ? "Sign Transaction in Wallet..."
+                        : deployStatus === "confirming"
+                        ? "Confirming On-Chain..."
+                        : "Deploying..."
+                      : "Deploy & Register On-Chain"
+                    }
                   </Button>
+
+                  {!address && (
+                    <p className="text-xs text-amber-400 mt-2">
+                      ⚠️ Connect your wallet to deploy
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { generatePairingCode } from "@/lib/openclaw/pairing";
 
 /**
  * POST /api/agents/[id]/deploy
@@ -52,15 +53,27 @@ export async function POST(
         },
       });
 
+      // Auto-generate pairing code for shared-bot channels
+      let pairingCode: string | null = null;
+      try {
+        pairingCode = await generatePairingCode(id);
+      } catch {
+        // Non-critical — user can generate later from dashboard
+      }
+
       await prisma.activityLog.create({
         data: {
           agentId: id,
           type: "info",
-          message: "Agent activated",
+          message: `Agent activated${pairingCode ? ` (pairing code: ${pairingCode})` : ""}`,
         },
       });
 
-      return NextResponse.json({ success: true, message: "Agent activated" });
+      return NextResponse.json({
+        success: true,
+        message: "Agent activated",
+        pairingCode,
+      });
     }
 
     // ── Mode 2: Record on-chain ERC-8004 registration ──────────────────────
@@ -122,9 +135,18 @@ export async function POST(
         },
       });
 
+      // Auto-generate pairing code on registration (agent becomes active)
+      let pairingCode: string | null = null;
+      try {
+        pairingCode = await generatePairingCode(id);
+      } catch {
+        // Non-critical
+      }
+
       return NextResponse.json({
         success: true,
         message: "On-chain registration recorded",
+        pairingCode,
         erc8004: {
           agentId: erc8004AgentId,
           txHash: erc8004TxHash,

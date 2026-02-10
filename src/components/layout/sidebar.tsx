@@ -11,6 +11,7 @@ import {
   BarChart3,
   Settings,
   Zap,
+  ShieldCheck,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -19,6 +20,7 @@ const navItems = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "My Agents", href: "/dashboard/agents", icon: Bot },
   { name: "Create Agent", href: "/dashboard/agents/new", icon: PlusCircle },
+  { name: "Verify", href: "/dashboard/verify", icon: ShieldCheck },
   { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];

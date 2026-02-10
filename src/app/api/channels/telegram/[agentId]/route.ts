@@ -3,9 +3,11 @@
  *
  * POST /api/channels/telegram/[agentId]
  *
- * Called by Telegram when a user sends a message to the agent's bot.
- * Routes through processMessage() for full skill + transaction execution,
- * then replies via Telegram Bot API.
+ * Called by Telegram when a user sends a message to the agent's DEDICATED bot.
+ * (Shared bot messages come through OpenClaw → /api/openclaw/webhook instead.)
+ *
+ * Routes through processChannelMessage() for full skill + transaction execution
+ * with persistent session history, then replies via Telegram Bot API.
  *
  * Security: Telegram sends X-Telegram-Bot-Api-Secret-Token header which
  * we verify against the agent's stored webhookSecret.
@@ -13,7 +15,8 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { processMessage } from "@/lib/openclaw/manager";
+import { processChannelMessage } from "@/lib/openclaw/manager";
+import { routeMessage, type SenderContext } from "@/lib/openclaw/router";
 import {
   parseUpdate,
   verifyWebhookSecret,
@@ -44,14 +47,13 @@ export async function POST(
     });
 
     if (!agent || !agent.telegramBotToken) {
-      // Return 200 to Telegram (so it stops retrying) but do nothing
       return NextResponse.json({ ok: true });
     }
 
     // Verify webhook secret
     if (agent.webhookSecret) {
       if (!verifyWebhookSecret(request, agent.webhookSecret)) {
-        return NextResponse.json({ ok: true }); // Silent reject
+        return NextResponse.json({ ok: true });
       }
     }
 
@@ -64,7 +66,6 @@ export async function POST(
     const update: TelegramUpdate = await request.json();
     const incoming = parseUpdate(update, agentId);
     if (!incoming) {
-      // Not a text message — ignore
       return NextResponse.json({ ok: true });
     }
 
@@ -73,7 +74,7 @@ export async function POST(
       try {
         const allowedIds = JSON.parse(agent.telegramChatIds) as string[];
         if (allowedIds.length > 0 && !allowedIds.includes(incoming.chatId)) {
-          return NextResponse.json({ ok: true }); // Not authorized
+          return NextResponse.json({ ok: true });
         }
       } catch {
         // Malformed JSON — allow all
@@ -86,34 +87,31 @@ export async function POST(
     // Send typing indicator (non-blocking)
     sendTypingAction(botToken, incoming.chatId);
 
-    // Load recent conversation history for this chat from activity logs
-    const recentLogs = await prisma.activityLog.findMany({
-      where: {
+    // Route through the unified router — creates/finds ChannelBinding
+    const senderCtx: SenderContext = {
+      channelType: "telegram",
+      senderId: `tg:${incoming.senderId}`,
+      senderName: incoming.senderName,
+      chatId: incoming.chatId,
+      messageText: incoming.text,
+      dedicatedBotId: agentId, // This is a dedicated bot
+    };
+
+    const route = await routeMessage(senderCtx);
+
+    // Process through full pipeline with session history
+    const response = await processChannelMessage(
         agentId,
-        type: "action",
-        message: { startsWith: "📱 TG" },
-        metadata: { contains: incoming.chatId },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-    });
-
-    // Build conversation history from logs
-    const history: { role: "user" | "assistant"; content: string }[] = [];
-    for (const log of recentLogs.reverse()) {
-      try {
-        const meta = JSON.parse(log.metadata || "{}");
-        if (meta.userMessage && meta.response) {
-          history.push({ role: "user", content: meta.userMessage });
-          history.push({ role: "assistant", content: meta.response });
-        }
-      } catch {
-        // Skip malformed logs
+      route.bindingId || null,
+      incoming.text,
+      {
+        channel: "telegram",
+        senderId: incoming.senderId,
+        senderName: incoming.senderName,
+        chatId: incoming.chatId,
+        dedicated: true,
       }
-    }
-
-    // Process through full Agent Forge pipeline (skills + transactions)
-    const response = await processMessage(agentId, incoming.text, history);
+    );
 
     // Send reply back to Telegram
     await sendMessage(
@@ -134,6 +132,7 @@ export async function POST(
           chatId: incoming.chatId,
           senderId: incoming.senderId,
           senderName: incoming.senderName,
+          bindingId: route.bindingId,
           userMessage: incoming.text.slice(0, 200),
           response: response.slice(0, 200),
         }),
@@ -144,7 +143,6 @@ export async function POST(
   } catch (error) {
     console.error(`Telegram webhook error for agent ${agentId}:`, error);
 
-    // Log error but return 200 to Telegram
     try {
       await prisma.activityLog.create({
         data: {
@@ -154,10 +152,9 @@ export async function POST(
         },
       });
     } catch {
-      // Logging failed — nothing we can do
+      // Logging failed
     }
 
     return NextResponse.json({ ok: true });
   }
 }
-

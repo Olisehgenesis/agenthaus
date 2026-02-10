@@ -71,16 +71,44 @@ export function getERC8004Addresses(chainId: number): {
 }
 
 // ─── IdentityRegistry ABI (IdentityRegistryUpgradeable.sol) ────────────────────
-// Based on the ERC-8004 spec: https://github.com/erc-8004/erc-8004-contracts
+// Official ABI from: https://github.com/erc-8004/erc-8004-contracts/tree/master/abis
+//
+// Key difference from earlier spec drafts:
+//   • register() takes ONLY agentURI (string) — the owner is msg.sender
+//   • Metadata keys are strings, not bytes32
+//   • Registration event is "Registered", not "AgentRegistered"
 export const IDENTITY_REGISTRY_ABI = [
-  // ── Registration ──
+  // ── Registration (3 overloads) ──
+  {
+    name: "register",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [{ name: "agentId", type: "uint256" }],
+  },
   {
     name: "register",
     type: "function",
     stateMutability: "nonpayable",
     inputs: [
-      { name: "owner", type: "address" },
       { name: "agentURI", type: "string" },
+    ],
+    outputs: [{ name: "agentId", type: "uint256" }],
+  },
+  {
+    name: "register",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agentURI", type: "string" },
+      {
+        name: "metadata",
+        type: "tuple[]",
+        components: [
+          { name: "metadataKey", type: "string" },
+          { name: "metadataValue", type: "bytes" },
+        ],
+      },
     ],
     outputs: [{ name: "agentId", type: "uint256" }],
   },
@@ -123,14 +151,14 @@ export const IDENTITY_REGISTRY_ABI = [
     inputs: [{ name: "agentId", type: "uint256" }],
     outputs: [],
   },
-  // ── On-chain Metadata ──
+  // ── On-chain Metadata (keys are strings, not bytes32) ──
   {
     name: "getMetadata",
     type: "function",
     stateMutability: "view",
     inputs: [
       { name: "agentId", type: "uint256" },
-      { name: "metadataKey", type: "bytes32" },
+      { name: "metadataKey", type: "string" },
     ],
     outputs: [{ name: "value", type: "bytes" }],
   },
@@ -140,7 +168,7 @@ export const IDENTITY_REGISTRY_ABI = [
     stateMutability: "nonpayable",
     inputs: [
       { name: "agentId", type: "uint256" },
-      { name: "metadataKey", type: "bytes32" },
+      { name: "metadataKey", type: "string" },
       { name: "metadataValue", type: "bytes" },
     ],
     outputs: [],
@@ -169,12 +197,31 @@ export const IDENTITY_REGISTRY_ABI = [
   },
   // ── Events ──
   {
-    name: "AgentRegistered",
+    name: "Registered",
     type: "event",
     inputs: [
       { name: "agentId", type: "uint256", indexed: true },
-      { name: "owner", type: "address", indexed: true },
       { name: "agentURI", type: "string", indexed: false },
+      { name: "owner", type: "address", indexed: true },
+    ],
+  },
+  {
+    name: "URIUpdated",
+    type: "event",
+    inputs: [
+      { name: "agentId", type: "uint256", indexed: true },
+      { name: "newURI", type: "string", indexed: false },
+      { name: "updatedBy", type: "address", indexed: true },
+    ],
+  },
+  {
+    name: "MetadataSet",
+    type: "event",
+    inputs: [
+      { name: "agentId", type: "uint256", indexed: true },
+      { name: "indexedMetadataKey", type: "string", indexed: true },
+      { name: "metadataKey", type: "string", indexed: false },
+      { name: "metadataValue", type: "bytes", indexed: false },
     ],
   },
   {
@@ -189,8 +236,10 @@ export const IDENTITY_REGISTRY_ABI = [
 ] as const;
 
 // ─── ReputationRegistry ABI (ReputationRegistryUpgradeable.sol) ──────────────
+// Official ABI from: https://github.com/erc-8004/erc-8004-contracts/tree/master/abis
 // Feedback signals use signed fixed-point: value (int128) + valueDecimals (uint8)
 // e.g. value=9977, decimals=2 → 99.77
+// Key difference from earlier drafts: tags are strings, not bytes32
 export const REPUTATION_REGISTRY_ABI = [
   // ── Give Feedback ──
   {
@@ -201,8 +250,8 @@ export const REPUTATION_REGISTRY_ABI = [
       { name: "agentId", type: "uint256" },
       { name: "value", type: "int128" },
       { name: "valueDecimals", type: "uint8" },
-      { name: "tag1", type: "bytes32" },
-      { name: "tag2", type: "bytes32" },
+      { name: "tag1", type: "string" },
+      { name: "tag2", type: "string" },
       { name: "endpointURI", type: "string" },
       { name: "feedbackURI", type: "string" },
       { name: "feedbackHash", type: "bytes32" },
@@ -217,13 +266,13 @@ export const REPUTATION_REGISTRY_ABI = [
     inputs: [
       { name: "agentId", type: "uint256" },
       { name: "clientAddress", type: "address" },
-      { name: "feedbackIndex", type: "uint256" },
+      { name: "feedbackIndex", type: "uint64" },
     ],
     outputs: [
       { name: "value", type: "int128" },
       { name: "valueDecimals", type: "uint8" },
-      { name: "tag1", type: "bytes32" },
-      { name: "tag2", type: "bytes32" },
+      { name: "tag1", type: "string" },
+      { name: "tag2", type: "string" },
       { name: "endpointURI", type: "string" },
       { name: "feedbackURI", type: "string" },
       { name: "feedbackHash", type: "bytes32" },
@@ -239,8 +288,8 @@ export const REPUTATION_REGISTRY_ABI = [
     inputs: [
       { name: "agentId", type: "uint256" },
       { name: "clientAddresses", type: "address[]" },
-      { name: "tag1", type: "bytes32" },
-      { name: "tag2", type: "bytes32" },
+      { name: "tag1", type: "string" },
+      { name: "tag2", type: "string" },
     ],
     outputs: [
       { name: "count", type: "uint256" },
@@ -255,7 +304,7 @@ export const REPUTATION_REGISTRY_ABI = [
     stateMutability: "nonpayable",
     inputs: [
       { name: "agentId", type: "uint256" },
-      { name: "feedbackIndex", type: "uint256" },
+      { name: "feedbackIndex", type: "uint64" },
     ],
     outputs: [],
   },
@@ -267,7 +316,7 @@ export const REPUTATION_REGISTRY_ABI = [
     inputs: [
       { name: "agentId", type: "uint256" },
       { name: "clientAddress", type: "address" },
-      { name: "feedbackIndex", type: "uint256" },
+      { name: "feedbackIndex", type: "uint64" },
       { name: "responseURI", type: "string" },
       { name: "responseHash", type: "bytes32" },
     ],
@@ -324,6 +373,9 @@ export function generateRegistrationJSON(
  * Register an agent on-chain via the ERC-8004 IdentityRegistry.
  * Called from the client via the user's wagmi wallet.
  *
+ * The contract's register(string agentURI) mints the identity NFT
+ * to msg.sender, so the connected wallet becomes the agent owner on-chain.
+ *
  * @returns Transaction hash
  */
 export async function registerAgent(
@@ -335,7 +387,7 @@ export async function registerAgent(
   const data = encodeFunctionData({
     abi: IDENTITY_REGISTRY_ABI,
     functionName: "register",
-    args: [ownerAddress, agentURI],
+    args: [agentURI],
   });
 
   const hash = await walletClient.sendTransaction({
@@ -349,7 +401,10 @@ export async function registerAgent(
 }
 
 /**
- * Parse the AgentRegistered event from a tx receipt to extract the on-chain agentId.
+ * Parse the Registered event from a tx receipt to extract the on-chain agentId.
+ *
+ * The ERC-8004 IdentityRegistry emits:
+ *   event Registered(uint256 indexed agentId, string agentURI, address indexed owner)
  */
 export function parseAgentRegisteredEvent(
   receipt: TransactionReceipt
@@ -362,11 +417,11 @@ export function parseAgentRegisteredEvent(
         topics: log.topics,
       });
 
-      if (decoded.eventName === "AgentRegistered") {
+      if (decoded.eventName === "Registered") {
         const args = decoded.args as {
           agentId: bigint;
-          owner: Address;
           agentURI: string;
+          owner: Address;
         };
         return {
           agentId: args.agentId,
@@ -497,8 +552,8 @@ export async function getReputationSummary(
   reputationRegistryAddress: Address,
   agentId: bigint,
   clientAddresses: Address[],
-  tag1: `0x${string}` = "0x0000000000000000000000000000000000000000000000000000000000000000",
-  tag2: `0x${string}` = "0x0000000000000000000000000000000000000000000000000000000000000000"
+  tag1: string = "",
+  tag2: string = ""
 ): Promise<{ count: number; value: number; decimals: number }> {
   const result = await publicClient.readContract({
     address: reputationRegistryAddress,

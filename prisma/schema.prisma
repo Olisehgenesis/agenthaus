@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String   @id @default(uuid())
+  walletAddress String   @unique
+  
+  // Per-user encrypted LLM API keys (never stored in env)
+  openrouterApiKey  String?  // AES-256-GCM encrypted
+  openaiApiKey      String?  // AES-256-GCM encrypted
+  groqApiKey        String?  // AES-256-GCM encrypted
+  grokApiKey        String?  // AES-256-GCM encrypted
+  geminiApiKey      String?  // AES-256-GCM encrypted
+  deepseekApiKey    String?  // AES-256-GCM encrypted
+  zaiApiKey         String?  // AES-256-GCM encrypted
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  agents        Agent[]
+}
+
+model Agent {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  templateType    String   // payment, trading, social, custom
+  status          String   @default("draft") // draft, deploying, active, paused, stopped
+  systemPrompt    String?
+  llmProvider     String   @default("openrouter") // openrouter, zai
+  llmModel        String   @default("meta-llama/llama-3.3-70b-instruct:free")
+  spendingLimit   Float    @default(100.0)
+  spendingUsed    Float    @default(0.0)
+  
+  // Wallet — derived from master mnemonic via HD path m/44'/60'/0'/0/{index}
+  agentWalletAddress    String?
+  walletDerivationIndex Int?     // HD derivation index for this agent
+  
+  // OpenClaw integration
+  openclawAgentId       String?  // OpenClaw agent id (e.g. "main")
+  openclawChannels      String?  // JSON: [{ channel, enabled, target }]
+  openclawCronJobs      String?  // JSON: [{ id, name, cron, message, enabled }]
+  
+  // ERC-8004
+  erc8004AgentId  String?
+  erc8004URI      String?
+  reputationScore Float    @default(0.0)
+  
+  // Configuration (JSON stored as string)
+  configuration   String?  // JSON string for template-specific config
+  
+  // Relations
+  ownerId         String
+  owner           User     @relation(fields: [ownerId], references: [id])
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deployedAt      DateTime?
+  
+  transactions    Transaction[]
+  activityLogs    ActivityLog[]
+}
+
+model Transaction {
+  id            String   @id @default(uuid())
+  agentId       String
+  agent         Agent    @relation(fields: [agentId], references: [id])
+  txHash        String?
+  type          String   // send, swap, register, tip
+  status        String   @default("pending") // pending, confirmed, failed
+  fromAddress   String?
+  toAddress     String?
+  amount        Float?
+  currency      String?
+  gasUsed       Float?
+  blockNumber   Int?
+  description   String?
+  createdAt     DateTime @default(now())
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  agentId     String
+  agent       Agent    @relation(fields: [agentId], references: [id])
+  type        String   // action, error, info, warning
+  message     String
+  metadata    String?  // JSON string for additional data
+  createdAt   DateTime @default(now())
+}

@@ -1,7 +1,9 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ═══════════════════════════════════════════════════════════════════════════════
+# AgentForge .gitignore
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# dependencies
-/node_modules
+# ─── Dependencies ─────────────────────────────────────────────────────────────
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -10,32 +12,100 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
+# ─── Next.js ──────────────────────────────────────────────────────────────────
 /.next/
 /out/
+/build/
+next-env.d.ts
 
-# production
-/build
+# ─── Environment & Secrets ────────────────────────────────────────────────────
+# CRITICAL: These contain mnemonic, API keys, encryption secrets
+.env
+.env.*
+!.env.example
 
-# misc
-.DS_Store
+# ─── Database ─────────────────────────────────────────────────────────────────
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+/prisma/*.db
+/prisma/*.db-journal
+/prisma/migrations/
+
+# ─── Prisma Generated ────────────────────────────────────────────────────────
+/src/generated/prisma
+
+# ─── OpenClaw Agent Runtime ──────────────────────────────────────────────────
+.openclaw_agents/
+openclaw.json
+
+# ─── Keys & Certificates ─────────────────────────────────────────────────────
 *.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
 
-# debug
+# ─── Wallet & Crypto ─────────────────────────────────────────────────────────
+# NEVER commit mnemonics, private keys, or keystore files
+*.keystore
+*.json.enc
+mnemonic.txt
+seed.txt
+private_key*
+keystore/
+
+# ─── OS Files ─────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ─── IDE & Editor ─────────────────────────────────────────────────────────────
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+*.sublime-project
+
+# ─── Testing & Coverage ──────────────────────────────────────────────────────
+/coverage/
+*.lcov
+.nyc_output/
+
+# ─── Debug Logs ───────────────────────────────────────────────────────────────
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+lerna-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# ─── TypeScript ───────────────────────────────────────────────────────────────
+*.tsbuildinfo
 
-# vercel
+# ─── Build Artifacts ─────────────────────────────────────────────────────────
+dist/
+*.map
+
+# ─── Vercel ───────────────────────────────────────────────────────────────────
 .vercel
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# ─── Turbo ────────────────────────────────────────────────────────────────────
+.turbo/
+
+# ─── Misc ─────────────────────────────────────────────────────────────────────
+*.log
+*.pid
+*.seed
+*.pid.lock

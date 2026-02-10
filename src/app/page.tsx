@@ -1,65 +1,227 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import React from "react";
+import Link from "next/link";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount } from "wagmi";
+import { Button } from "@/components/ui/button";
+import {
+  Zap,
+  Bot,
+  Shield,
+  BarChart3,
+  ArrowRight,
+  Sparkles,
+  Globe,
+  Lock,
+} from "lucide-react";
+
+export default function HomePage() {
+  const { isConnected } = useAccount();
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-slate-950">
+      {/* Navigation */}
+      <nav className="flex items-center justify-between px-6 py-4 border-b border-slate-800/50 backdrop-blur-sm sticky top-0 z-50 bg-slate-950/80">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20">
+            <Zap className="w-5 h-5 text-white" />
+          </div>
+          <span className="text-xl font-bold text-white tracking-tight">Agent Forge</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <ConnectButton
+            chainStatus="icon"
+            showBalance={false}
+            accountStatus="avatar"
+          />
+          {isConnected && (
+            <Link href="/dashboard">
+              <Button variant="glow" size="sm">
+                Launch App <ArrowRight className="w-4 h-4" />
+              </Button>
+            </Link>
+          )}
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="relative overflow-hidden">
+        {/* Background effects */}
+        <div className="absolute inset-0 grid-pattern" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl" />
+
+        <div className="relative max-w-6xl mx-auto px-6 py-24 text-center">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium">
+            <Sparkles className="w-4 h-4" />
+            Built on Celo with ERC-8004
+          </div>
+
+          {/* Heading */}
+          <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 leading-tight">
+            Deploy AI Agents
+            <br />
+            <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+              Without Code
+            </span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+
+          {/* Subtitle */}
+          <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto mb-12 leading-relaxed">
+            Create, deploy, and manage AI agents on the Celo blockchain. 
+            Automatic ERC-8004 registration, secure wallet management, 
+            and real-time monitoring — all from a visual dashboard.
+          </p>
+
+          {/* CTA */}
+          <div className="flex items-center justify-center gap-4">
+            {isConnected ? (
+              <Link href="/dashboard">
+                <Button variant="glow" size="lg" className="text-base">
+                  <Bot className="w-5 h-5" />
+                  Launch Dashboard
+                </Button>
+              </Link>
+            ) : (
+              <ConnectButton />
+            )}
+            <Link href="#features">
+              <Button variant="outline" size="lg" className="text-base">
+                Learn More
+              </Button>
+            </Link>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-8 max-w-lg mx-auto mt-20">
+            {[
+              { label: "Templates", value: "4+" },
+              { label: "Chains", value: "Celo" },
+              { label: "Registration", value: "ERC-8004" },
+            ].map((stat) => (
+              <div key={stat.label} className="text-center">
+                <div className="text-2xl font-bold text-white">{stat.value}</div>
+                <div className="text-sm text-slate-500">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section id="features" className="max-w-6xl mx-auto px-6 py-24">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+            Everything You Need
+          </h2>
+          <p className="text-slate-400 max-w-xl mx-auto">
+            From creation to monitoring, Agent Forge handles the entire lifecycle 
+            of your AI agents on Celo.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[
+            {
+              icon: Bot,
+              title: "No-Code Builder",
+              description: "Choose from pre-built templates or create custom agents with a visual interface. No coding required.",
+              color: "from-emerald-500 to-teal-600",
+            },
+            {
+              icon: Shield,
+              title: "ERC-8004 Identity",
+              description: "Automatic on-chain registration with the ERC-8004 standard. Give your agents a verified identity.",
+              color: "from-blue-500 to-indigo-600",
+            },
+            {
+              icon: Lock,
+              title: "Secure Wallets",
+              description: "Agent wallets with spending limits, multi-sig for high-value ops, and emergency pause controls.",
+              color: "from-purple-500 to-pink-600",
+            },
+            {
+              icon: BarChart3,
+              title: "Real-time Monitoring",
+              description: "Track transactions, spending, reputation scores, and agent activity in real-time.",
+              color: "from-amber-500 to-orange-600",
+            },
+            {
+              icon: Globe,
+              title: "Multi-Currency",
+              description: "Support for cUSD, cEUR, USDC, USDT and CELO. Process payments in any Celo stablecoin.",
+              color: "from-cyan-500 to-blue-600",
+            },
+            {
+              icon: Sparkles,
+              title: "AI Powered",
+              description: "Powered by GPT-4 and Claude. Choose your preferred LLM provider for each agent.",
+              color: "from-rose-500 to-red-600",
+            },
+          ].map((feature) => (
+            <div
+              key={feature.title}
+              className="group p-6 rounded-xl border border-slate-800 bg-slate-900/50 hover:border-slate-700 transition-all duration-300 hover:-translate-y-1"
+            >
+              <div
+                className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} mb-4 shadow-lg`}
+              >
+                <feature.icon className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">{feature.title}</h3>
+              <p className="text-sm text-slate-400 leading-relaxed">{feature.description}</p>
+            </div>
+          ))}
         </div>
-      </main>
+      </section>
+
+      {/* How It Works */}
+      <section className="max-w-6xl mx-auto px-6 py-24 border-t border-slate-800/50">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+            How It Works
+          </h2>
+          <p className="text-slate-400 max-w-xl mx-auto">
+            Deploy your first AI agent in minutes, not days.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-4 gap-8">
+          {[
+            { step: "01", title: "Connect Wallet", desc: "Connect your Celo wallet via WalletConnect or MiniPay" },
+            { step: "02", title: "Choose Template", desc: "Select from Payment, Trading, Social, or Custom agents" },
+            { step: "03", title: "Configure", desc: "Set prompts, spending limits, and agent preferences" },
+            { step: "04", title: "Deploy", desc: "One-click deployment with automatic ERC-8004 registration" },
+          ].map((item) => (
+            <div key={item.step} className="text-center">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xl font-bold mb-4">
+                {item.step}
+              </div>
+              <h3 className="text-white font-semibold mb-2">{item.title}</h3>
+              <p className="text-sm text-slate-400">{item.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-800/50 py-8">
+        <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-emerald-400" />
+            <span className="text-sm text-slate-500">
+              Celo Agent Forge © 2026
+            </span>
+          </div>
+          <div className="flex items-center gap-4 text-sm text-slate-500">
+            <span>Built with ERC-8004</span>
+            <span>•</span>
+            <span>Powered by Celo</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

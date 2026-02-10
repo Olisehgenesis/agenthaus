@@ -28,21 +28,33 @@ export function getDefaultCronJobs(templateType: string): Omit<CronSkillJob, "id
     case "forex":
       return [
         {
-          name: "Rate Monitor",
+          name: "Price Tracker",
           cron: "*/5 * * * *", // every 5 minutes
-          skillPrompt: "Check all current CELO exchange rates. If any rate has moved more than 2% from the last check, report it as a significant movement.",
+          skillPrompt: "Record all current Mento asset prices for trend tracking. [[PRICE_TRACK|all]]",
+          enabled: true,
+        },
+        {
+          name: "Trend & Alert Check",
+          cron: "*/15 * * * *", // every 15 minutes
+          skillPrompt: "Analyze price trends and check for significant movements. [[PRICE_TREND|all|60]] [[PRICE_ALERTS|2]]",
           enabled: true,
         },
         {
           name: "Portfolio Report",
           cron: "0 * * * *", // every hour
-          skillPrompt: "Generate a portfolio status report showing current holdings and their USD values.",
+          skillPrompt: "Generate a portfolio status report showing current holdings and their USD values. [[PORTFOLIO_STATUS]]",
+          enabled: true,
+        },
+        {
+          name: "Price Predictions",
+          cron: "0 */2 * * *", // every 2 hours
+          skillPrompt: "Generate momentum-based price predictions for all tracked pairs. [[PRICE_PREDICT|all]]",
           enabled: true,
         },
         {
           name: "Daily Market Summary",
           cron: "0 9 * * *", // daily at 9 AM
-          skillPrompt: "Generate a comprehensive daily market analysis for all Mento stablecoin pairs. Include rate trends, oracle health, and trading recommendations.",
+          skillPrompt: "Generate a comprehensive daily market analysis for all Mento stablecoin pairs. Include rate trends, predictions, oracle health, and trading recommendations. [[FOREX_ANALYSIS]] [[PRICE_PREDICT|all]]",
           enabled: false, // disabled by default
         },
       ];

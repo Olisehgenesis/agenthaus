@@ -32,7 +32,7 @@ import {
 import { mnemonicToAccount, HDAccount } from "viem/accounts";
 import { celoSepolia, celo } from "viem/chains";
 import { prisma } from "@/lib/db";
-import { CELO_TOKENS, ACTIVE_CHAIN_ID, CELO_SEPOLIA_CHAIN_ID } from "@/lib/constants";
+import { CELO_TOKENS, ACTIVE_CHAIN_ID, CELO_SEPOLIA_CHAIN_ID, FEE_CURRENCIES } from "@/lib/constants";
 
 // ─── Chain Config ────────────────────────────────────────────────────────────
 
@@ -191,10 +191,74 @@ export async function getWalletBalance(address: Address): Promise<WalletBalance>
   };
 }
 
+// ─── Fee Abstraction ──────────────────────────────────────────────────────────
+// Celo lets you pay gas in ERC-20 stablecoins via the `feeCurrency` tx field.
+// When the agent wallet has no CELO but holds cUSD/cEUR/etc., we auto-select
+// the best fee currency so the transaction can still go through.
+
+/**
+ * Detect the best fee currency for a wallet.
+ *
+ * Priority:
+ *  1. If the wallet has CELO (>= 0.01), use native CELO (undefined = default).
+ *  2. Otherwise pick the first stablecoin with a balance >= 0.1.
+ *  3. If nothing is found return undefined (will fail at send time).
+ */
+export async function detectFeeCurrency(agentAddress: Address): Promise<Address | undefined> {
+  const client = getPublicClient();
+  const chainId = ACTIVE_CHAIN_ID;
+  const feeCurrencyMap = FEE_CURRENCIES[chainId];
+  if (!feeCurrencyMap) return undefined;
+
+  // Check native CELO first
+  const nativeBal = await client.getBalance({ address: agentAddress });
+  if (nativeBal >= parseEther("0.01")) {
+    return undefined; // native CELO is fine
+  }
+
+  // Check stablecoins
+  const candidates = Object.values(feeCurrencyMap);
+  for (const candidate of candidates) {
+    try {
+      const bal = await client.readContract({
+        address: candidate.token as Address,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [agentAddress],
+      });
+      const threshold = candidate.decimals === 18
+        ? parseUnits("0.1", 18)
+        : parseUnits("0.1", candidate.decimals);
+      if (bal >= threshold) {
+        return candidate.feeCurrency as Address;
+      }
+    } catch {
+      // skip
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Get fee currency info for display purposes.
+ */
+export function getFeeCurrencyLabel(feeCurrencyAddress: Address | undefined): string {
+  if (!feeCurrencyAddress) return "CELO (native)";
+  const chainId = ACTIVE_CHAIN_ID;
+  const feeCurrencyMap = FEE_CURRENCIES[chainId];
+  if (!feeCurrencyMap) return "CELO (native)";
+  const entry = Object.values(feeCurrencyMap).find(
+    (c) => c.feeCurrency.toLowerCase() === feeCurrencyAddress.toLowerCase()
+  );
+  return entry ? `${entry.symbol} (fee abstraction)` : "Unknown token";
+}
+
 // ─── Transaction Helpers ─────────────────────────────────────────────────────
 
 /**
  * Send native CELO from an agent wallet to a destination.
+ * Automatically uses fee abstraction if the wallet has no CELO for gas.
  */
 export async function sendCelo(
   agentIndex: number,
@@ -203,19 +267,30 @@ export async function sendCelo(
 ) {
   const walletClient = getAgentWalletClient(agentIndex);
   const account = deriveAccount(agentIndex);
+  const agentAddress = account.address;
 
-  const hash = await walletClient.sendTransaction({
+  // Detect best fee currency
+  const feeCurrency = await detectFeeCurrency(agentAddress);
+
+  const txParams: Record<string, unknown> = {
     account,
     to,
     value: parseEther(amountInEther),
     chain: getActiveChain(),
-  });
+  };
 
+  if (feeCurrency) {
+    txParams.feeCurrency = feeCurrency;
+    console.log(`[FeeAbstraction] Paying gas in ${getFeeCurrencyLabel(feeCurrency)} for CELO transfer`);
+  }
+
+  const hash = await walletClient.sendTransaction(txParams as Parameters<typeof walletClient.sendTransaction>[0]);
   return hash;
 }
 
 /**
  * Send an ERC-20 token (cUSD, cEUR, etc.) from an agent wallet.
+ * Automatically uses fee abstraction if the wallet has no CELO for gas.
  */
 export async function sendToken(
   agentIndex: number,
@@ -226,6 +301,7 @@ export async function sendToken(
 ) {
   const walletClient = getAgentWalletClient(agentIndex);
   const account = deriveAccount(agentIndex);
+  const agentAddress = account.address;
 
   const { encodeFunctionData } = await import("viem");
 
@@ -246,13 +322,22 @@ export async function sendToken(
     args: [to, parseUnits(amount, decimals)],
   });
 
-  const hash = await walletClient.sendTransaction({
+  // Detect best fee currency
+  const feeCurrency = await detectFeeCurrency(agentAddress);
+
+  const txParams: Record<string, unknown> = {
     account,
     to: tokenAddress,
     data,
     chain: getActiveChain(),
-  });
+  };
 
+  if (feeCurrency) {
+    txParams.feeCurrency = feeCurrency;
+    console.log(`[FeeAbstraction] Paying gas in ${getFeeCurrencyLabel(feeCurrency)} for token transfer`);
+  }
+
+  const hash = await walletClient.sendTransaction(txParams as Parameters<typeof walletClient.sendTransaction>[0]);
   return hash;
 }
 

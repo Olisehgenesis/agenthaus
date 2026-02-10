@@ -74,6 +74,13 @@ To send native CELO:
 To send ERC-20 tokens (cUSD, cEUR, cREAL):
   [[SEND_TOKEN|<currency>|<recipient_0x_address>|<amount>]]
 
+FEE ABSTRACTION:
+- Gas fees are AUTOMATICALLY paid using the best available currency.
+- If the wallet has CELO, gas is paid in CELO (default).
+- If the wallet has NO CELO but has cUSD/cEUR/cREAL, gas is paid from that stablecoin.
+- This means you can execute transactions even with 0 CELO, as long as stablecoins are available.
+- The user does NOT need to do anything special — fee abstraction is automatic.
+
 RULES:
 - The command tag MUST appear in your response text exactly as shown (with double square brackets).
 - The recipient MUST be a valid 0x address (42 hex characters). If the user gives an ENS or non-0x name, ask for the real address.

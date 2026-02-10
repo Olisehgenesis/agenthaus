@@ -13,7 +13,7 @@
  */
 
 import { type Address, isAddress } from "viem";
-import { sendCelo, sendToken, getWalletBalance, getPublicClient } from "./wallet";
+import { sendCelo, sendToken, getWalletBalance, getPublicClient, detectFeeCurrency, getFeeCurrencyLabel } from "./wallet";
 import { prisma } from "@/lib/db";
 import { CELO_TOKENS, BLOCK_EXPLORER } from "@/lib/constants";
 
@@ -32,6 +32,7 @@ export interface TransactionResult {
   txHash?: string;
   error?: string;
   intent: TransactionIntent;
+  feeCurrencyUsed?: string; // e.g. "cUSD (fee abstraction)" or "CELO (native)"
 }
 
 // ─── Command Parsing ──────────────────────────────────────────────────────────
@@ -125,6 +126,12 @@ async function executeIntent(
   try {
     let txHash: string;
 
+    // Detect which fee currency will be used (for reporting)
+    const { deriveAddress } = await import("./wallet");
+    const agentAddress = deriveAddress(walletIndex);
+    const feeCurrencyAddr = await detectFeeCurrency(agentAddress);
+    const feeCurrencyLabel = getFeeCurrencyLabel(feeCurrencyAddr);
+
     if (intent.action === "send_celo") {
       txHash = await sendCelo(walletIndex, intent.to as Address, intent.amount);
     } else {
@@ -170,7 +177,7 @@ async function executeIntent(
         currency: intent.currency,
         gasUsed: receipt.gasUsed ? Number(receipt.gasUsed) / 1e18 : null,
         blockNumber: receipt.blockNumber ? Number(receipt.blockNumber) : null,
-        description: `Sent ${intent.amount} ${intent.currency} to ${intent.to}`,
+        description: `Sent ${intent.amount} ${intent.currency} to ${intent.to} (gas: ${feeCurrencyLabel})`,
       },
     });
 
@@ -178,6 +185,7 @@ async function executeIntent(
       success: receipt.status === "success",
       txHash,
       intent,
+      feeCurrencyUsed: feeCurrencyLabel,
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -214,7 +222,8 @@ function formatTxResult(result: TransactionResult): string {
       `• To: ${result.intent.to}`,
       `• TX Hash: \`${result.txHash}\``,
       `• Explorer: ${BLOCK_EXPLORER}/tx/${result.txHash}`,
-    ].join("\n");
+      result.feeCurrencyUsed ? `• Gas paid in: ${result.feeCurrencyUsed}` : "",
+    ].filter(Boolean).join("\n");
   } else {
     return [
       `\n❌ **Transaction Failed**`,

@@ -49,6 +49,31 @@ export const CELO_TOKENS = {
   cREAL: { address: "0xE4D517785D091D3c54818832dB6094bcc2744545", symbol: "cREAL", decimals: 18 },
 } as const;
 
+// ─── Fee Currency Addresses ──────────────────────────────────────────────────
+// Celo's fee abstraction: pay gas in ERC-20 tokens instead of CELO.
+// For 18-decimal tokens (cUSD, cEUR, cREAL) the token address IS the fee currency.
+// For 6-decimal tokens (USDC, USDT) we need an adapter that normalises to 18 decimals.
+//
+// Docs: https://docs.celo.org/protocol/transaction/erc20-transaction-fees
+
+export const FEE_CURRENCIES: Record<number, Record<string, { feeCurrency: string; token: string; symbol: string; decimals: number }>> = {
+  // Celo Mainnet
+  42220: {
+    cUSD:  { feeCurrency: "0x765DE816845861e75A25fCA122bb6898B8B1282a", token: "0x765DE816845861e75A25fCA122bb6898B8B1282a", symbol: "cUSD",  decimals: 18 },
+    cEUR:  { feeCurrency: "0xD8763CBa276a3738E6DE85b4b3bF5FDed6D6cA73", token: "0xD8763CBa276a3738E6DE85b4b3bF5FDed6D6cA73", symbol: "cEUR",  decimals: 18 },
+    cREAL: { feeCurrency: "0xe8537a3d056DA446677B9E9d6c5dB704EaAb4787", token: "0xe8537a3d056DA446677B9E9d6c5dB704EaAb4787", symbol: "cREAL", decimals: 18 },
+    USDC:  { feeCurrency: "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B", token: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C", symbol: "USDC",  decimals: 6 },  // adapter
+    USDT:  { feeCurrency: "0x0e2a3e05bc9a16f5292a6170456a710cb89c6f72", token: "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e", symbol: "USDT",  decimals: 6 },  // adapter
+  },
+  // Celo Sepolia Testnet
+  11142220: {
+    cUSD:  { feeCurrency: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1", token: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1", symbol: "cUSD",  decimals: 18 },
+    cEUR:  { feeCurrency: "0x10c892A6EC43a53E45D0B916B4b7D383B1b78C0F", token: "0x10c892A6EC43a53E45D0B916B4b7D383B1b78C0F", symbol: "cEUR",  decimals: 18 },
+    cREAL: { feeCurrency: "0xE4D517785D091D3c54818832dB6094bcc2744545", token: "0xE4D517785D091D3c54818832dB6094bcc2744545", symbol: "cREAL", decimals: 18 },
+    USDC:  { feeCurrency: "0x4822e58de6f5e485eF90df51C41CE01721331dC0", token: "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B", symbol: "USDC",  decimals: 6 },  // adapter
+  },
+} as const;
+
 // LLM Models — OpenRouter (free-only), Groq, OpenAI, Grok, Gemini, DeepSeek, Z.AI
 export const LLM_MODELS = {
   openrouter: [
@@ -239,40 +264,61 @@ Safety rules:
   {
     id: "forex",
     name: "Forex Trader",
-    description: "Monitor Mento stablecoin exchange rates, execute swaps between CELO and cUSD/cEUR/cREAL, analyze market conditions, and manage a forex trading portfolio on Celo.",
+    description: "Monitor Mento stablecoin exchange rates, execute swaps between CELO and cUSD/cEUR/cREAL, analyze market conditions with trend analysis and predictions, and manage a forex trading portfolio on Celo. Supports fee abstraction — pay gas in cUSD instead of CELO.",
     icon: "💹",
     color: "from-yellow-500 to-amber-600",
     features: [
       "Live Mento exchange rate monitoring",
       "SortedOracles price feeds (on-chain)",
       "CELO ↔ cUSD/cEUR/cREAL swaps via Mento",
+      "Periodic price tracking & trend analysis",
+      "Momentum-based price predictions",
       "Portfolio valuation & tracking",
       "Forex analysis & trading signals",
-      "Automated rate alerts (via OpenClaw cron)",
+      "Price alerts on significant moves",
+      "Fee abstraction — pay gas in cUSD/cEUR",
+      "Automated rate monitoring (via cron)",
     ],
-    defaultPrompt: `You are a Forex Trader Agent operating on the Celo blockchain (Celo Sepolia testnet). You specialize in Mento stablecoin trading — monitoring exchange rates, executing swaps, and managing a multi-currency portfolio.
+    defaultPrompt: `You are a Forex Trader Agent operating on the Celo blockchain (Celo Sepolia testnet). You specialize in Mento stablecoin trading — monitoring exchange rates, executing swaps, analyzing trends, predicting price movements, and managing a multi-currency portfolio.
 
 Your expertise:
 1. Monitor CELO ↔ stablecoin rates using Celo SortedOracles (on-chain price feeds)
 2. Execute swaps between CELO, cUSD, cEUR, and cREAL via the Mento Protocol
-3. Analyze market conditions and provide trading signals
-4. Track portfolio performance across all Celo assets
-5. Alert on significant rate movements
+3. Track price history over time and detect trends (up/down/flat)
+4. Generate momentum-based price predictions with confidence levels
+5. Alert on significant price movements and volatility spikes
+6. Track portfolio performance across all Celo assets
+7. Pay gas fees in cUSD/cEUR via Celo fee abstraction — no CELO needed for gas!
+
+Fee abstraction:
+- Your wallet can pay transaction gas fees in cUSD or cEUR instead of CELO.
+- If your wallet has no CELO but has stablecoins, gas is automatically paid from stablecoins.
+- This means you can trade even when your CELO balance is zero, as long as you hold cUSD/cEUR.
+
+Price tracking workflow:
+1. Use PRICE_TRACK to record snapshots (run periodically via cron or manually).
+2. Use PRICE_TREND to analyze direction and percentage change over a period.
+3. Use PRICE_PREDICT to get momentum-based predictions with confidence levels.
+4. Use PRICE_ALERTS to check for big moves above a threshold.
+5. Combine these with FOREX_ANALYSIS for a comprehensive market view.
 
 Trading strategy:
 - Always check current rates before recommending or executing trades
+- Use trend and prediction data to time entries and exits
 - Consider spread and slippage when quoting swaps
 - Track position sizes and enforce risk limits
 - Provide clear reasoning for trade recommendations
 - Never exceed configured position size limits
+- Alert users to significant moves (>2% change)
 
 When users ask about prices, rates, or market conditions, use your skills to fetch REAL on-chain data — never guess or fabricate numbers.
 
 When users want to swap, always:
 1. Get a quote first using MENTO_QUOTE
 2. Show them the rate and expected output
-3. Ask for confirmation on amounts > 10
-4. Execute the swap
+3. Check trend and prediction for timing advice
+4. Ask for confirmation on amounts > 10
+5. Execute the swap
 
 Supported pairs: CELO/cUSD, CELO/cEUR, CELO/cREAL, cUSD/cEUR (cross-stable via CELO)`,
     defaultConfig: {

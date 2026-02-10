@@ -190,6 +190,71 @@ const SKILL_DEFINITIONS: SkillDefinition[] = [
     requiresWallet: true,
     mutatesState: false,
   },
+  {
+    id: "price_track",
+    name: "Record & Show Prices",
+    description: "Record current Mento asset prices and show recent price history",
+    category: "forex",
+    commandTag: "PRICE_TRACK",
+    params: [
+      { name: "pair", description: "Pair to track (e.g. cUSD) or 'all'", required: false, example: "all" },
+    ],
+    examples: [
+      { input: "track all prices", output: "[[PRICE_TRACK|all]]" },
+      { input: "record cUSD price", output: "[[PRICE_TRACK|cUSD]]" },
+    ],
+    requiresWallet: false,
+    mutatesState: false,
+  },
+  {
+    id: "price_trend",
+    name: "Price Trend Analysis",
+    description: "Analyze price trends for Mento assets: direction, change %, momentum",
+    category: "forex",
+    commandTag: "PRICE_TREND",
+    params: [
+      { name: "pair", description: "Pair to analyze (e.g. CELO/cUSD) or 'all'", required: false, example: "CELO/cUSD" },
+      { name: "period", description: "Period in minutes (default 60)", required: false, example: "60" },
+    ],
+    examples: [
+      { input: "what's the cUSD trend?", output: "[[PRICE_TREND|CELO/cUSD|60]]" },
+      { input: "show all trends for the last hour", output: "[[PRICE_TREND|all|60]]" },
+    ],
+    requiresWallet: false,
+    mutatesState: false,
+  },
+  {
+    id: "price_predict",
+    name: "Price Prediction",
+    description: "Momentum-based price prediction for Mento assets with confidence levels",
+    category: "forex",
+    commandTag: "PRICE_PREDICT",
+    params: [
+      { name: "pair", description: "Pair to predict (e.g. CELO/cUSD) or 'all'", required: false, example: "CELO/cUSD" },
+    ],
+    examples: [
+      { input: "predict CELO/cUSD price", output: "[[PRICE_PREDICT|CELO/cUSD]]" },
+      { input: "give me predictions for all pairs", output: "[[PRICE_PREDICT|all]]" },
+    ],
+    requiresWallet: false,
+    mutatesState: false,
+  },
+  {
+    id: "price_alerts",
+    name: "Price Alerts",
+    description: "Check for significant price movements, volatility spikes, and crossovers",
+    category: "forex",
+    commandTag: "PRICE_ALERTS",
+    params: [
+      { name: "threshold", description: "Minimum % change to alert (default 2)", required: false, example: "2" },
+    ],
+    examples: [
+      { input: "any price alerts?", output: "[[PRICE_ALERTS|2]]" },
+      { input: "check for big moves", output: "[[PRICE_ALERTS|1]]" },
+    ],
+    requiresWallet: false,
+    mutatesState: false,
+  },
 ];
 
 // ─── Skill Handlers ───────────────────────────────────────────────────────────
@@ -346,12 +411,21 @@ async function executeGasPrice(_params: string[], _ctx: SkillContext): Promise<S
 async function executeForexAnalysis(params: string[], _ctx: SkillContext): Promise<SkillResult> {
   const pair = params[0] || "";
   const { getAllOracleRates, getOracleRate } = await import("@/lib/blockchain/mento");
+  const { analyzeTrend, predictPrice, recordAllPriceSnapshots, getPriceHistory } = await import("@/lib/blockchain/price-tracker");
+
+  // Always record fresh snapshots so trend data stays current
+  await recordAllPriceSnapshots().catch(() => {});
 
   try {
     if (pair && pair.includes("/")) {
       // Specific pair analysis
       const [, buy] = pair.split("/");
       const rate = await getOracleRate(buy);
+
+      // Include trend data
+      const trend = analyzeTrend(rate.pair, 60);
+      const prediction = predictPrice(rate.pair);
+      const history = getPriceHistory(rate.pair, 10);
 
       const display = [
         `📈 **Forex Analysis: ${rate.pair}**`,
@@ -366,6 +440,22 @@ async function executeForexAnalysis(params: string[], _ctx: SkillContext): Promi
         `• Data fresh: ${rate.isExpired ? "❌ Stale" : "✅ Fresh"}`,
         `• Source: ${rate.source}`,
         ``,
+        trend ? [
+          `**Trend (${trend.period}):**`,
+          `• Direction: ${trend.direction === "up" ? "📈 Up" : trend.direction === "down" ? "📉 Down" : "➡️ Flat"}`,
+          `• Change: ${trend.change > 0 ? "+" : ""}${trend.changePercent.toFixed(3)}%`,
+          `• Previous: ${trend.previousRate.toFixed(6)} → Current: ${trend.currentRate.toFixed(6)}`,
+          `• Data points: ${trend.snapshots}`,
+        ].join("\n") : "**Trend:** Not enough data yet (start price tracking first)",
+        ``,
+        prediction ? [
+          `**Prediction (${prediction.timeframe}):**`,
+          `• Direction: ${prediction.predictedDirection === "up" ? "📈" : prediction.predictedDirection === "down" ? "📉" : "➡️"} ${prediction.predictedDirection.toUpperCase()}`,
+          `• Predicted rate: ${prediction.predictedRate.toFixed(6)}`,
+          `• Confidence: ${prediction.confidence === "high" ? "🟢" : prediction.confidence === "medium" ? "🟡" : "🔴"} ${prediction.confidence}`,
+          `• Reasoning: ${prediction.reasoning}`,
+        ].join("\n") : "**Prediction:** Need ≥ 5 data points — run price tracking first",
+        ``,
         `**Analysis:**`,
         rate.numReporters >= 3
           ? `• Oracle has sufficient reporters (${rate.numReporters}) — rate is reliable.`
@@ -373,7 +463,8 @@ async function executeForexAnalysis(params: string[], _ctx: SkillContext): Promi
         rate.isExpired
           ? `• ⚠️ Oracle data is expired — exercise caution with trades.`
           : `• Oracle data is fresh — safe to trade at quoted rates.`,
-      ].join("\n");
+        history.length > 0 ? `• ${history.length} price snapshots recorded in current session.` : "",
+      ].filter(Boolean).join("\n");
 
       return { success: true, data: rate as unknown as Record<string, unknown>, display };
     }
@@ -382,7 +473,14 @@ async function executeForexAnalysis(params: string[], _ctx: SkillContext): Promi
     const rates = await getAllOracleRates();
     const lines = rates.map((r) => {
       const freshIcon = r.isExpired ? "⚠️" : "✅";
-      return `• ${r.pair}: ${r.rate.toFixed(4)} (reporters: ${r.numReporters}) ${freshIcon}`;
+      const trend = analyzeTrend(r.pair, 60);
+      const trendIcon = trend
+        ? (trend.direction === "up" ? "📈" : trend.direction === "down" ? "📉" : "➡️")
+        : "•";
+      const changeStr = trend
+        ? ` (${trend.change > 0 ? "+" : ""}${trend.changePercent.toFixed(2)}%)`
+        : "";
+      return `${trendIcon} ${r.pair}: ${r.rate.toFixed(4)}${changeStr} (reporters: ${r.numReporters}) ${freshIcon}`;
     });
 
     const display = [
@@ -394,6 +492,7 @@ async function executeForexAnalysis(params: string[], _ctx: SkillContext): Promi
       `**Summary:**`,
       `• ${rates.length} active pairs monitored`,
       `• All rates sourced from Celo SortedOracles (on-chain)`,
+      `• Gas fees can be paid in cUSD via fee abstraction — no CELO needed!`,
       `• Use "swap X CELO for cUSD" to execute a Mento trade`,
     ].join("\n");
 
@@ -445,6 +544,216 @@ async function executePortfolioStatus(_params: string[], ctx: SkillContext): Pro
   }
 }
 
+// ── Price Tracking, Trend, Prediction, Alerts ────────────────────────────────
+
+async function executePriceTrack(params: string[], _ctx: SkillContext): Promise<SkillResult> {
+  const target = (params[0] || "all").toUpperCase();
+  const { recordAllPriceSnapshots, recordPriceSnapshot, getPriceHistory } = await import("@/lib/blockchain/price-tracker");
+
+  try {
+    if (target === "ALL") {
+      const snapshots = await recordAllPriceSnapshots();
+      const lines = snapshots.map((s) =>
+        `• ${s.pair}: ${s.rate.toFixed(6)} (${s.source}) — recorded at ${s.timestamp.toISOString()}`
+      );
+
+      const historyLines: string[] = [];
+      for (const s of snapshots) {
+        const hist = getPriceHistory(s.pair, 5);
+        if (hist.length > 1) {
+          const oldest = hist[0];
+          const newest = hist[hist.length - 1];
+          const change = ((newest.rate - oldest.rate) / oldest.rate) * 100;
+          historyLines.push(`• ${s.pair}: ${change > 0 ? "+" : ""}${change.toFixed(3)}% over ${hist.length} snapshots`);
+        }
+      }
+
+      const display = [
+        `📊 **Price Snapshot Recorded** (${snapshots.length} pairs)`,
+        ``,
+        ...lines,
+        historyLines.length > 0 ? `\n**Recent Changes:**` : "",
+        ...historyLines,
+      ].filter(Boolean).join("\n");
+
+      return { success: true, data: { snapshots: snapshots.length } as Record<string, unknown>, display };
+    }
+
+    // Single pair
+    const snapshot = await recordPriceSnapshot(target);
+    const history = getPriceHistory(snapshot.pair, 10);
+    const historyLines = history.map((h) =>
+      `  ${h.timestamp.toLocaleTimeString()}: ${h.rate.toFixed(6)}`
+    );
+
+    const display = [
+      `📊 **Price Recorded: ${snapshot.pair}**`,
+      `• Current rate: ${snapshot.rate.toFixed(6)}`,
+      `• Source: ${snapshot.source}`,
+      ``,
+      history.length > 1 ? `**Recent History (${history.length} points):**` : "",
+      ...historyLines,
+    ].filter(Boolean).join("\n");
+
+    return { success: true, data: snapshot as unknown as Record<string, unknown>, display };
+  } catch (error) {
+    return { success: false, error: String(error), display: `❌ Price tracking failed: ${error}` };
+  }
+}
+
+async function executePriceTrend(params: string[], _ctx: SkillContext): Promise<SkillResult> {
+  const pairInput = params[0] || "all";
+  const period = parseInt(params[1] || "60", 10);
+  const { analyzeTrend, analyzeAllTrends, recordAllPriceSnapshots } = await import("@/lib/blockchain/price-tracker");
+
+  // Ensure we have fresh data
+  await recordAllPriceSnapshots().catch(() => {});
+
+  try {
+    if (pairInput.toUpperCase() === "ALL") {
+      const trends = analyzeAllTrends(period);
+      if (trends.length === 0) {
+        return { success: true, data: {}, display: "📈 **No trend data yet.** Run [[PRICE_TRACK|all]] a few times to build history." };
+      }
+
+      const lines = trends.map((t) => {
+        const icon = t.direction === "up" ? "📈" : t.direction === "down" ? "📉" : "➡️";
+        return `${icon} **${t.pair}**: ${t.change > 0 ? "+" : ""}${t.changePercent.toFixed(3)}% (${t.previousRate.toFixed(6)} → ${t.currentRate.toFixed(6)}) [${t.snapshots} pts]`;
+      });
+
+      const display = [
+        `📈 **Price Trends (${formatPeriodLabel(period)})**`,
+        ``,
+        ...lines,
+      ].join("\n");
+
+      return { success: true, data: { trends } as unknown as Record<string, unknown>, display };
+    }
+
+    // Specific pair
+    const pair = pairInput.includes("/") ? pairInput : `CELO/${pairInput.toUpperCase()}`;
+    const trend = analyzeTrend(pair, period);
+    if (!trend) {
+      return { success: true, data: {}, display: `📈 **No trend data for ${pair}.** Run [[PRICE_TRACK|${pairInput}]] a few times first.` };
+    }
+
+    const icon = trend.direction === "up" ? "📈" : trend.direction === "down" ? "📉" : "➡️";
+    const display = [
+      `${icon} **Trend: ${trend.pair} (${trend.period})**`,
+      `• Direction: ${trend.direction.toUpperCase()}`,
+      `• Change: ${trend.change > 0 ? "+" : ""}${trend.changePercent.toFixed(3)}%`,
+      `• From: ${trend.previousRate.toFixed(6)} → To: ${trend.currentRate.toFixed(6)}`,
+      `• Data points: ${trend.snapshots}`,
+    ].join("\n");
+
+    return { success: true, data: trend as unknown as Record<string, unknown>, display };
+  } catch (error) {
+    return { success: false, error: String(error), display: `❌ Trend analysis failed: ${error}` };
+  }
+}
+
+async function executePricePredict(params: string[], _ctx: SkillContext): Promise<SkillResult> {
+  const pairInput = params[0] || "all";
+  const { predictPrice, predictAllPrices, recordAllPriceSnapshots } = await import("@/lib/blockchain/price-tracker");
+
+  // Ensure we have fresh data
+  await recordAllPriceSnapshots().catch(() => {});
+
+  try {
+    if (pairInput.toUpperCase() === "ALL") {
+      const predictions = predictAllPrices();
+      if (predictions.length === 0) {
+        return { success: true, data: {}, display: "🔮 **Not enough data for predictions.** Need at least 5 price snapshots. Run [[PRICE_TRACK|all]] periodically." };
+      }
+
+      const lines = predictions.map((p) => {
+        const icon = p.predictedDirection === "up" ? "📈" : p.predictedDirection === "down" ? "📉" : "➡️";
+        const confIcon = p.confidence === "high" ? "🟢" : p.confidence === "medium" ? "🟡" : "🔴";
+        return [
+          `${icon} **${p.pair}** (${p.timeframe})`,
+          `  Current: ${p.currentRate.toFixed(6)} → Predicted: ${p.predictedRate.toFixed(6)}`,
+          `  Confidence: ${confIcon} ${p.confidence} — ${p.reasoning}`,
+        ].join("\n");
+      });
+
+      const display = [
+        `🔮 **Price Predictions (momentum-based)**`,
+        ``,
+        ...lines,
+        ``,
+        `⚠️ _This is a simple heuristic, NOT financial advice._`,
+      ].join("\n");
+
+      return { success: true, data: { predictions } as unknown as Record<string, unknown>, display };
+    }
+
+    // Specific pair
+    const pair = pairInput.includes("/") ? pairInput : `CELO/${pairInput.toUpperCase()}`;
+    const prediction = predictPrice(pair);
+    if (!prediction) {
+      return { success: true, data: {}, display: `🔮 **Not enough data for ${pair}.** Need ≥ 5 snapshots. Run [[PRICE_TRACK|${pairInput}]] periodically.` };
+    }
+
+    const icon = prediction.predictedDirection === "up" ? "📈" : prediction.predictedDirection === "down" ? "📉" : "➡️";
+    const confIcon = prediction.confidence === "high" ? "🟢" : prediction.confidence === "medium" ? "🟡" : "🔴";
+    const display = [
+      `🔮 **Prediction: ${prediction.pair}** (${prediction.timeframe})`,
+      `${icon} Direction: ${prediction.predictedDirection.toUpperCase()}`,
+      `• Current: ${prediction.currentRate.toFixed(6)}`,
+      `• Predicted: ${prediction.predictedRate.toFixed(6)}`,
+      `• Confidence: ${confIcon} ${prediction.confidence}`,
+      `• Reasoning: ${prediction.reasoning}`,
+      ``,
+      `⚠️ _Simple momentum heuristic — not financial advice._`,
+    ].join("\n");
+
+    return { success: true, data: prediction as unknown as Record<string, unknown>, display };
+  } catch (error) {
+    return { success: false, error: String(error), display: `❌ Prediction failed: ${error}` };
+  }
+}
+
+async function executePriceAlerts(params: string[], _ctx: SkillContext): Promise<SkillResult> {
+  const threshold = parseFloat(params[0] || "2");
+  const { checkAlerts, recordAllPriceSnapshots } = await import("@/lib/blockchain/price-tracker");
+
+  // Ensure we have fresh data
+  await recordAllPriceSnapshots().catch(() => {});
+
+  try {
+    const alerts = checkAlerts(threshold);
+
+    if (alerts.length === 0) {
+      return {
+        success: true,
+        data: { alerts: [] },
+        display: `🔔 **No Price Alerts** (threshold: ${threshold}%)\nAll Mento pairs are moving within normal ranges.`,
+      };
+    }
+
+    const lines = alerts.map((a) => {
+      const icon = a.severity === "critical" ? "🚨" : a.severity === "warning" ? "⚠️" : "ℹ️";
+      return `${icon} **${a.type.replace("_", " ").toUpperCase()}** — ${a.message}`;
+    });
+
+    const display = [
+      `🔔 **Price Alerts** (threshold: ${threshold}%)`,
+      ``,
+      ...lines,
+    ].join("\n");
+
+    return { success: true, data: { alerts } as unknown as Record<string, unknown>, display };
+  } catch (error) {
+    return { success: false, error: String(error), display: `❌ Alert check failed: ${error}` };
+  }
+}
+
+function formatPeriodLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} minutes`;
+  if (minutes < 1440) return `${Math.round(minutes / 60)} hour(s)`;
+  return `${Math.round(minutes / 1440)} day(s)`;
+}
+
 // ─── Handler Registry ─────────────────────────────────────────────────────────
 
 const HANDLERS: Map<string, SkillHandler> = new Map();
@@ -464,6 +773,10 @@ for (const def of SKILL_DEFINITIONS) {
     case "gas_price": registerHandler(def, executeGasPrice); break;
     case "forex_analysis": registerHandler(def, executeForexAnalysis); break;
     case "portfolio_status": registerHandler(def, executePortfolioStatus); break;
+    case "price_track": registerHandler(def, executePriceTrack); break;
+    case "price_trend": registerHandler(def, executePriceTrend); break;
+    case "price_predict": registerHandler(def, executePricePredict); break;
+    case "price_alerts": registerHandler(def, executePriceAlerts); break;
     // send_celo and send_token are handled by executor.ts directly
   }
 }
@@ -490,8 +803,8 @@ export function getSkillsByCategory(category: SkillCategory): SkillDefinition[] 
 export function getSkillsForTemplate(templateId: string): SkillDefinition[] {
   const TEMPLATE_SKILLS: Record<string, string[]> = {
     payment: ["send_celo", "send_token", "check_balance", "query_rate", "gas_price"],
-    trading: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status"],
-    forex: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status"],
+    trading: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status", "price_track", "price_trend", "price_predict", "price_alerts"],
+    forex: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status", "price_track", "price_trend", "price_predict", "price_alerts"],
     social: ["send_celo", "send_token", "check_balance"],
     custom: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "gas_price"],
   };

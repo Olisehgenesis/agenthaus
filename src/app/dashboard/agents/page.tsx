@@ -21,9 +21,11 @@ import {
   Loader2,
   Wallet,
   BadgeCheck,
+  Info,
 } from "lucide-react";
+import { SpendingLimitModal } from "./_components/SpendingLimitModal";
 import { getTemplateIcon, getStatusColor, formatCurrency, formatDate, formatAddress } from "@/lib/utils";
-import { BLOCK_EXPLORER } from "@/lib/constants";
+import { getBlockExplorer } from "@/lib/constants";
 
 interface AgentData {
   id: string;
@@ -38,6 +40,7 @@ interface AgentData {
   reputationScore: number;
   agentWalletAddress: string | null;
   erc8004AgentId: string | null;
+  erc8004ChainId?: number | null;
   createdAt: string;
   deployedAt: string | null;
   transactions: { id: string }[];
@@ -49,33 +52,35 @@ interface AgentData {
 }
 
 export default function AgentsPage() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
   const [agents, setAgents] = React.useState<AgentData[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [menuOpen, setMenuOpen] = React.useState<string | null>(null);
+  const [spendingModalAgent, setSpendingModalAgent] = React.useState<AgentData | null>(null);
+
+  const fetchAgents = React.useCallback(async () => {
+    if (!address) return;
+    try {
+      const res = await fetch(`/api/agents?ownerAddress=${address}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAgents(data.agents || []);
+      }
+    } catch (err) {
+      console.error("Failed to load agents:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [address]);
 
   React.useEffect(() => {
     if (!address) {
       setLoading(false);
       return;
     }
-
-    async function fetchAgents() {
-      try {
-        const res = await fetch(`/api/agents?ownerAddress=${address}`);
-        if (res.ok) {
-          const data = await res.json();
-          setAgents(data.agents || []);
-        }
-      } catch (err) {
-        console.error("Failed to load agents:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
+    setLoading(true);
     fetchAgents();
-  }, [address]);
+  }, [address, fetchAgents]);
 
   const handlePause = async (agentId: string) => {
     try {
@@ -216,7 +221,7 @@ export default function AgentsPage() {
                         </button>
                         {agent.agentWalletAddress && (
                           <a
-                            href={`${BLOCK_EXPLORER}/address/${agent.agentWalletAddress}`}
+                            href={`${getBlockExplorer(agent.erc8004ChainId ?? chainId ?? 42220)}/address/${agent.agentWalletAddress}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-2 w-full px-3 py-2 text-sm text-forest hover:bg-gypsum rounded-md"
@@ -286,7 +291,17 @@ export default function AgentsPage() {
                 {/* Spending */}
                 <div className="mb-4">
                   <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-forest-muted">Spending</span>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setSpendingModalAgent(agent);
+                      }}
+                      className="flex items-center gap-1.5 text-forest-muted hover:text-celo transition-colors cursor-pointer"
+                      title="Adjust spending limit"
+                    >
+                      <span>Spending</span>
+                      <Info className="w-3.5 h-3.5" />
+                    </button>
                     <span className="text-forest/70">
                       {formatCurrency(agent.spendingUsed)} / {formatCurrency(agent.spendingLimit)}
                     </span>
@@ -317,6 +332,18 @@ export default function AgentsPage() {
             </Card>
           ))}
         </div>
+      )}
+
+      {spendingModalAgent && (
+        <SpendingLimitModal
+          open={!!spendingModalAgent}
+          onClose={() => setSpendingModalAgent(null)}
+          agentId={spendingModalAgent.id}
+          agentName={spendingModalAgent.name}
+          spendingUsed={spendingModalAgent.spendingUsed}
+          spendingLimit={spendingModalAgent.spendingLimit}
+          onUpdated={() => fetchAgents()}
+        />
       )}
     </div>
   );

@@ -1,18 +1,24 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft, Pause, Play, ExternalLink, Shield,
   ShieldCheck, BadgeCheck, AlertCircle, Loader2, ScanLine,
+  Coins, ScanSearch, Upload,
 } from "lucide-react";
 import { getTemplateIcon, getStatusColor } from "@/lib/utils";
-import { BLOCK_EXPLORER } from "@/lib/constants";
+import { ipfsToPublicGatewayUrl } from "@/lib/ipfs-url";
+import { getBlockExplorer, getERC8004ScanUrl } from "@/lib/constants";
 import type { AgentData, VerificationStatus } from "../_types";
 
 interface AgentHeaderProps {
   agent: AgentData;
+  /** Chain ID for explorer links (agent's chain: erc8004ChainId or connected) */
+  agentChainId?: number;
+  onImageUploaded?: () => void;
   verificationStatus: VerificationStatus | null;
   isConnected: boolean;
   isCeloMainnet: boolean;
@@ -24,10 +30,13 @@ interface AgentHeaderProps {
   onOpenIdentityModal: () => void;
   onOpenVerifyModal: () => void;
   onSwitchToCelo: () => void;
+  onOpenTokenTab?: () => void;
 }
 
 export function AgentHeader({
   agent,
+  agentChainId,
+  onImageUploaded,
   verificationStatus,
   isConnected,
   isCeloMainnet,
@@ -39,7 +48,29 @@ export function AgentHeader({
   onOpenIdentityModal,
   onOpenVerifyModal,
   onSwitchToCelo,
+  onOpenTokenTab,
 }: AgentHeaderProps) {
+  const [imageUploading, setImageUploading] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    setImageUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`/api/agents/${agent.id}/image`, {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) onImageUploaded?.();
+    } finally {
+      setImageUploading(false);
+      e.target.value = "";
+    }
+  };
+
   return (
     <div className="flex items-start justify-between">
       <div className="flex items-center gap-4">
@@ -47,7 +78,39 @@ export function AgentHeader({
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex items-center gap-3">
-          <div className="text-3xl">{getTemplateIcon(agent.templateType)}</div>
+          <div className="relative group">
+            {agent.imageUrl ? (
+              <div className="w-14 h-14 rounded-xl overflow-hidden bg-gypsum border border-forest/15 shrink-0">
+                <Image
+                  src={ipfsToPublicGatewayUrl(agent.imageUrl)}
+                  alt={agent.name}
+                  width={56}
+                  height={56}
+                  className="object-cover w-full h-full"
+                  unoptimized={agent.imageUrl.startsWith("ipfs://")}
+                />
+              </div>
+            ) : (
+              <div className="w-14 h-14 rounded-xl bg-gypsum border border-forest/15 flex items-center justify-center text-2xl shrink-0">
+                {getTemplateIcon(agent.templateType)}
+              </div>
+            )}
+            <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+                disabled={imageUploading}
+              />
+              {imageUploading ? (
+                <Loader2 className="w-5 h-5 text-white animate-spin" />
+              ) : (
+                <Upload className="w-5 h-5 text-white" aria-label="Upload image" />
+              )}
+            </label>
+          </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-forest">{agent.name}</h1>
@@ -81,7 +144,7 @@ export function AgentHeader({
 
         {agent.agentWalletAddress && (
           <a
-            href={`${BLOCK_EXPLORER}/address/${agent.agentWalletAddress}`}
+            href={`${getBlockExplorer(agentChainId ?? agent.erc8004ChainId ?? 42220)}/address/${agent.agentWalletAddress}`}
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -92,13 +155,39 @@ export function AgentHeader({
         )}
 
         {agent.erc8004AgentId && (
+          <>
+            <a
+              href={getERC8004ScanUrl(agent.erc8004ChainId ?? agentChainId ?? 42220, agent.erc8004AgentId)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button
+                variant="secondary"
+                size="sm"
+                className="border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+              >
+                <ScanSearch className="w-4 h-4" /> Scan ERC-8004
+              </Button>
+            </a>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+              onClick={onOpenIdentityModal}
+            >
+              <Shield className="w-4 h-4" /> Identity
+            </Button>
+          </>
+        )}
+
+        {onOpenTokenTab && (
           <Button
             variant="secondary"
             size="sm"
-            className="border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
-            onClick={onOpenIdentityModal}
+            className="border-celo/30 text-celo hover:bg-celo/10"
+            onClick={onOpenTokenTab}
           >
-            <Shield className="w-4 h-4" /> Identity
+            <Coins className="w-4 h-4" /> Token & Trade
           </Button>
         )}
 

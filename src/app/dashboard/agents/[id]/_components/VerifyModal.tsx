@@ -61,7 +61,16 @@ export function VerifyModal({
   onSwitchToCelo,
 }: VerifyModalProps) {
   return (
-    <Modal open={open} onClose={onClose} className="max-w-md">
+    <Modal
+      open={open}
+      onClose={onClose}
+      className="max-w-md"
+      onUseDefault={
+        verificationStatus?.status === "failed" || verificationStatus?.status === "qr_ready"
+          ? handleRestartVerification
+          : undefined
+      }
+    >
       <div className="p-6 space-y-5">
         {/* Modal Header */}
         <div className="flex items-center gap-3">

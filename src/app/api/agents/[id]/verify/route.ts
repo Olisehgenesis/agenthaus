@@ -23,6 +23,8 @@ import {
   startVerification,
   signChallenge,
   checkAgentStatus,
+  createWallet as createWalletSelfClaw,
+  signAuthenticatedPayload,
 } from "@/lib/selfclaw/client";
 
 // ─── GET: Current verification status ────────────────────────────────────────
@@ -173,8 +175,9 @@ async function handleStart(agent: { id: string; name: string }) {
     console.log("[SelfClaw] start-verification response:", JSON.stringify(selfClawResponse, null, 2));
   } catch (apiError) {
     console.error("[SelfClaw] start-verification FAILED:", apiError);
+    const msg = apiError instanceof Error ? apiError.message : "Unknown error";
     return NextResponse.json(
-      { error: `SelfClaw API error: ${apiError instanceof Error ? apiError.message : "Unknown error"}` },
+      { error: msg.startsWith("Request to SelfClaw") || msg.startsWith("Could not") || msg.startsWith("SelfClaw server") ? msg : `SelfClaw API error: ${msg}` },
       { status: 502 }
     );
   }
@@ -330,9 +333,13 @@ async function handleSign(agentId: string) {
 }
 
 async function handleCheck(agentId: string) {
-  const verification = await prisma.agentVerification.findUnique({
-    where: { agentId },
-  });
+  const [verification, agent] = await Promise.all([
+    prisma.agentVerification.findUnique({ where: { agentId } }),
+    prisma.agent.findUnique({
+      where: { id: agentId },
+      select: { agentWalletAddress: true },
+    }),
+  ]);
 
   if (!verification) {
     return NextResponse.json({
@@ -370,6 +377,28 @@ async function handleCheck(agentId: string) {
           verifiedAt: new Date(),
         },
       });
+
+      // Auto-register agent's EVM wallet with SelfClaw for Token & Trade
+      const walletAddr = agent?.agentWalletAddress;
+      const alreadyHasWallet =
+        (agentStatus as { walletAddress?: string }).walletAddress != null;
+      if (
+        walletAddr &&
+        !alreadyHasWallet &&
+        verification.encryptedPrivateKey
+      ) {
+        try {
+          const privateKeyHex = decryptPrivateKey(verification.encryptedPrivateKey);
+          const signed = await signAuthenticatedPayload(
+            verification.publicKey,
+            privateKeyHex
+          );
+          await createWalletSelfClaw(signed, walletAddr, "celo");
+          console.log("[SelfClaw] Auto-registered wallet:", walletAddr.slice(0, 10) + "...");
+        } catch (walletErr) {
+          console.warn("[SelfClaw] Auto create-wallet failed (non-fatal):", walletErr);
+        }
+      }
 
       // Log the verification
       await prisma.activityLog.create({

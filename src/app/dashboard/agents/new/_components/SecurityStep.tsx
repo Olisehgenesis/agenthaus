@@ -2,16 +2,74 @@
 
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { AlertCircle, Check } from "lucide-react";
+import { AlertCircle, Check, Wallet, User, Clock } from "lucide-react";
+
+export type WalletOption = "dedicated" | "owner" | "later";
 
 interface SecurityStepProps {
   spendingLimit: number;
   setSpendingLimit: (v: number) => void;
+  walletOption: WalletOption;
+  setWalletOption: (v: WalletOption) => void;
 }
 
-export function SecurityStep({ spendingLimit, setSpendingLimit }: SecurityStepProps) {
+export function SecurityStep({ spendingLimit, setSpendingLimit, walletOption, setWalletOption }: SecurityStepProps) {
   return (
     <div className="space-y-6">
+      {/* Agent Wallet */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Agent Wallet</CardTitle>
+          <CardDescription>
+            How should this agent receive and send on-chain?
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-2">
+            {[
+              {
+                id: "dedicated" as const,
+                icon: <Wallet className="w-4 h-4" />,
+                title: "Create dedicated wallet",
+                desc: "Derive a new HD wallet for this agent. Can send and receive. Recommended for production.",
+              },
+              {
+                id: "owner" as const,
+                icon: <User className="w-4 h-4" />,
+                title: "Use my connected wallet",
+                desc: "Agent uses your wallet address for receiving. Initialize a dedicated wallet later to enable sending.",
+              },
+              {
+                id: "later" as const,
+                icon: <Clock className="w-4 h-4" />,
+                title: "Initialize later",
+                desc: "Create agent without a wallet. Add one from the agent dashboard when needed.",
+              },
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setWalletOption(opt.id)}
+                className={`w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-colors ${
+                  walletOption === opt.id
+                    ? "border-forest bg-forest/5"
+                    : "border-forest/15 hover:border-forest/30 bg-gypsum/30"
+                }`}
+              >
+                <div className="mt-0.5 text-forest-muted">{opt.icon}</div>
+                <div>
+                  <div className="text-sm font-medium text-forest">{opt.title}</div>
+                  <div className="text-xs text-forest-muted mt-0.5">{opt.desc}</div>
+                </div>
+                <div className="ml-auto w-4 h-4 rounded-full border-2 border-forest/40 flex items-center justify-center shrink-0 mt-0.5">
+                  {walletOption === opt.id && <div className="w-2 h-2 rounded-full bg-forest" />}
+                </div>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Spending Controls */}
       <Card>
         <CardHeader>
@@ -74,7 +132,7 @@ export function SecurityStep({ spendingLimit, setSpendingLimit }: SecurityStepPr
               "Unique on-chain identity (agentId) assigned",
               "Agent wallet address linked to identity",
               "Reputation tracking via ReputationRegistry",
-              "Registration metadata stored on IPFS",
+              "Registration metadata on IPFS (when Pinata configured)",
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-3">
                 <div className="flex items-center justify-center w-5 h-5 rounded-full bg-forest/10">

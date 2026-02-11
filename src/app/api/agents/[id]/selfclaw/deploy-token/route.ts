@@ -1,0 +1,114 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { decryptPrivateKey } from "@/lib/selfclaw/keys";
+import {
+  deployToken as getDeployTx,
+  registerToken,
+  signAuthenticatedPayload,
+} from "@/lib/selfclaw/client";
+import {
+  getAgentWalletClient,
+  getPublicClient,
+  deriveAccount,
+  getActiveChain,
+} from "@/lib/blockchain/wallet";
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: agentId } = await params;
+
+  try {
+    const body = await request.json();
+    const { name, symbol, initialSupply = "1000000" } = body;
+
+    if (!name || !symbol) {
+      return NextResponse.json(
+        { error: "name and symbol are required" },
+        { status: 400 }
+      );
+    }
+
+    const agent = await prisma.agent.findUnique({
+      where: { id: agentId },
+      select: {
+        walletDerivationIndex: true,
+        agentWalletAddress: true,
+        verification: {
+          select: { publicKey: true, encryptedPrivateKey: true, selfxyzVerified: true },
+        },
+      },
+    });
+
+    if (
+      !agent?.verification?.encryptedPrivateKey ||
+      !agent.verification.selfxyzVerified ||
+      agent.walletDerivationIndex === null
+    ) {
+      return NextResponse.json(
+        { error: "Agent must be verified and have a wallet" },
+        { status: 400 }
+      );
+    }
+
+    const privateKeyHex = decryptPrivateKey(agent.verification.encryptedPrivateKey);
+    const signed = await signAuthenticatedPayload(
+      agent.verification.publicKey,
+      privateKeyHex
+    );
+
+    const result = await getDeployTx(signed, name, symbol, String(initialSupply));
+    const unsignedTx = result.unsignedTx as Record<string, unknown> | undefined;
+
+    if (!unsignedTx) {
+      return NextResponse.json(
+        { error: "SelfClaw did not return deployment transaction" },
+        { status: 502 }
+      );
+    }
+
+    const walletClient = getAgentWalletClient(agent.walletDerivationIndex);
+    const account = deriveAccount(agent.walletDerivationIndex);
+
+    // SelfClaw may return tx in different formats; normalize for viem
+    const txParams = {
+      account,
+      chain: getActiveChain(),
+      to: unsignedTx.to as `0x${string}`,
+      data: unsignedTx.data as `0x${string}`,
+      value: BigInt((unsignedTx.value as string | number) ?? 0),
+      gas: unsignedTx.gas ? BigInt(unsignedTx.gas as string | number) : undefined,
+      gasPrice: unsignedTx.gasPrice ? BigInt(unsignedTx.gasPrice as string | number) : undefined,
+    };
+
+    const hash = await walletClient.sendTransaction(txParams);
+    const publicClient = getPublicClient();
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+    const tokenAddress = receipt.contractAddress;
+    if (!tokenAddress) {
+      return NextResponse.json(
+        { error: "Deploy succeeded but no contract address in receipt" },
+        { status: 500 }
+      );
+    }
+
+    const signed2 = await signAuthenticatedPayload(
+      agent.verification.publicKey,
+      privateKeyHex
+    );
+    await registerToken(signed2, tokenAddress, hash);
+
+    return NextResponse.json({
+      success: true,
+      tokenAddress,
+      txHash: hash,
+    });
+  } catch (error) {
+    console.error("SelfClaw deploy-token failed:", error);
+    const msg = error instanceof Error ? error.message : "Failed to deploy token";
+    const isKeyError = msg.includes("could not be decrypted") || msg.includes("re-verify");
+    return NextResponse.json({ error: msg }, { status: isKeyError ? 400 : 500 });
+  }
+}

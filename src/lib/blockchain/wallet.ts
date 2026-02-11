@@ -36,7 +36,7 @@ import { CELO_TOKENS, ACTIVE_CHAIN_ID, CELO_SEPOLIA_CHAIN_ID, FEE_CURRENCIES } f
 
 // ─── Chain Config ────────────────────────────────────────────────────────────
 
-function getActiveChain(): Chain {
+export function getActiveChain(): Chain {
   return ACTIVE_CHAIN_ID === CELO_SEPOLIA_CHAIN_ID ? celoSepolia : celo;
 }
 

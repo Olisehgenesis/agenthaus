@@ -1,18 +1,22 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { generateRegistrationJSON } from "@/lib/blockchain/erc8004";
+import { uploadJsonToIPFS, isPinataConfigured } from "@/lib/ipfs";
 import { ERC8004_CONTRACTS } from "@/lib/constants";
 
 /**
- * GET /api/erc8004/register?agentId=...
+ * GET /api/erc8004/register?agentId=...&chainId=...
  *
- * Returns the registration data needed for the client to call
- * register() on the IdentityRegistry.
+ * 1. Fetches agent (image must already be uploaded → agent.imageUrl has ipfs:// URL)
+ * 2. Builds registration JSON with image URL from step 1
+ * 3. Uploads JSON to IPFS via Pinata → returns ipfs:// agentURI
+ * Requires PINATA_JWT. Image must be saved before this runs.
  */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const agentId = searchParams.get("agentId");
+    const chainId = parseInt(searchParams.get("chainId") || "42220", 10);
 
     if (!agentId) {
       return NextResponse.json({ error: "agentId query param required" }, { status: 400 });
@@ -25,9 +29,12 @@ export async function GET(request: Request) {
         name: true,
         description: true,
         templateType: true,
+        imageUrl: true,
+        status: true,
         agentWalletAddress: true,
         erc8004AgentId: true,
         erc8004ChainId: true,
+        configuration: true,
       },
     });
 
@@ -43,18 +50,37 @@ export async function GET(request: Request) {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const agentURI = `${appUrl}/api/agents/${agent.id}/registration.json`;
     const serviceUrl = `${appUrl}/api/agents/${agent.id}/chat`;
 
-    // Return everything the client needs for the on-chain call
+    const config = (agent.configuration ? JSON.parse(agent.configuration) : {}) as { webUrl?: string; contactEmail?: string };
+    const registrationJSON = generateRegistrationJSON({
+      name: agent.name,
+      description: agent.description || `${agent.templateType} agent powered by AgentHaus`,
+      imageUrl: agent.imageUrl,
+      appUrl,
+      agentId: agent.id,
+      serviceUrl,
+      agentWalletAddress: agent.agentWalletAddress,
+      chainId: agent.erc8004ChainId || chainId,
+      erc8004AgentId: null,
+      templateType: agent.templateType,
+      status: agent.status,
+      webUrl: config.webUrl || null,
+      contactEmail: config.contactEmail || null,
+    });
+
+    if (!isPinataConfigured()) {
+      return NextResponse.json(
+        { error: "Pinata (IPFS) required for ERC-8004 registration. Set PINATA_JWT in .env" },
+        { status: 503 }
+      );
+    }
+
+    const agentURI = await uploadJsonToIPFS(registrationJSON);
+
     return NextResponse.json({
-      agentURI, // This URL goes into register(owner, agentURI)
-      registrationJSON: generateRegistrationJSON(
-        agent.name,
-        agent.description || `${agent.templateType} agent`,
-        serviceUrl,
-        agent.agentWalletAddress || undefined,
-      ),
+      agentURI,
+      registrationJSON,
       contracts: ERC8004_CONTRACTS,
     });
   } catch (error) {

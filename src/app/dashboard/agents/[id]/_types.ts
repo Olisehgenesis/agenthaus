@@ -6,6 +6,7 @@ export interface AgentData {
   id: string;
   name: string;
   description: string | null;
+  imageUrl: string | null;
   templateType: string;
   status: string;
   systemPrompt: string | null;
@@ -14,6 +15,7 @@ export interface AgentData {
   spendingLimit: number;
   spendingUsed: number;
   agentWalletAddress: string | null;
+  walletDerivationIndex?: number | null;
   erc8004AgentId: string | null;
   erc8004URI: string | null;
   erc8004TxHash: string | null;

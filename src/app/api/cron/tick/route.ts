@@ -14,6 +14,7 @@
 
 import { NextResponse } from "next/server";
 import { tickCronJobs } from "@/lib/channels/scheduler";
+import { pruneExpiredSessionMessages } from "@/lib/session-retention";
 
 export const maxDuration = 60; // Allow up to 60s for cron processing
 
@@ -34,10 +35,14 @@ export async function POST(request: Request) {
 
     const result = await tickCronJobs();
 
+    // Prune session messages older than retention period (default 30 days)
+    const prunedCount = await pruneExpiredSessionMessages();
+
     return NextResponse.json({
       ok: true,
       timestamp: new Date().toISOString(),
       ...result,
+      sessionMessagesPruned: prunedCount,
     });
   } catch (error) {
     console.error("Cron tick error:", error);
@@ -61,11 +66,13 @@ export async function GET(request: Request) {
     }
 
     const result = await tickCronJobs();
+    const prunedCount = await pruneExpiredSessionMessages();
 
     return NextResponse.json({
       ok: true,
       timestamp: new Date().toISOString(),
       ...result,
+      sessionMessagesPruned: prunedCount,
     });
   } catch (error) {
     console.error("Cron tick error:", error);
@@ -75,4 +82,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

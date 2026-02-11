@@ -111,7 +111,7 @@ export function IdentityModal({ open, onClose, agent, verificationStatus }: Iden
                     <Copy className="w-3.5 h-3.5" />
                   </button>
                   <a
-                    href={`${BLOCK_EXPLORERS[agent.erc8004ChainId || 42220] || BLOCK_EXPLORER}/tx/${agent.erc8004TxHash}`}
+                    href={`${BLOCK_EXPLORERS[agent.erc8004ChainId ?? 42220] || BLOCK_EXPLORER}/tx/${agent.erc8004TxHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-1.5 rounded-md hover:bg-gypsum-darker/60 text-forest-muted/70 hover:text-blue-400 transition-colors"
@@ -170,7 +170,7 @@ export function IdentityModal({ open, onClose, agent, verificationStatus }: Iden
             <div className="flex items-center justify-center gap-4 pt-2 border-t border-forest/15">
               {agent.erc8004TxHash && (
                 <a
-                  href={`${BLOCK_EXPLORERS[agent.erc8004ChainId || 42220] || BLOCK_EXPLORER}/tx/${agent.erc8004TxHash}`}
+                  href={`${BLOCK_EXPLORERS[agent.erc8004ChainId ?? 42220] || BLOCK_EXPLORER}/tx/${agent.erc8004TxHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"

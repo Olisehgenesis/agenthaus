@@ -58,6 +58,32 @@ export const ERC8004_CONTRACTS: Record<number, { identity: string; reputation: s
 export const ERC8004_IDENTITY_REGISTRY = ERC8004_CONTRACTS[42220]?.identity ?? "" as string;
 export const ERC8004_REPUTATION_REGISTRY = ERC8004_CONTRACTS[42220]?.reputation ?? "" as string;
 
+/** Default Identity Registry (mainnet vanity) — same on Ethereum, Base, Celo, etc. */
+const ERC8004_IDENTITY_MAINNET = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";
+const ERC8004_IDENTITY_TESTNET = "0x8004A818BFB912233c491871b3d84c89A494BD9e";
+
+/** Block explorers for chains beyond Celo (for ERC-8004 scan links) */
+const BLOCK_EXPLORERS_EXT: Record<number, string> = {
+  ...BLOCK_EXPLORERS,
+  1: "https://etherscan.io",
+  11155111: "https://sepolia.etherscan.io",
+  8453: "https://basescan.org",
+  137: "https://polygonscan.com",
+  42161: "https://arbiscan.io",
+};
+
+/** Get ERC-8004 scan URL (block explorer token/NFT view) for an agent. */
+export function getERC8004ScanUrl(
+  chainId: number,
+  agentId: string
+): string {
+  const explorer = BLOCK_EXPLORERS_EXT[chainId] || BLOCK_EXPLORER;
+  const identity =
+    ERC8004_CONTRACTS[chainId]?.identity ??
+    (chainId === 42220 || chainId === 1 || chainId === 8453 ? ERC8004_IDENTITY_MAINNET : ERC8004_IDENTITY_TESTNET);
+  return `${explorer}/token/${identity}?a=${agentId}`;
+}
+
 // Stablecoins on Celo Sepolia Testnet
 // Note: Native CELO uses the zero address on Celo Sepolia
 export const CELO_TOKENS = {
@@ -212,6 +238,7 @@ export const AGENT_TEMPLATES: TemplateInfo[] = [
       "Transaction confirmation flows",
       "Receipt generation",
       "Spending limit enforcement",
+      "ERC-8004 on-chain identity & SelfClaw agent economy",
     ],
     defaultPrompt: `You are a Payment Agent operating on the Celo blockchain. You have a real on-chain wallet and can execute real transactions.
 
@@ -234,7 +261,9 @@ Rules:
 - Supported currencies: CELO, cUSD, cEUR, cREAL
 - The recipient MUST be a valid 0x address (42 characters). If the user provides an ENS name, ask for the actual address.
 - Never reveal private keys or sensitive wallet information
-- After including the command tag, the system will execute the transaction and replace the tag with a receipt`,
+- After including the command tag, the system will execute the transaction and replace the tag with a receipt
+
+**SelfClaw (Agent Economy):** You can do all SelfClaw actions via chat — no dashboard needed. Register wallet [[SELFCLAW_REGISTER_WALLET]], deploy token [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]], log revenue [[SELFCLAW_LOG_REVENUE|amount|source]], log cost [[SELFCLAW_LOG_COST|amount|category]], show token info [[AGENT_TOKENS]], request sponsorship [[REQUEST_SELFCLAW_SPONSORSHIP]]. Mention these when describing what you can do.`,
     defaultConfig: {
       supportedCurrencies: ["cUSD", "cEUR"],
       maxTransactionAmount: 1000,
@@ -253,6 +282,7 @@ Rules:
       "Risk management rules",
       "Portfolio tracking",
       "Stop-loss automation",
+      "ERC-8004 on-chain identity & SelfClaw agent economy",
     ],
     defaultPrompt: `You are a Trading Agent operating on the Celo blockchain. You have a real on-chain wallet and can execute real transactions.
 
@@ -272,7 +302,9 @@ Safety rules:
 - Report all trades to the owner
 - Pause trading if unusual market conditions detected
 - The recipient MUST be a valid 0x address (42 characters)
-- Never reveal private keys or sensitive wallet information`,
+- Never reveal private keys or sensitive wallet information
+
+**SelfClaw (Agent Economy):** You can do all SelfClaw actions via chat — no dashboard needed. Register wallet [[SELFCLAW_REGISTER_WALLET]], deploy token [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]], log revenue [[SELFCLAW_LOG_REVENUE|amount|source]], log cost [[SELFCLAW_LOG_COST|amount|category]], show token info [[AGENT_TOKENS]], request sponsorship [[REQUEST_SELFCLAW_SPONSORSHIP]]. Mention these when describing what you can do.`,
     defaultConfig: {
       tradingPairs: ["CELO/cUSD"],
       maxSlippage: 1.0,
@@ -296,6 +328,7 @@ Safety rules:
       "Price alerts on significant moves",
       "Fee abstraction — pay gas in cUSD/cEUR",
       "Automated rate monitoring (via cron)",
+      "ERC-8004 on-chain identity & SelfClaw agent economy",
     ],
     defaultPrompt: `You are a Forex Trader Agent operating on the Celo blockchain. You specialize in Mento stablecoin trading — monitoring exchange rates, executing swaps, analyzing trends, predicting price movements, and managing a multi-currency portfolio.
 
@@ -338,7 +371,9 @@ When users want to swap, always:
 4. Ask for confirmation on amounts > 10
 5. Execute the swap
 
-Supported pairs: CELO/cUSD, CELO/cEUR, CELO/cREAL, cUSD/cEUR (cross-stable via CELO)`,
+Supported pairs: CELO/cUSD, CELO/cEUR, CELO/cREAL, cUSD/cEUR (cross-stable via CELO)
+
+**SelfClaw (Agent Economy):** You can do all SelfClaw actions via chat — no dashboard needed. Register wallet [[SELFCLAW_REGISTER_WALLET]], deploy token [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]], log revenue [[SELFCLAW_LOG_REVENUE|amount|source]], log cost [[SELFCLAW_LOG_COST|amount|category]], show token info [[AGENT_TOKENS]], request sponsorship [[REQUEST_SELFCLAW_SPONSORSHIP]]. Mention these when describing what you can do.`,
     defaultConfig: {
       forexPairs: ["CELO/cUSD", "CELO/cEUR", "CELO/cREAL"],
       autoTrade: false,
@@ -360,6 +395,7 @@ Supported pairs: CELO/cUSD, CELO/cEUR, CELO/cREAL, cUSD/cEUR (cross-stable via C
       "Community engagement",
       "Tip distribution",
       "Automated responses",
+      "ERC-8004 on-chain identity & SelfClaw agent economy",
     ],
     defaultPrompt: `You are a Social Agent representing a project on the Celo blockchain. You have a real on-chain wallet and can send tips.
 
@@ -378,7 +414,9 @@ Tip distribution rules:
 - Reward helpful answers and quality content
 - Maximum tip per interaction: configured amount
 - Track tip recipients to prevent abuse
-- The recipient MUST be a valid 0x address (42 characters)`,
+- The recipient MUST be a valid 0x address (42 characters)
+
+**SelfClaw (Agent Economy):** You can do all SelfClaw actions via chat — no dashboard needed. Register wallet [[SELFCLAW_REGISTER_WALLET]], deploy token [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]], log revenue [[SELFCLAW_LOG_REVENUE|amount|source]], log cost [[SELFCLAW_LOG_COST|amount|category]], show token info [[AGENT_TOKENS]], request sponsorship [[REQUEST_SELFCLAW_SPONSORSHIP]]. Mention these when describing what you can do.`,
     defaultConfig: {
       platforms: ["telegram"],
       autoReply: true,
@@ -397,6 +435,7 @@ Tip distribution rules:
       "Flexible tool configuration",
       "Custom API endpoints",
       "Full Celo blockchain access",
+      "ERC-8004 on-chain identity & SelfClaw agent economy",
     ],
     defaultPrompt: `You are a custom AI agent operating on the Celo blockchain. You have a real on-chain wallet and can execute real transactions.
 
@@ -413,6 +452,8 @@ Available tools:
 Rules:
 - The recipient MUST be a valid 0x address (42 characters)
 - Never reveal private keys or sensitive wallet information
+
+**SelfClaw (Agent Economy):** You can do all SelfClaw actions via chat — no dashboard needed. Register wallet [[SELFCLAW_REGISTER_WALLET]], deploy token [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]], log revenue [[SELFCLAW_LOG_REVENUE|amount|source]], log cost [[SELFCLAW_LOG_COST|amount|category]], show token info [[AGENT_TOKENS]], request sponsorship [[REQUEST_SELFCLAW_SPONSORSHIP]]. Mention these when describing what you can do.
 
 Customize this prompt to define your agent's specific role and behavior.`,
     defaultConfig: {

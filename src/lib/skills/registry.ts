@@ -34,6 +34,24 @@ import {
   executePriceTrend,
   executePricePredict,
   executePriceAlerts,
+  executeGetNetworkStatus,
+  executeGetBlock,
+  executeGetLatestBlocks,
+  executeGetTransaction,
+  executeGetTokenInfo,
+  executeGetTokenBalance,
+  executeGetNftInfo,
+  executeGetNftBalance,
+  executeEstimateGas,
+  executeGetGasFeeData,
+  executeGetGovernanceProposals,
+  executeGetProposalDetails,
+  executeAgentTokens,
+  executeRequestSelfClawSponsorship,
+  executeSelfClawRegisterWallet,
+  executeSelfClawDeployToken,
+  executeSelfClawLogRevenue,
+  executeSelfClawLogCost,
 } from "./handlers";
 
 // ─── Handler Registry ─────────────────────────────────────────────────────────
@@ -59,6 +77,24 @@ for (const def of SKILL_DEFINITIONS) {
     case "price_trend": registerHandler(def, executePriceTrend); break;
     case "price_predict": registerHandler(def, executePricePredict); break;
     case "price_alerts": registerHandler(def, executePriceAlerts); break;
+    case "network_status": registerHandler(def, executeGetNetworkStatus); break;
+    case "get_block": registerHandler(def, executeGetBlock); break;
+    case "get_latest_blocks": registerHandler(def, executeGetLatestBlocks); break;
+    case "get_transaction": registerHandler(def, executeGetTransaction); break;
+    case "get_token_info": registerHandler(def, executeGetTokenInfo); break;
+    case "get_token_balance": registerHandler(def, executeGetTokenBalance); break;
+    case "get_nft_info": registerHandler(def, executeGetNftInfo); break;
+    case "get_nft_balance": registerHandler(def, executeGetNftBalance); break;
+    case "estimate_gas": registerHandler(def, executeEstimateGas); break;
+    case "get_gas_fee_data": registerHandler(def, executeGetGasFeeData); break;
+    case "get_governance_proposals": registerHandler(def, executeGetGovernanceProposals); break;
+    case "get_proposal_details": registerHandler(def, executeGetProposalDetails); break;
+    case "agent_tokens": registerHandler(def, executeAgentTokens); break;
+    case "request_selfclaw_sponsorship": registerHandler(def, executeRequestSelfClawSponsorship); break;
+    case "selfclaw_register_wallet": registerHandler(def, executeSelfClawRegisterWallet); break;
+    case "selfclaw_deploy_token": registerHandler(def, executeSelfClawDeployToken); break;
+    case "selfclaw_log_revenue": registerHandler(def, executeSelfClawLogRevenue); break;
+    case "selfclaw_log_cost": registerHandler(def, executeSelfClawLogCost); break;
     // send_celo and send_token are handled by executor.ts directly
   }
 }
@@ -83,12 +119,36 @@ export function getSkillsByCategory(category: SkillCategory): SkillDefinition[] 
  * Get skills for a specific agent template.
  */
 export function getSkillsForTemplate(templateId: string): SkillDefinition[] {
+  const SELFCLAW_SKILLS = [
+    "agent_tokens",
+    "request_selfclaw_sponsorship",
+    "selfclaw_register_wallet",
+    "selfclaw_deploy_token",
+    "selfclaw_log_revenue",
+    "selfclaw_log_cost",
+  ];
+
+  const CELO_MCP_SKILLS = [
+    "network_status",
+    "get_block",
+    "get_latest_blocks",
+    "get_transaction",
+    "get_token_info",
+    "get_token_balance",
+    "get_nft_info",
+    "get_nft_balance",
+    "estimate_gas",
+    "get_gas_fee_data",
+    "get_governance_proposals",
+    "get_proposal_details",
+  ];
+
   const TEMPLATE_SKILLS: Record<string, string[]> = {
-    payment: ["send_celo", "send_token", "check_balance", "query_rate", "gas_price"],
-    trading: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status", "price_track", "price_trend", "price_predict", "price_alerts"],
-    forex: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status", "price_track", "price_trend", "price_predict", "price_alerts"],
-    social: ["send_celo", "send_token", "check_balance"],
-    custom: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "gas_price"],
+    payment: ["send_celo", "send_token", "check_balance", "query_rate", "gas_price", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS],
+    trading: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status", "price_track", "price_trend", "price_predict", "price_alerts", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS],
+    forex: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status", "price_track", "price_trend", "price_predict", "price_alerts", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS],
+    social: ["send_celo", "send_token", "check_balance", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS],
+    custom: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "gas_price", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS],
   };
 
   const skillIds = TEMPLATE_SKILLS[templateId] || TEMPLATE_SKILLS.custom;

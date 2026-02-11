@@ -11,6 +11,10 @@ export type TransactionStatus = "pending" | "confirmed" | "failed";
 export type ActivityType = "action" | "error" | "info" | "warning";
 
 export interface AgentConfig {
+  // ERC-8004 human-facing (best practices: web, email)
+  webUrl?: string;
+  contactEmail?: string;
+
   // Payment Agent
   supportedCurrencies?: string[];
   maxTransactionAmount?: number;
@@ -52,6 +56,7 @@ export interface Agent {
   id: string;
   name: string;
   description: string | null;
+  imageUrl: string | null;
   templateType: string;
   status: AgentStatus;
   systemPrompt: string | null;
@@ -109,30 +114,41 @@ export interface TemplateInfo {
 }
 
 /**
+ * ERC-8004 service/endpoint entry.
+ * Spec: name + endpoint (not type/url).
+ */
+export interface ERC8004Service {
+  name: string;
+  endpoint: string;
+  version?: string;
+  skills?: string[];
+  domains?: string[];
+}
+
+/**
+ * ERC-8004 registration entry (on-chain identity link).
+ */
+export interface ERC8004RegistrationEntry {
+  agentRegistry: string; // CAIP-10: eip155:{chainId}:{contractAddress}
+  agentId: number | null; // ERC-721 tokenId, null for first-time
+}
+
+/**
  * ERC-8004 Agent Registration File shape.
- * The `agentURI` on the IdentityRegistry resolves to this JSON.
- *
- * @see https://github.com/erc-8004/erc-8004-contracts#agent-registration-file-recommended-shape
+ * @see https://eips.ethereum.org/EIPS/eip-8004
+ * @see https://best-practices.8004scan.io/docs/01-agent-metadata-standard.html
  */
 export interface ERC8004Registration {
-  type: string; // "agent-registration-v1"
+  type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1";
   name: string;
   description: string;
   image: string;
-  services: {
-    type: string;
-    url: string;
-    description?: string;
-  }[];
-  registrations: {
-    agentRegistry: string; // e.g. "eip155:42220:0x8004..."
-    agentId: string;       // on-chain token ID or "pending"
-  }[];
+  services: ERC8004Service[];
+  registrations: ERC8004RegistrationEntry[];
   supportedTrust: string[];
-  // Extended AgentHaus fields
-  agentWallet?: string;
-  chainId?: number;
-  framework?: string;
+  active?: boolean;
+  x402Support?: boolean;
+  updatedAt?: number;
 }
 
 export interface DashboardStats {

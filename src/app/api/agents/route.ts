@@ -65,6 +65,7 @@ export async function POST(request: Request) {
       spendingLimit,
       configuration,
       ownerAddress,
+      walletOption,
     } = body;
 
     if (!name || !templateType || !ownerAddress) {
@@ -87,17 +88,23 @@ export async function POST(request: Request) {
       });
     }
 
-    // Derive a real wallet from the master mnemonic
+    // Wallet assignment based on walletOption
     let agentWalletAddress: string | null = null;
     let walletDerivationIndex: number | null = null;
 
-    try {
-      walletDerivationIndex = await getNextDerivationIndex();
-      agentWalletAddress = deriveAddress(walletDerivationIndex);
-    } catch (walletErr) {
-      // If AGENT_MNEMONIC is not set, log but continue — agent can work without a wallet
-      console.warn("Could not derive agent wallet (AGENT_MNEMONIC not set?):", walletErr);
+    const effectiveWalletOption = walletOption || "dedicated";
+    if (effectiveWalletOption === "dedicated") {
+      try {
+        walletDerivationIndex = await getNextDerivationIndex();
+        agentWalletAddress = deriveAddress(walletDerivationIndex);
+      } catch (walletErr) {
+        console.warn("Could not derive agent wallet (AGENT_MNEMONIC not set?):", walletErr);
+      }
+    } else if (effectiveWalletOption === "owner") {
+      agentWalletAddress = ownerAddress;
+      walletDerivationIndex = null;
     }
+    // walletOption === "later" → both remain null
 
     // Create agent in database with status "deploying".
     // The client will trigger ERC-8004 on-chain registration (wallet signature),
@@ -134,7 +141,10 @@ export async function POST(request: Request) {
         data: {
           agentId: agent.id,
           type: "info",
-          message: `HD wallet derived: ${agentWalletAddress}`,
+          message:
+            effectiveWalletOption === "owner"
+              ? `Using owner wallet: ${agentWalletAddress}`
+              : `HD wallet derived: ${agentWalletAddress}`,
         },
       });
     }

@@ -8,6 +8,7 @@ export { AgentIdentityCard } from "./AgentIdentityCard";
 export { SkillsCard } from "./SkillsCard";
 export { ChannelsCard } from "./ChannelsCard";
 export { ContentTabs } from "./ContentTabs";
+export { TokenTradeTab } from "./TokenTradeTab";
 export { VerifyModal } from "./VerifyModal";
 export { IdentityModal } from "./IdentityModal";
 export { StableSelfQR, SessionCountdown } from "./SelfQR";

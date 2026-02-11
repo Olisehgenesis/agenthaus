@@ -18,6 +18,8 @@ import { type Address } from "viem";
  * channel, and ERC-8004 on-chain registration logic.
  */
 export function useAgentDetail(agentId: string | undefined) {
+  const { address: userAddress, chainId: connectedChainId, isConnected } = useAccount();
+
   /* ── Core agent data ─────────────────────────────────────────────── */
   const [agent, setAgent] = React.useState<AgentData | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -78,8 +80,11 @@ export function useAgentDetail(agentId: string | undefined) {
       const res = await fetch(`/api/agents/${agent.id}/wallet`, { method: "POST" });
       const data = await res.json();
       if (res.ok) {
-        setAgent((prev) => prev ? { ...prev, agentWalletAddress: data.address } : prev);
+        setAgent((prev) =>
+          prev ? { ...prev, agentWalletAddress: data.address, walletDerivationIndex: data.derivationIndex } : prev
+        );
         fetchBalance();
+        await refreshAgent();
       } else {
         alert(data.error || "Failed to initialize wallet");
       }
@@ -88,7 +93,7 @@ export function useAgentDetail(agentId: string | undefined) {
     } finally {
       setWalletIniting(false);
     }
-  }, [agent, fetchBalance]);
+  }, [agent, fetchBalance, refreshAgent]);
 
   /* ── Send / Withdraw ─────────────────────────────────────────────── */
   const [showSendForm, setShowSendForm] = React.useState(false);
@@ -145,7 +150,41 @@ export function useAgentDetail(agentId: string | undefined) {
   const [chatMessages, setChatMessages] = React.useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = React.useState("");
   const [isSending, setIsSending] = React.useState(false);
+  const [chatHistoryLoaded, setChatHistoryLoaded] = React.useState(false);
   const chatEndRef = React.useRef<HTMLDivElement>(null);
+
+  // Load persisted chat history when wallet is connected (web chat binding)
+  React.useEffect(() => {
+    if (!agentId || !userAddress || chatHistoryLoaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/agents/${agentId}/chat?walletAddress=${encodeURIComponent(userAddress)}`
+        );
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          const msgs = (data.messages ?? []).map(
+            (m: { role: "user" | "assistant"; content: string }) => ({
+              role: m.role,
+              content: m.content,
+              timestamp: new Date(),
+            })
+          );
+          setChatMessages(msgs);
+        }
+      } catch {
+        // Ignore — fall back to empty chat
+      } finally {
+        if (!cancelled) setChatHistoryLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [agentId, userAddress, chatHistoryLoaded]);
+
+  React.useEffect(() => {
+    if (!userAddress) setChatHistoryLoaded(false);
+  }, [userAddress]);
 
   React.useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -161,13 +200,16 @@ export function useAgentDetail(agentId: string | undefined) {
     ]);
     setIsSending(true);
     try {
+      const body: Record<string, unknown> = {
+        message: userMessage,
+        conversationHistory: chatMessages.map((m) => ({ role: m.role, content: m.content })),
+      };
+      if (userAddress) body.walletAddress = userAddress;
+
       const response = await fetch(`/api/agents/${agentId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userMessage,
-          conversationHistory: chatMessages.map((m) => ({ role: m.role, content: m.content })),
-        }),
+        body: JSON.stringify(body),
       });
       if (response.ok) {
         const data = await response.json();
@@ -190,7 +232,7 @@ export function useAgentDetail(agentId: string | undefined) {
     } finally {
       setIsSending(false);
     }
-  }, [chatInput, isSending, agent, agentId, chatMessages]);
+  }, [chatInput, isSending, agent, agentId, chatMessages, userAddress]);
 
   /* ── Channels & Cron ─────────────────────────────────────────────── */
   const [channelData, setChannelData] = React.useState<ChannelData | null>(null);
@@ -211,7 +253,6 @@ export function useAgentDetail(agentId: string | undefined) {
   React.useEffect(() => { fetchChannels(); }, [fetchChannels]);
 
   /* ── ERC-8004 On-Chain ───────────────────────────────────────────── */
-  const { address: userAddress, chainId: connectedChainId, isConnected } = useAccount();
   const { switchChain } = useSwitchChain();
   const {
     register: registerOnChain,

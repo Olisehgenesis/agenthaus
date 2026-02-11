@@ -2,16 +2,18 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { X } from "lucide-react";
+import { X, RotateCcw } from "lucide-react";
 
 interface ModalProps {
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;
   className?: string;
+  /** Optional "Use default" button — resets form/options to defaults */
+  onUseDefault?: () => void;
 }
 
-export function Modal({ open, onClose, children, className }: ModalProps) {
+export function Modal({ open, onClose, children, className, onUseDefault }: ModalProps) {
   // Close on Escape key
   React.useEffect(() => {
     if (!open) return;
@@ -50,12 +52,24 @@ export function Modal({ open, onClose, children, className }: ModalProps) {
           className
         )}
       >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-forest-muted hover:text-forest hover:bg-gypsum-dark transition-colors cursor-pointer z-10"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
+          {onUseDefault && (
+            <button
+              onClick={onUseDefault}
+              className="p-1.5 rounded-lg text-forest-muted hover:text-forest hover:bg-gypsum-dark transition-colors cursor-pointer text-xs flex items-center gap-1"
+              title="Use default"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Default
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-forest-muted hover:text-forest hover:bg-gypsum-dark transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
         {children}
       </div>
     </div>

@@ -23,7 +23,7 @@ export default function DashboardLayout({
           </div>
           <h2 className="text-2xl font-bold text-forest">Connect Your Wallet</h2>
           <p className="text-forest-muted">
-            Connect your Celo wallet to access the AgentHaus dashboard.
+            Connect your Celo wallet to access the Agent Forge dashboard.
           </p>
           <div className="flex justify-center">
             <ConnectButton />

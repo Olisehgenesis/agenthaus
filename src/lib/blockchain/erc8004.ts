@@ -28,6 +28,7 @@ import {
 } from "viem";
 import { type ERC8004Registration } from "@/lib/types";
 import { IDENTITY_REGISTRY_ABI, REPUTATION_REGISTRY_ABI } from "./erc8004-abis";
+import { getOASFSkills, getOASFDomains, OASF_VERSION } from "./erc8004-oasf";
 
 // ─── Per-chain contract addresses ──────────────────────────────────────────────
 // Source: https://github.com/erc-8004/erc-8004-contracts#contract-addresses
@@ -125,46 +126,82 @@ export { IDENTITY_REGISTRY_ABI, REPUTATION_REGISTRY_ABI } from "./erc8004-abis";
 
 // ─── Helper Functions ──────────────────────────────────────────────────────────
 
-/**
- * Generate ERC-8004 agent registration JSON.
- * This follows the spec's recommended registration file shape.
- *
- * @see https://github.com/erc-8004/erc-8004-contracts#agent-registration-file-recommended-shape
- */
-export function generateRegistrationJSON(
-  name: string,
-  description: string,
-  serviceUrl: string,
-  agentWalletAddress?: string,
-  chainId: number = 42220,
-  erc8004AgentId?: string
-): ERC8004Registration {
-  const addresses = getERC8004Addresses(chainId);
-  const identityRegistry = addresses?.identityRegistry ?? "0x0000000000000000000000000000000000000000";
+export interface GenerateRegistrationJSONParams {
+  name: string;
+  description: string;
+  imageUrl?: string | null;
+  appUrl: string;
+  agentId: string;
+  serviceUrl: string;
+  agentWalletAddress?: string | null;
+  chainId: number;
+  erc8004AgentId?: string | null;
+  templateType: string;
+  status?: string;
+  webUrl?: string | null;
+  contactEmail?: string | null;
+}
 
-  return {
-    type: "agent-registration-v1",
+/**
+ * Generate ERC-8004 agent registration JSON (spec-compliant).
+ * Uses name/endpoint for services, agentWallet in services, OASF, active, x402Support, updatedAt.
+ * @see https://eips.ethereum.org/EIPS/eip-8004
+ * @see https://best-practices.8004scan.io/docs/01-agent-metadata-standard.html
+ */
+export function generateRegistrationJSON(params: GenerateRegistrationJSONParams): ERC8004Registration {
+  const {
     name,
     description,
-    image: `${serviceUrl.replace(/\/api\/.*/, "")}/icon.png`,
-    services: [
-      {
-        type: "agenthaus-chat",
-        url: serviceUrl,
-        description: "AgentHaus agent chat endpoint",
-      },
-    ],
+    imageUrl,
+    appUrl,
+    agentId,
+    serviceUrl,
+    agentWalletAddress,
+    chainId,
+    erc8004AgentId,
+    templateType,
+    status,
+    webUrl,
+    contactEmail,
+  } = params;
+
+  const addresses = getERC8004Addresses(chainId);
+  const identityRegistry = addresses?.identityRegistry ?? "0x0000000000000000000000000000000000000000";
+  const baseUrl = appUrl.replace(/\/api\/.*/, "");
+  const image = imageUrl || `${baseUrl}/icon.png`;
+
+  const services = [
+    { name: "web", endpoint: webUrl && webUrl.startsWith("http") ? webUrl : `${baseUrl}/dashboard/agents/${agentId}` },
+    ...(contactEmail ? [{ name: "email" as const, endpoint: contactEmail }] : []),
+    { name: "agenthaus-chat", endpoint: serviceUrl, version: "1.0" },
+    ...(agentWalletAddress
+      ? [{ name: "agentWallet" as const, endpoint: `eip155:${chainId}:${agentWalletAddress}` }]
+      : []),
+    {
+      name: "OASF",
+      endpoint: "https://github.com/agntcy/oasf/",
+      version: OASF_VERSION,
+      skills: getOASFSkills(templateType),
+      domains: getOASFDomains(templateType),
+    },
+  ];
+
+  return {
+    type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+    name,
+    description,
+    image,
+    services,
     registrations: [
       {
         agentRegistry: `eip155:${chainId}:${identityRegistry}`,
-        agentId: erc8004AgentId ?? "pending",
+        agentId: erc8004AgentId ? parseInt(erc8004AgentId, 10) : null,
       },
     ],
     supportedTrust: ["reputation"],
-    // Extended fields
-    agentWallet: agentWalletAddress,
-    chainId,
-    framework: "agenthaus",
+    active: status === "active",
+    x402Support: !!agentWalletAddress,
+    updatedAt: Math.floor(Date.now() / 1000),
   };
 }
 
@@ -362,6 +399,37 @@ export async function getAgentOwner(
   });
 
   return result as Address;
+}
+
+/**
+ * Submit feedback for an agent on the Reputation Registry.
+ * Caller (clientAddress) must not be the agent owner.
+ */
+export async function giveFeedback(
+  walletClient: WalletClient,
+  reputationRegistryAddress: Address,
+  agentId: bigint,
+  value: number,
+  valueDecimals: number,
+  tag1: string,
+  tag2: string = "",
+  endpointURI: string = "",
+  feedbackURI: string = "",
+  feedbackHash: `0x${string}` = "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`
+): Promise<Hash> {
+  const data = encodeFunctionData({
+    abi: REPUTATION_REGISTRY_ABI,
+    functionName: "giveFeedback",
+    args: [agentId, BigInt(Math.round(value)), valueDecimals, tag1, tag2, endpointURI, feedbackURI, feedbackHash],
+  });
+  const account = (walletClient as { account?: { address: Address } }).account?.address;
+  if (!account) throw new Error("Wallet not connected");
+  return walletClient.sendTransaction({
+    to: reputationRegistryAddress,
+    data,
+    account,
+    chain: walletClient.chain,
+  });
 }
 
 /**

@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Key, ExternalLink, Info } from "lucide-react";
+import { Key, ExternalLink, Info, Upload, X } from "lucide-react";
 import { AGENT_TEMPLATES, LLM_MODELS, LLM_PROVIDER_INFO } from "@/lib/constants";
 import type { AgentTemplate, LLMProvider, AgentConfig } from "@/lib/types";
 
@@ -25,6 +25,8 @@ interface ConfigureStepProps {
   setLlmModel: (v: string) => void;
   config: AgentConfig;
   setConfig: (v: AgentConfig) => void;
+  imageFile: File | null;
+  setImageFile: (v: File | null) => void;
   apiKey: string;
   setApiKey: (v: string) => void;
   apiKeySaving: boolean;
@@ -48,6 +50,8 @@ export function ConfigureStep({
   setLlmModel,
   config,
   setConfig,
+  imageFile,
+  setImageFile,
   apiKey,
   setApiKey,
   apiKeySaving,
@@ -56,6 +60,16 @@ export function ConfigureStep({
   onSaveApiKey,
   onResetKey,
 }: ConfigureStepProps) {
+  const [imagePreview, setImagePreview] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (imageFile) {
+      const url = URL.createObjectURL(imageFile);
+      setImagePreview(url);
+      return () => URL.revokeObjectURL(url);
+    } else {
+      setImagePreview(null);
+    }
+  }, [imageFile]);
   const providerInfo = LLM_PROVIDER_INFO[llmProvider];
   const currentTemplate = AGENT_TEMPLATES.find((t) => t.id === selectedTemplate);
 
@@ -68,6 +82,51 @@ export function ConfigureStep({
           <CardDescription>Configure your agent&apos;s basic settings</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Agent Image (ERC-8004 recommended) */}
+          <div>
+            <label className="text-sm font-medium text-forest block mb-1.5">Agent Image</label>
+            <p className="text-xs text-forest-muted/70 mb-2">
+              Recommended for ERC-8004. Shown in explorers and agent cards. PNG, JPEG, WebP (max 5MB)
+            </p>
+            <div className="flex items-center gap-4">
+              <div className="relative w-20 h-20 rounded-xl border border-forest/15 bg-gypsum/50 flex items-center justify-center overflow-hidden">
+                {imagePreview ? (
+                  <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <Upload className="w-8 h-8 text-forest-muted/50" />
+                )}
+              </div>
+              <div className="flex gap-2">
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f && f.size <= 5 * 1024 * 1024) setImageFile(f);
+                    }}
+                  />
+                  <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-sm font-medium bg-forest/10 text-forest hover:bg-forest/20 transition-colors">
+                    Upload
+                  </span>
+                </label>
+                {imageFile && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setImageFile(null)}
+                    className="text-forest-muted hover:text-forest"
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Remove
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div>
             <Input
               label="Agent Name (optional)"
@@ -80,45 +139,100 @@ export function ConfigureStep({
               onChange={(e) => setName(e.target.value)}
             />
             <p className="text-[10px] text-forest-muted/70 mt-1">
-              Leave blank to auto-generate a random ID (e.g.{" "}
-              <span className="font-mono text-forest-muted">#A3F9B2</span>)
+              Leave blank to auto-generate. If provided: 3–200 characters.
             </p>
           </div>
-          <Input
-            label="Description"
-            placeholder="A brief description of what this agent does"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
+          <div>
+            <Input
+              label="Description"
+              placeholder="A brief description of what this agent does"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+            <p className="text-[10px] text-forest-muted/70 mt-1">
+              {description.length} chars. Recommended: 50–500 for ERC-8004.
+            </p>
+          </div>
+
+          {/* ERC-8004 human-facing endpoints (optional) */}
           <div className="grid md:grid-cols-2 gap-4">
-            <Select
-              label="LLM Provider"
-              value={llmProvider}
-              onChange={(e) => {
-                const provider = e.target.value as LLMProvider;
-                setLlmProvider(provider);
-                setLlmModel(LLM_MODELS[provider][0].id);
-                setApiKey("");
-              }}
-              options={[
-                { value: "openrouter", label: "OpenRouter (Free Models)" },
-                { value: "groq", label: "Groq (Fast Inference)" },
-                { value: "openai", label: "OpenAI (ChatGPT)" },
-                { value: "grok", label: "Grok (xAI)" },
-                { value: "gemini", label: "Google Gemini" },
-                { value: "deepseek", label: "DeepSeek" },
-                { value: "zai", label: "Z.AI (GLM-4)" },
-              ]}
+            <Input
+              label="Web URL (optional)"
+              placeholder="https://myagent.example.com"
+              type="url"
+              value={config.webUrl ?? ""}
+              onChange={(e) => setConfig({ ...config, webUrl: e.target.value.trim() || undefined })}
             />
-            <Select
-              label="Model"
-              value={llmModel}
-              onChange={(e) => setLlmModel(e.target.value)}
-              options={LLM_MODELS[llmProvider].map((m) => ({
-                value: m.id,
-                label: m.name,
-              }))}
+            <Input
+              label="Contact Email (optional)"
+              placeholder="support@example.com"
+              type="email"
+              value={config.contactEmail ?? ""}
+              onChange={(e) => setConfig({ ...config, contactEmail: e.target.value.trim() || undefined })}
             />
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-forest/80">LLM Provider</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-7 text-forest-muted hover:text-forest"
+                  onClick={() => {
+                    const defProvider = "openrouter" as LLMProvider;
+                    setLlmProvider(defProvider);
+                    setLlmModel(LLM_MODELS[defProvider][0].id);
+                    setApiKey("");
+                  }}
+                >
+                  Use default
+                </Button>
+              </div>
+              <Select
+                label=""
+                value={llmProvider}
+                onChange={(e) => {
+                  const provider = e.target.value as LLMProvider;
+                  setLlmProvider(provider);
+                  setLlmModel(LLM_MODELS[provider][0].id);
+                  setApiKey("");
+                }}
+                options={[
+                  { value: "openrouter", label: "OpenRouter (Free Models)" },
+                  { value: "groq", label: "Groq (Fast Inference)" },
+                  { value: "openai", label: "OpenAI (ChatGPT)" },
+                  { value: "grok", label: "Grok (xAI)" },
+                  { value: "gemini", label: "Google Gemini" },
+                  { value: "deepseek", label: "DeepSeek" },
+                  { value: "zai", label: "Z.AI (GLM-4)" },
+                ]}
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-forest/80">Model</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-7 text-forest-muted hover:text-forest"
+                  onClick={() => setLlmModel(LLM_MODELS[llmProvider][0].id)}
+                >
+                  Use default
+                </Button>
+              </div>
+              <Select
+                label=""
+                value={llmModel}
+                onChange={(e) => setLlmModel(e.target.value)}
+                options={LLM_MODELS[llmProvider].map((m) => ({
+                  value: m.id,
+                  label: m.name,
+                }))}
+              />
+            </div>
           </div>
 
           {/* Inline API Key Configuration */}
@@ -276,6 +390,91 @@ export function ConfigureStep({
               value={config.stopLossPercentage?.toString() || "5.0"}
               onChange={(e) => setConfig({ ...config, stopLossPercentage: Number(e.target.value) })}
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Template-specific: Forex */}
+      {currentTemplate && selectedTemplate === "forex" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Forex Settings</CardTitle>
+            <CardDescription>Configure forex trading and rate monitoring</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Input
+              label="Max Position Size"
+              type="number"
+              value={config.maxPositionSize?.toString() || "100"}
+              onChange={(e) => setConfig({ ...config, maxPositionSize: Number(e.target.value) })}
+            />
+            <Input
+              label="Monitor Interval (min)"
+              type="number"
+              value={config.monitorInterval?.toString() || "5"}
+              onChange={(e) => setConfig({ ...config, monitorInterval: Number(e.target.value) })}
+            />
+            <Input
+              label="Max Transaction Amount ($)"
+              type="number"
+              value={config.maxTransactionAmount?.toString() || "1000"}
+              onChange={(e) => setConfig({ ...config, maxTransactionAmount: Number(e.target.value) })}
+            />
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="forexRequireConfirmation"
+                checked={config.requireConfirmation ?? true}
+                onChange={(e) => setConfig({ ...config, requireConfirmation: e.target.checked })}
+                className="rounded border-forest/15"
+              />
+              <label htmlFor="forexRequireConfirmation" className="text-sm text-forest/80">
+                Require confirmation for swaps over $10
+              </label>
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="autoTrade"
+                checked={config.autoTrade ?? false}
+                onChange={(e) => setConfig({ ...config, autoTrade: e.target.checked })}
+                className="rounded border-forest/15"
+              />
+              <label htmlFor="autoTrade" className="text-sm text-forest/80">
+                Enable automated trading
+              </label>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Template-specific: Social */}
+      {currentTemplate && selectedTemplate === "social" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Social Settings</CardTitle>
+            <CardDescription>Configure tip distribution and engagement</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Input
+              label="Tip Amount (default CELO)"
+              type="number"
+              step="0.01"
+              value={config.tipAmount?.toString() || "0.5"}
+              onChange={(e) => setConfig({ ...config, tipAmount: Number(e.target.value) })}
+            />
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="autoReply"
+                checked={config.autoReply ?? true}
+                onChange={(e) => setConfig({ ...config, autoReply: e.target.checked })}
+                className="rounded border-forest/15"
+              />
+              <label htmlFor="autoReply" className="text-sm text-forest/80">
+                Auto-reply to community messages
+              </label>
+            </div>
           </CardContent>
         </Card>
       )}

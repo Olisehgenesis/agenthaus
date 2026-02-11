@@ -293,6 +293,64 @@ async function deactivateBinding(bindingId: string): Promise<void> {
   });
 }
 
+// ─── Web Chat Binding ──────────────────────────────────────────────────────
+
+const WEB_CHANNEL = "web";
+
+/**
+ * Get or create a web chat binding for an agent + owner.
+ * Used by the dashboard chat to persist messages per agent/owner session.
+ */
+export async function getOrCreateWebChatBinding(
+  agentId: string,
+  ownerWalletAddress: string
+): Promise<string> {
+  const senderIdentifier = `${agentId}:${ownerWalletAddress.toLowerCase()}`;
+
+  const existing = await prisma.channelBinding.findFirst({
+    where: {
+      channelType: WEB_CHANNEL,
+      senderIdentifier,
+      isActive: true,
+    },
+  });
+
+  if (existing) {
+    return existing.id;
+  }
+
+  const binding = await prisma.channelBinding.create({
+    data: {
+      agentId,
+      channelType: WEB_CHANNEL,
+      senderIdentifier,
+      bindingType: "direct",
+      isActive: true,
+    },
+  });
+
+  return binding.id;
+}
+
+/**
+ * Get the web chat binding ID for an agent + owner, if it exists.
+ */
+export async function getWebChatBindingId(
+  agentId: string,
+  ownerWalletAddress: string
+): Promise<string | null> {
+  const senderIdentifier = `${agentId}:${ownerWalletAddress.toLowerCase()}`;
+  const binding = await prisma.channelBinding.findFirst({
+    where: {
+      channelType: WEB_CHANNEL,
+      senderIdentifier,
+      isActive: true,
+    },
+    select: { id: true },
+  });
+  return binding?.id ?? null;
+}
+
 // ─── Session Messages ──────────────────────────────────────────────────────
 
 /**
@@ -325,6 +383,7 @@ export async function loadSessionHistory(
 
 /**
  * Save a user message and assistant reply to session history.
+ * Older messages are pruned by time (SESSION_MESSAGE_RETENTION_DAYS, default 30).
  */
 export async function saveSessionMessages(
   bindingId: string,
@@ -332,6 +391,8 @@ export async function saveSessionMessages(
   assistantReply: string,
   metadata?: Record<string, unknown>
 ): Promise<void> {
+  const { getSessionRetentionDays } = await import("@/lib/session-retention");
+
   await prisma.sessionMessage.createMany({
     data: [
       {
@@ -348,24 +409,14 @@ export async function saveSessionMessages(
     ],
   });
 
-  // Prune old messages (keep last 100 per binding)
-  const count = await prisma.sessionMessage.count({
-    where: { bindingId },
-  });
-
-  if (count > 100) {
-    const oldest = await prisma.sessionMessage.findMany({
-      where: { bindingId },
-      orderBy: { createdAt: "asc" },
-      take: count - 100,
-      select: { id: true },
+  // Time-based retention: prune messages older than retention days
+  const retentionDays = getSessionRetentionDays();
+  if (retentionDays > 0) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - retentionDays);
+    await prisma.sessionMessage.deleteMany({
+      where: { bindingId, createdAt: { lt: cutoff } },
     });
-
-    if (oldest.length > 0) {
-      await prisma.sessionMessage.deleteMany({
-        where: { id: { in: oldest.map((m) => m.id) } },
-      });
-    }
   }
 }
 

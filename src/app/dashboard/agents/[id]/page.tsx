@@ -63,9 +63,11 @@ export default function AgentDetailPage() {
   return (
     <div className="space-y-6">
       {/* ── Header ── */}
-      <AgentHeader
-        agent={agent}
-        verificationStatus={vf.verificationStatus}
+        <AgentHeader
+          agent={agent}
+          agentChainId={agent.erc8004ChainId ?? ad.connectedChainId ?? undefined}
+          onImageUploaded={() => ad.refreshAgent()}
+          verificationStatus={vf.verificationStatus}
         isConnected={ad.isConnected}
         isCeloMainnet={ad.isCeloMainnet}
         isQrReady={vf.isQrReady}
@@ -76,6 +78,7 @@ export default function AgentDetailPage() {
         onOpenIdentityModal={() => setIdentityModalOpen(true)}
         onOpenVerifyModal={vf.openVerifyModal}
         onSwitchToCelo={() => ad.switchChain({ chainId: ad.CELO_MAINNET_CHAIN_ID })}
+        onOpenTokenTab={() => setActiveTab("token-trade")}
       />
 
       {/* ── Stats Cards ── */}
@@ -98,6 +101,7 @@ export default function AgentDetailPage() {
           {/* Wallet */}
           <WalletCard
             agent={agent}
+            agentChainId={agent.erc8004ChainId ?? ad.connectedChainId ?? undefined}
             walletBalance={ad.walletBalance}
             balanceLoading={ad.balanceLoading}
             fetchBalance={ad.fetchBalance}
@@ -158,7 +162,7 @@ export default function AgentDetailPage() {
       {/* ── Chat / Activity / Transactions tabs ── */}
       <ContentTabs
         agent={agent}
-                activeTab={activeTab}
+        activeTab={activeTab}
         setActiveTab={setActiveTab}
         chatMessages={ad.chatMessages}
         chatInput={ad.chatInput}
@@ -168,6 +172,8 @@ export default function AgentDetailPage() {
         handleSendMessage={ad.handleSendMessage}
         activityLogs={ad.activityLogs}
         transactions={ad.transactions}
+        verificationStatus={vf.verificationStatus ?? undefined}
+        onOpenVerifyModal={vf.openVerifyModal}
       />
 
       {/* ── SelfClaw Verification Modal ── */}

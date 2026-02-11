@@ -3,6 +3,6 @@
  */
 export { TemplateStep } from "./TemplateStep";
 export { ConfigureStep } from "./ConfigureStep";
-export { SecurityStep } from "./SecurityStep";
+export { SecurityStep, type WalletOption } from "./SecurityStep";
 export { ReviewStep } from "./ReviewStep";
 

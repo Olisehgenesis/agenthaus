@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { sendCelo, sendToken, getPublicClient } from "@/lib/blockchain/wallet";
-import { CELO_TOKENS, BLOCK_EXPLORER } from "@/lib/constants";
+import { getAmountUsd } from "@/lib/blockchain/spending";
+import { CELO_TOKENS, getBlockExplorer } from "@/lib/constants";
 import { type Address, isAddress } from "viem";
 
 /**
@@ -51,6 +52,7 @@ export async function POST(
         agentWalletAddress: true,
         spendingLimit: true,
         spendingUsed: true,
+        erc8004ChainId: true,
       },
     });
 
@@ -65,8 +67,11 @@ export async function POST(
       );
     }
 
-    // Spending limit check
-    if (agent.spendingLimit && (agent.spendingUsed + parsedAmount) > agent.spendingLimit) {
+    const currencyUpper = (currency as string).toUpperCase();
+
+    // Spending limit check — use USD equivalent
+    const usdValue = await getAmountUsd(currencyUpper, parsedAmount);
+    if (agent.spendingLimit && usdValue != null && (agent.spendingUsed + usdValue) > agent.spendingLimit) {
       return NextResponse.json(
         {
           error: `Spending limit exceeded. Used: $${agent.spendingUsed.toFixed(2)}, Limit: $${agent.spendingLimit.toFixed(2)}`,
@@ -76,7 +81,6 @@ export async function POST(
     }
 
     // Execute transaction
-    const currencyUpper = currency.toUpperCase();
     let txHash: string;
 
     if (currencyUpper === "CELO") {
@@ -129,11 +133,13 @@ export async function POST(
       },
     });
 
-    // Update spending
-    await prisma.agent.update({
-      where: { id },
-      data: { spendingUsed: { increment: parsedAmount } },
-    });
+    // Update spending — only when we have USD value
+    if (usdValue != null && usdValue > 0) {
+      await prisma.agent.update({
+        where: { id },
+        data: { spendingUsed: { increment: usdValue } },
+      });
+    }
 
     // Log
     await prisma.activityLog.create({
@@ -149,7 +155,7 @@ export async function POST(
       txHash,
       status,
       blockNumber: receipt.blockNumber ? Number(receipt.blockNumber) : null,
-      explorerUrl: `${BLOCK_EXPLORER}/tx/${txHash}`,
+      explorerUrl: `${getBlockExplorer(agent.erc8004ChainId ?? 42220)}/tx/${txHash}`,
       amount: parsedAmount,
       currency: currencyUpper,
       to,

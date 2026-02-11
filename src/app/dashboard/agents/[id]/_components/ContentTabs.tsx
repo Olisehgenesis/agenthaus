@@ -9,7 +9,9 @@ import {
   Activity, TrendingUp, MessageSquare, Bot,
   Clock, Send, Loader2, Shield, ArrowUpRight,
   CheckCircle, XCircle, AlertCircle, Info,
+  Coins,
 } from "lucide-react";
+import { TokenTradeTab } from "./TokenTradeTab";
 import { formatAddress, formatDate } from "@/lib/utils";
 import type { AgentData, ChatMessage, TransactionData, ActivityLogData } from "../_types";
 
@@ -27,6 +29,9 @@ interface ContentTabsProps {
   // Data
   activityLogs: ActivityLogData[];
   transactions: TransactionData[];
+  // Token & Trade (SelfClaw economy)
+  verificationStatus?: { verified?: boolean };
+  onOpenVerifyModal?: () => void;
 }
 
 function activityIcon(type: string) {
@@ -50,6 +55,8 @@ export function ContentTabs({
   handleSendMessage,
   activityLogs,
   transactions,
+  verificationStatus,
+  onOpenVerifyModal,
 }: ContentTabsProps) {
   return (
     <div className="lg:col-span-2">
@@ -60,6 +67,7 @@ export function ContentTabs({
               { id: "chat", label: "Chat", icon: <MessageSquare className="w-4 h-4" /> },
               { id: "activity", label: `Activity (${activityLogs.length})`, icon: <Activity className="w-4 h-4" /> },
               { id: "transactions", label: `Txns (${transactions.length})`, icon: <TrendingUp className="w-4 h-4" /> },
+              { id: "token-trade", label: "Token & Trade", icon: <Coins className="w-4 h-4" /> },
             ]}
             activeTab={activeTab}
             onChange={setActiveTab}
@@ -161,6 +169,16 @@ export function ContentTabs({
                 ))
               )}
             </div>
+          )}
+
+          {/* Token & Trade Tab */}
+          {activeTab === "token-trade" && (
+            <TokenTradeTab
+              agent={agent}
+              agentId={agent.id}
+              verified={!!verificationStatus?.verified}
+              onOpenVerifyModal={onOpenVerifyModal}
+            />
           )}
 
           {/* Transactions Tab */}

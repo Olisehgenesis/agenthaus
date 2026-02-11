@@ -8,7 +8,7 @@ import {
   Loader2, Code, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
-import { BLOCK_EXPLORER, BLOCK_EXPLORERS } from "@/lib/constants";
+import { BLOCK_EXPLORER, BLOCK_EXPLORERS, getERC8004ScanUrl } from "@/lib/constants";
 import type { AgentData, RegistrationResult } from "../_types";
 
 interface AgentIdentityCardProps {
@@ -82,7 +82,7 @@ export function AgentIdentityCard({
                     <div className="min-w-0 flex-1">
                       <div className="text-[10px] text-forest-muted/70 uppercase tracking-wider">Tx Hash</div>
                       <a
-                        href={`${BLOCK_EXPLORERS[agent.erc8004ChainId || 42220] || BLOCK_EXPLORER}/tx/${agent.erc8004TxHash}`}
+                        href={`${BLOCK_EXPLORERS[agent.erc8004ChainId ?? 42220] || BLOCK_EXPLORER}/tx/${agent.erc8004TxHash}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[10px] text-blue-400 hover:text-blue-300 font-mono flex items-center gap-1"
@@ -139,17 +139,28 @@ export function AgentIdentityCard({
               </div>
 
               {/* Quick links */}
-              <div className="flex items-center gap-3 mt-3 pt-2 border-t border-forest/20">
+              <div className="flex items-center gap-3 mt-3 pt-2 border-t border-forest/20 flex-wrap">
+                <a
+                  href={getERC8004ScanUrl(agent.erc8004ChainId || 42220, agent.erc8004AgentId!)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-violet-400 hover:text-violet-300 flex items-center gap-1"
+                >
+                  Scan on ERC-8004 <ExternalLink className="w-3 h-3" />
+                </a>
                 {agent.erc8004TxHash && (
                   <a
-                    href={`${BLOCK_EXPLORERS[agent.erc8004ChainId || 42220] || BLOCK_EXPLORER}/tx/${agent.erc8004TxHash}`}
+                    href={`${BLOCK_EXPLORERS[agent.erc8004ChainId ?? 42220] || BLOCK_EXPLORER}/tx/${agent.erc8004TxHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
                   >
-                    View on Explorer <ExternalLink className="w-3 h-3" />
+                    View Tx <ExternalLink className="w-3 h-3" />
                   </a>
                 )}
+                <a href="https://agentscan.info" target="_blank" rel="noopener noreferrer" className="text-[10px] text-forest-muted hover:text-forest/80 flex items-center gap-1">
+                  Agentscan <ExternalLink className="w-3 h-3" />
+                </a>
                 <a href="https://8004.org" target="_blank" rel="noopener noreferrer" className="text-[10px] text-violet-400 hover:text-violet-300 flex items-center gap-1">
                   ERC-8004 Spec <ExternalLink className="w-3 h-3" />
                 </a>
@@ -221,7 +232,7 @@ export function AgentIdentityCard({
         {/* ── Agent Configuration ── */}
         <div className="p-3 rounded-lg bg-gypsum">
           <div className="text-xs text-forest-muted/70 mb-1">Runtime</div>
-          <div className="text-sm text-forest">AgentHaus Native</div>
+          <div className="text-sm text-forest">Agent Forge Native</div>
         </div>
         <div className="p-3 rounded-lg bg-gypsum">
           <div className="text-xs text-forest-muted/70 mb-1">LLM Provider</div>

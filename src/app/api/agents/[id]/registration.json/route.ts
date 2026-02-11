@@ -30,10 +30,12 @@ export async function GET(
         name: true,
         description: true,
         templateType: true,
+        imageUrl: true,
+        status: true,
         agentWalletAddress: true,
         erc8004AgentId: true,
         erc8004ChainId: true,
-        status: true,
+        configuration: true,
       },
     });
 
@@ -44,14 +46,22 @@ export async function GET(
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const serviceUrl = `${appUrl}/api/agents/${agent.id}/chat`;
 
-    const registrationJSON = generateRegistrationJSON(
-      agent.name,
-      agent.description || `${agent.templateType} agent powered by AgentHaus`,
+    const config = (agent.configuration ? JSON.parse(agent.configuration) : {}) as { webUrl?: string; contactEmail?: string };
+    const registrationJSON = generateRegistrationJSON({
+      name: agent.name,
+      description: agent.description || `${agent.templateType} agent powered by AgentHaus`,
+      imageUrl: agent.imageUrl,
+      appUrl,
+      agentId: agent.id,
       serviceUrl,
-      agent.agentWalletAddress || undefined,
-      agent.erc8004ChainId || 42220,
-      agent.erc8004AgentId || undefined
-    );
+      agentWalletAddress: agent.agentWalletAddress,
+      chainId: agent.erc8004ChainId || 42220,
+      erc8004AgentId: agent.erc8004AgentId,
+      templateType: agent.templateType,
+      status: agent.status,
+      webUrl: config.webUrl || null,
+      contactEmail: config.contactEmail || null,
+    });
 
     return new NextResponse(JSON.stringify(registrationJSON, null, 2), {
       headers: {

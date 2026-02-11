@@ -92,9 +92,20 @@ export function encryptPrivateKey(privateKeyHex: string): string {
 
 /**
  * Decrypt a private key from database storage.
+ * Throws a user-friendly error if decryption fails (e.g. ENCRYPTION_SECRET changed).
  */
 export function decryptPrivateKey(encryptedKey: string): string {
-  return decrypt(encryptedKey);
+  try {
+    return decrypt(encryptedKey);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.includes("Unsupported state") || msg.includes("authenticate data") || msg.includes("Invalid")) {
+      throw new Error(
+        "Verification keys could not be decrypted. If you changed ENCRYPTION_SECRET, re-verify the agent: click Verify → Scan QR to regenerate keys."
+      );
+    }
+    throw err;
+  }
 }
 
 /**

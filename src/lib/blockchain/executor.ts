@@ -20,10 +20,11 @@ import { CELO_TOKENS, BLOCK_EXPLORER } from "@/lib/constants";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface TransactionIntent {
-  action: "send_celo" | "send_token";
+  action: "send_celo" | "send_token" | "send_agent_token";
   to: string;
   amount: string;
   currency: string;
+  tokenAddress?: string; // for send_agent_token
   raw: string; // original tag text
 }
 
@@ -41,9 +42,11 @@ export interface TransactionResult {
  * Regex patterns for transaction commands embedded in LLM output.
  *   [[SEND_CELO|0x...|1.5]]
  *   [[SEND_TOKEN|cUSD|0x...|10]]
+ *   [[SEND_AGENT_TOKEN|tokenAddress|toAddress|amount]] — send any ERC20 by address
  */
 const SEND_CELO_REGEX = /\[\[SEND_CELO\|([^\|]+)\|([^\]]+)\]\]/g;
 const SEND_TOKEN_REGEX = /\[\[SEND_TOKEN\|([^\|]+)\|([^\|]+)\|([^\]]+)\]\]/g;
+const SEND_AGENT_TOKEN_REGEX = /\[\[SEND_AGENT_TOKEN\|([^\|]+)\|([^\|]+)\|([^\]]+)\]\]/g;
 
 /**
  * Extract all transaction intents from an LLM response string.
@@ -72,6 +75,19 @@ export function parseTransactionIntents(text: string): TransactionIntent[] {
       to: match[2].trim(),
       amount: match[3].trim(),
       currency: match[1].trim().toUpperCase(),
+      raw: match[0],
+    });
+  }
+
+  // Match SEND_AGENT_TOKEN commands (tokenAddress|toAddress|amount)
+  const agentTokenRegex = new RegExp(SEND_AGENT_TOKEN_REGEX.source, "g");
+  while ((match = agentTokenRegex.exec(text)) !== null) {
+    intents.push({
+      action: "send_agent_token",
+      to: match[2].trim(),
+      amount: match[3].trim(),
+      currency: "AGENT_TOKEN",
+      tokenAddress: match[1].trim(),
       raw: match[0],
     });
   }
@@ -134,6 +150,14 @@ async function executeIntent(
 
     if (intent.action === "send_celo") {
       txHash = await sendCelo(walletIndex, intent.to as Address, intent.amount);
+    } else if (intent.action === "send_agent_token" && intent.tokenAddress && validateAddress(intent.tokenAddress)) {
+      txHash = await sendToken(
+        walletIndex,
+        intent.tokenAddress as Address,
+        intent.to as Address,
+        intent.amount,
+        18
+      );
     } else {
       // send_token
       const tokenInfo = getTokenInfo(intent.currency);
@@ -215,10 +239,11 @@ async function executeIntent(
 // ─── Format Results ───────────────────────────────────────────────────────────
 
 function formatTxResult(result: TransactionResult): string {
+  const assetLabel = result.intent.currency === "AGENT_TOKEN" ? "agent tokens" : result.intent.currency;
   if (result.success && result.txHash) {
     return [
       `\n✅ **Transaction Confirmed**`,
-      `• Sent: ${result.intent.amount} ${result.intent.currency}`,
+      `• Sent: ${result.intent.amount} ${assetLabel}`,
       `• To: ${result.intent.to}`,
       `• TX Hash: \`${result.txHash}\``,
       `• Explorer: ${BLOCK_EXPLORER}/tx/${result.txHash}`,
@@ -227,7 +252,7 @@ function formatTxResult(result: TransactionResult): string {
   } else {
     return [
       `\n❌ **Transaction Failed**`,
-      `• Attempted: ${result.intent.amount} ${result.intent.currency} → ${result.intent.to}`,
+      `• Attempted: ${result.intent.amount} ${assetLabel} → ${result.intent.to}`,
       `• Error: ${result.error || "Unknown error"}`,
     ].join("\n");
   }
@@ -294,9 +319,15 @@ export async function executeTransactionsInResponse(
         }
       }
 
-      // Spending limit check
-      const totalSpend = intents.reduce((sum, i) => sum + parseFloat(i.amount), 0);
-      if (agent.spendingLimit && (agent.spendingUsed + totalSpend) > agent.spendingLimit) {
+      // Spending limit check — only count USD-equivalent (CELO, cUSD, cEUR, cREAL)
+      const { getAmountUsd } = await import("./spending");
+      let totalSpendUsd = 0;
+      for (const i of intents) {
+        if (i.action === "send_agent_token") continue;
+        const usd = await getAmountUsd(i.currency, parseFloat(i.amount));
+        if (usd != null) totalSpendUsd += usd;
+      }
+      if (agent.spendingLimit && totalSpendUsd > 0 && (agent.spendingUsed + totalSpendUsd) > agent.spendingLimit) {
         let updatedText = responseText;
         for (const intent of intents) {
           updatedText = updatedText.replace(
@@ -323,16 +354,16 @@ export async function executeTransactionsInResponse(
     // Replace the command tag with the result
     updatedText = updatedText.replace(intent.raw, formatTxResult(result));
 
-    // Update spending
-    if (result.success) {
-      await prisma.agent.update({
-        where: { id: agentId },
-        data: {
-          spendingUsed: {
-            increment: parseFloat(intent.amount),
-          },
-        },
-      });
+    // Update spending — only USD-equivalent tokens (CELO, cUSD, cEUR, cREAL)
+    if (result.success && intent.action !== "send_agent_token") {
+      const { getAmountUsd } = await import("./spending");
+      const usdValue = await getAmountUsd(intent.currency, parseFloat(intent.amount));
+      if (usdValue != null && usdValue > 0) {
+        await prisma.agent.update({
+          where: { id: agentId },
+          data: { spendingUsed: { increment: usdValue } },
+        });
+      }
     }
   }
 

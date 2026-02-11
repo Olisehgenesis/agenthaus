@@ -96,6 +96,42 @@ export async function getUserApiKey(
   );
 }
 
+/** Fallback order when selected provider has no key — prefers free/fast providers */
+const FALLBACK_PROVIDER_ORDER: LLMProvider[] = [
+  "openrouter", "groq", "zai", "openai", "gemini", "deepseek", "grok",
+];
+
+/**
+ * Get the first available provider + API key for a user.
+ * Used as fallback when the agent's selected provider has no key configured.
+ */
+export async function getFirstAvailableProviderAndKey(
+  ownerId: string
+): Promise<{ provider: LLMProvider; apiKey: string } | null> {
+  const status = await getUserKeyStatus(ownerId);
+  const hasKey: Record<LLMProvider, boolean> = {
+    openrouter: !!status.hasOpenrouterKey,
+    openai: !!status.hasOpenaiKey,
+    groq: !!status.hasGroqKey,
+    grok: !!status.hasGrokKey,
+    gemini: !!status.hasGeminiKey,
+    deepseek: !!status.hasDeepseekKey,
+    zai: !!status.hasZaiKey,
+  };
+
+  for (const provider of FALLBACK_PROVIDER_ORDER) {
+    if (hasKey[provider]) {
+      try {
+        const apiKey = await getUserApiKey(ownerId, provider);
+        return { provider, apiKey };
+      } catch {
+        // Decryption failed, try next
+      }
+    }
+  }
+  return null;
+}
+
 /**
  * Check which API keys a user has configured
  */

@@ -55,6 +55,9 @@ model Agent {
   // Legacy OpenClaw (optional, kept for backward compat)
   openclawAgentId       String?
   
+  // Per-agent image (IPFS or HTTPS URL)
+  imageUrl        String?  // Agent avatar/logo for ERC-8004 registration
+  
   // ERC-8004 (on-chain identity)
   erc8004AgentId  String?  // On-chain NFT tokenId from IdentityRegistry
   erc8004URI      String?  // Registration JSON URL set on-chain
@@ -64,6 +67,9 @@ model Agent {
   
   // Configuration (JSON stored as string)
   configuration   String?  // JSON string for template-specific config
+  
+  // SelfClaw: tokens deployed by this agent (kept so sponsorship works before SelfClaw indexes)
+  agentDeployedTokens String?  // JSON: [{ address, name, symbol, deployedAt }]
   
   // Relations
   ownerId         String

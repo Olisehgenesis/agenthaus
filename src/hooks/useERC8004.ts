@@ -115,7 +115,7 @@ export function useERC8004(): UseERC8004Return {
 
       try {
         // 1. Get registration data from our API
-        const prepRes = await fetch(`/api/erc8004/register?agentId=${internalAgentId}`);
+        const prepRes = await fetch(`/api/erc8004/register?agentId=${internalAgentId}&chainId=${chainId}`);
         if (!prepRes.ok) {
           const err = await prepRes.json();
           throw new Error(err.error || "Failed to prepare registration");

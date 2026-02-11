@@ -8,11 +8,13 @@ import {
   Loader2, AlertCircle, CheckCircle, Info,
 } from "lucide-react";
 import { formatAddress } from "@/lib/utils";
-import { BLOCK_EXPLORER } from "@/lib/constants";
+import { getBlockExplorer } from "@/lib/constants";
 import type { AgentData, WalletBalanceData, SendResult } from "../_types";
 
 interface WalletCardProps {
   agent: AgentData;
+  /** Chain ID for explorer links (agent's chain or connected) */
+  agentChainId?: number;
   walletBalance: WalletBalanceData | null;
   balanceLoading: boolean;
   fetchBalance: () => void;
@@ -36,6 +38,7 @@ interface WalletCardProps {
 
 export function WalletCard({
   agent,
+  agentChainId,
   walletBalance,
   balanceLoading,
   fetchBalance,
@@ -55,6 +58,10 @@ export function WalletCard({
   setSendResult,
   handleSendTx,
 }: WalletCardProps) {
+  const hasDedicatedWallet = agent.agentWalletAddress && agent.walletDerivationIndex != null;
+  const chainId = agentChainId ?? agent.erc8004ChainId ?? connectedChainId ?? 42220;
+  const explorer = getBlockExplorer(chainId);
+
   if (!agent.agentWalletAddress) {
     return (
       <Card className="border-amber-500/20">
@@ -79,6 +86,66 @@ export function WalletCard({
           <p className="text-[10px] text-forest-faint">
             Requires AGENT_MNEMONIC in .env — wallet derived via HD path.
           </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Using owner wallet (receive only) — show upgrade option
+  if (!hasDedicatedWallet) {
+    return (
+      <Card className="border-amber-500/20">
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2">
+            <Wallet className="w-4 h-4 text-amber-400" />
+            <CardTitle className="text-base">Receive-Only Wallet</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-forest-muted">
+            This agent uses your connected wallet for receiving. Create a dedicated wallet to enable sending transactions.
+          </p>
+          <div className="p-3 rounded-lg bg-gypsum">
+            <div className="text-xs text-forest-muted/70 mb-1">Address</div>
+            <div className="flex items-center gap-2">
+              <div className="text-sm text-forest font-mono">{formatAddress(agent.agentWalletAddress)}</div>
+              <button
+                onClick={() => navigator.clipboard.writeText(agent.agentWalletAddress!)}
+                className="text-forest-muted/70 hover:text-forest transition-colors cursor-pointer"
+              >
+                <Copy className="w-3 h-3" />
+              </button>
+              <a
+                href={`${explorer}/address/${agent.agentWalletAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-forest-muted/70 hover:text-forest-light transition-colors"
+              >
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+          {walletBalance ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-gypsum/80">
+                <span className="text-sm text-forest/80">CELO</span>
+                <span className="text-sm font-mono text-forest">
+                  {parseFloat(walletBalance.nativeBalance).toFixed(4)}
+                </span>
+              </div>
+            </div>
+          ) : balanceLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-4 h-4 text-forest-muted animate-spin" />
+            </div>
+          ) : null}
+          <Button variant="glow" size="sm" className="w-full" onClick={handleInitWallet} disabled={walletIniting}>
+            {walletIniting ? (
+              <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> Creating...</>
+            ) : (
+              <><Wallet className="w-3.5 h-3.5 mr-1.5" /> Create Dedicated Wallet</>
+            )}
+          </Button>
         </CardContent>
       </Card>
     );
@@ -115,7 +182,7 @@ export function WalletCard({
               <Copy className="w-3 h-3" />
             </button>
             <a
-              href={`${BLOCK_EXPLORER}/address/${agent.agentWalletAddress}`}
+              href={`${explorer}/address/${agent.agentWalletAddress}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-forest-muted/70 hover:text-forest-light transition-colors"
@@ -208,7 +275,7 @@ export function WalletCard({
                   {sendResult.success ? (
                     <>
                       ✅ Sent!{" "}
-                      <a href={`${BLOCK_EXPLORER}/tx/${sendResult.txHash}`} target="_blank" rel="noopener noreferrer" className="underline">
+                      <a href={`${explorer}/tx/${sendResult.txHash}`} target="_blank" rel="noopener noreferrer" className="underline">
                         View TX
                       </a>
                     </>
@@ -246,12 +313,12 @@ export function WalletCard({
               <div>
                 <p className="text-xs text-forest-muted">Celo Mainnet wallet. Fund with real CELO or stablecoins.</p>
                 <a
-                  href={`https://celoscan.io/address/${agent.agentWalletAddress}`}
+                  href={`${explorer}/address/${agent.agentWalletAddress}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-forest-light hover:text-forest font-medium flex items-center gap-1 mt-1"
                 >
-                  View on CeloScan <ExternalLink className="w-3 h-3" />
+                  View in Explorer <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
             </div>

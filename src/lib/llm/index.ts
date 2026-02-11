@@ -126,7 +126,7 @@ function getProviderModule(provider: LLMProvider) {
   }
 }
 
-function getDefaultModel(provider: LLMProvider): string {
+export function getDefaultModel(provider: LLMProvider): string {
   switch (provider) {
     case "openrouter":
       return "meta-llama/llama-3.3-70b-instruct:free";

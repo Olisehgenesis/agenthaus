@@ -16,6 +16,30 @@
 const SELFCLAW_BASE_URL =
   process.env.SELFCLAW_API_URL || "https://selfclaw.ai/api/selfclaw/v1";
 
+const SELFCLAW_FETCH_TIMEOUT_MS =
+  Number(process.env.SELFCLAW_FETCH_TIMEOUT_MS) || 25_000;
+
+function formatNetworkError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : "";
+  const name = err instanceof Error ? err.name : "";
+  const code =
+    err && typeof err === "object" && "code" in err
+      ? String((err as { code: string }).code)
+      : "";
+  if (name === "TimeoutError" || code === "ABORT_ERR" || msg.includes("aborted"))
+    return "Request to SelfClaw timed out. Try again or check your network.";
+  if (code === "ECONNREFUSED" || msg.includes("ECONNREFUSED"))
+    return "SelfClaw server unreachable. The service may be down.";
+  if (code === "ETIMEDOUT" || msg.includes("timed out"))
+    return "Request to SelfClaw timed out. Try again.";
+  if (code === "ENOTFOUND" || msg.includes("ENOTFOUND"))
+    return "Could not reach SelfClaw. Check your internet connection.";
+  if (msg === "fetch failed" || msg.includes("fetch failed"))
+    return "Could not reach SelfClaw. Check your internet connection and try again.";
+  if (msg) return msg;
+  return "Network error. Check your connection and try again.";
+}
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface StartVerificationRequest {
@@ -53,6 +77,8 @@ export interface AgentVerificationStatus {
   agentName?: string;
   humanId?: string;
   swarm?: string;
+  tokenAddress?: string;
+  walletAddress?: string;
   selfxyz?: {
     verified: boolean;
     registeredAt?: string;
@@ -81,9 +107,10 @@ export async function startVerification(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
+      signal: AbortSignal.timeout(SELFCLAW_FETCH_TIMEOUT_MS),
     });
   } catch (networkError) {
-    throw new Error(`Network error contacting SelfClaw: ${networkError instanceof Error ? networkError.message : "fetch failed"}`);
+    throw new Error(formatNetworkError(networkError));
   }
 
   let data;
@@ -113,9 +140,10 @@ export async function signChallenge(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
+      signal: AbortSignal.timeout(SELFCLAW_FETCH_TIMEOUT_MS),
     });
   } catch (networkError) {
-    throw new Error(`Network error contacting SelfClaw: ${networkError instanceof Error ? networkError.message : "fetch failed"}`);
+    throw new Error(formatNetworkError(networkError));
   }
 
   let data;
@@ -143,10 +171,11 @@ export async function checkAgentStatus(
   let res: Response;
   try {
     res = await fetch(
-      `${SELFCLAW_BASE_URL}/agent?publicKey=${encodeURIComponent(publicKey)}`
+      `${SELFCLAW_BASE_URL}/agent?publicKey=${encodeURIComponent(publicKey)}`,
+      { signal: AbortSignal.timeout(SELFCLAW_FETCH_TIMEOUT_MS) }
     );
   } catch (networkError) {
-    throw new Error(`Network error contacting SelfClaw: ${networkError instanceof Error ? networkError.message : "fetch failed"}`);
+    throw new Error(formatNetworkError(networkError));
   }
 
   let data;
@@ -179,4 +208,207 @@ export async function getHumanSwarm(
 
   return data;
 }
+
+// ─── Economy API (authenticated) ──────────────────────────────────────────────
+
+export interface SignedPayload {
+  agentPublicKey: string;
+  timestamp: number;
+  nonce: string;
+  signature: string;
+}
+
+async function authenticatedFetch(
+  path: string,
+  method: "POST" | "GET",
+  signedPayload: SignedPayload,
+  extraBody?: Record<string, unknown>
+): Promise<unknown> {
+  const body = { ...signedPayload, ...extraBody };
+  const res = await fetch(`${SELFCLAW_BASE_URL}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: method === "POST" ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    console.error(`[SelfClaw] ${path} error:`, res.status, data);
+    throw new Error(data.error || data.message || `SelfClaw API error: ${res.status}`);
+  }
+  return data;
+}
+
+/**
+ * Register agent's EVM wallet with SelfClaw.
+ */
+export async function createWallet(
+  signedPayload: SignedPayload,
+  walletAddress: string,
+  chain: string = "celo"
+): Promise<{ success?: boolean }> {
+  return authenticatedFetch("/create-wallet", "POST", signedPayload, {
+    walletAddress,
+    chain,
+  }) as Promise<{ success?: boolean }>;
+}
+
+/**
+ * Get unsigned ERC20 deployment transaction.
+ */
+export async function deployToken(
+  signedPayload: SignedPayload,
+  name: string,
+  symbol: string,
+  initialSupply: string
+): Promise<{ success?: boolean; unsignedTx?: Record<string, unknown> }> {
+  return authenticatedFetch("/deploy-token", "POST", signedPayload, {
+    name,
+    symbol,
+    initialSupply,
+  }) as Promise<{ success?: boolean; unsignedTx?: Record<string, unknown> }>;
+}
+
+/**
+ * Register a deployed token address with SelfClaw.
+ */
+export async function registerToken(
+  signedPayload: SignedPayload,
+  tokenAddress: string,
+  txHash: string
+): Promise<{ success?: boolean }> {
+  return authenticatedFetch("/register-token", "POST", signedPayload, {
+    tokenAddress,
+    txHash,
+  }) as Promise<{ success?: boolean }>;
+}
+
+/**
+ * Log revenue event.
+ */
+export async function logRevenue(
+  signedPayload: SignedPayload,
+  amount: string,
+  currency: string = "USD",
+  source: string,
+  description?: string,
+  txHash?: string
+): Promise<{ success?: boolean }> {
+  return authenticatedFetch("/log-revenue", "POST", signedPayload, {
+    amount,
+    currency,
+    source,
+    description,
+    txHash,
+  }) as Promise<{ success?: boolean }>;
+}
+
+/**
+ * Log cost event.
+ */
+export async function logCost(
+  signedPayload: SignedPayload,
+  amount: string,
+  currency: string = "USD",
+  category: string,
+  description?: string
+): Promise<{ success?: boolean }> {
+  return authenticatedFetch("/log-cost", "POST", signedPayload, {
+    amount,
+    currency,
+    category,
+    description,
+  }) as Promise<{ success?: boolean }>;
+}
+
+/**
+ * Request SELFCLAW liquidity sponsorship (one per human).
+ * Requires tokenAddress and tokenAmount (agent token amount in wei, e.g. 1e24 for 1M tokens).
+ * On failure, returns full error body so caller can parse sponsorWallet, has, needs.
+ */
+export async function requestSelfClawSponsorship(
+  signedPayload: SignedPayload,
+  tokenAddress: string,
+  tokenAmount: string
+): Promise<{ success?: boolean; error?: string; sponsorWallet?: string; has?: string; needs?: string }> {
+  const body = { ...signedPayload, tokenAddress, tokenAmount };
+  const res = await fetch(`${SELFCLAW_BASE_URL}/request-selfclaw-sponsorship`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json()) as Record<string, unknown>;
+  if (!res.ok) {
+    const errMsg = String(data.error ?? data.message ?? `SelfClaw API error: ${res.status}`);
+    return {
+      success: false,
+      error: errMsg,
+      sponsorWallet: data.sponsorWallet as string | undefined,
+      has: data.has as string | undefined,
+      needs: data.needs as string | undefined,
+    };
+  }
+  return { success: true };
+}
+
+/**
+ * Get agent economics (public — use publicKey or humanId as identifier).
+ */
+export async function getAgentEconomics(
+  identifier: string
+): Promise<{
+  totalRevenue?: string;
+  totalCosts?: string;
+  profitLoss?: string;
+  runway?: { months: number; status: string };
+}> {
+  const res = await fetch(
+    `${SELFCLAW_BASE_URL}/agent/${encodeURIComponent(identifier)}/economics`
+  );
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || `SelfClaw API error: ${res.status}`);
+  }
+  return data;
+}
+
+/**
+ * Get all tracked pools (public).
+ */
+export async function getPools(): Promise<{
+  pools?: Array<{
+    agentName?: string;
+    tokenAddress?: string;
+    price?: number;
+    volume24h?: number;
+    marketCap?: number;
+  }>;
+}> {
+  const res = await fetch(`${SELFCLAW_BASE_URL}/pools`);
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || `SelfClaw API error: ${res.status}`);
+  }
+  return data;
+}
+
+/**
+ * Check available SELFCLAW for sponsorship (authenticated).
+ * Uses POST with signed payload since auth params are required.
+ */
+export async function getSelfClawSponsorship(
+  signedPayload: SignedPayload
+): Promise<{ available?: string }> {
+  const res = await fetch(`${SELFCLAW_BASE_URL}/selfclaw-sponsorship`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(signedPayload),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || `SelfClaw API error: ${res.status}`);
+  }
+  return data;
+}
+
+export { signAuthenticatedPayload } from "./auth";
 

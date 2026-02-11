@@ -79,6 +79,9 @@ To send native CELO:
 To send ERC-20 tokens (cUSD, cEUR, cREAL):
   [[SEND_TOKEN|<currency>|<recipient_0x_address>|<amount>]]
 
+To send an agent token (custom ERC20 by address, e.g. for sponsorship recovery):
+  [[SEND_AGENT_TOKEN|<token_0x_address>|<recipient_0x_address>|<amount>]]
+
 FEE ABSTRACTION:
 - Gas fees are AUTOMATICALLY paid using the best available currency.
 - If the wallet has CELO, gas is paid in CELO (default).
@@ -105,7 +108,7 @@ Example — user says "send 5 cUSD to 0xDEF...456":
 
   // ─── Inject skill instructions ─────────────────────────────────────
   // Each template has a set of skills (oracle reads, Mento quotes, balance checks, etc.)
-  const { generateSkillPrompt } = await import("@/lib/skills/registry");
+  const { generateSkillPrompt, getSkillsForTemplate } = await import("@/lib/skills/registry");
   const skillPrompt = generateSkillPrompt(
     agent.templateType || "custom",
     agent.agentWalletAddress
@@ -114,12 +117,65 @@ Example — user says "send 5 cUSD to 0xDEF...456":
     systemPrompt += skillPrompt;
   }
 
-  // Fetch the owner's API key for this provider
-  const { getUserApiKey } = await import("@/lib/api-keys");
-  const apiKey = await getUserApiKey(
-    agent.ownerId,
-    llmProvider as import("@/lib/types").LLMProvider
+  // Remind agent to mention SelfClaw when users ask about capabilities
+  const skills = getSkillsForTemplate(agent.templateType || "custom");
+  const hasSelfClawSkills = skills.some((s) =>
+    s.id.startsWith("agent_tokens") || s.id.startsWith("selfclaw_") || s.id.startsWith("request_selfclaw")
   );
+  if (hasSelfClawSkills) {
+    systemPrompt += `\n\n[SELFCLAW — Agent Economy] Base URL: https://selfclaw.ai/api/selfclaw/v1
+
+PUBLIC (no auth): GET /agent, GET /agent/{id}/economics, GET /pools — [[AGENT_TOKENS]] uses these
+AUTH REQUIRED (Ed25519 signed payload): create-wallet, deploy-token, register-token, log-revenue, log-cost, request-selfclaw-sponsorship — [[SELFCLAW_REGISTER_WALLET]], [[SELFCLAW_DEPLOY_TOKEN]], [[SELFCLAW_LOG_REVENUE]], [[SELFCLAW_LOG_COST]], [[REQUEST_SELFCLAW_SPONSORSHIP]] use these. Callers need agent's Ed25519 private key to sign payloads.
+
+Skills (no dashboard needed):
+[[AGENT_TOKENS]] — token info, revenue, pools, deployed tokens
+[[SELFCLAW_REGISTER_WALLET]] — register EVM wallet
+[[SELFCLAW_DEPLOY_TOKEN|name|symbol|1000000]] — deploy token (can deploy many)
+[[SELFCLAW_LOG_REVENUE|amount|source|desc]]
+[[SELFCLAW_LOG_COST|amount|category|desc]]
+[[REQUEST_SELFCLAW_SPONSORSHIP]] or [[REQUEST_SELFCLAW_SPONSORSHIP|tokenAddress]] — use tokenAddress from recent deploy if you just deployed. Sponsor most recent token by default.
+
+**SPONSORSHIP RECOVERY FLOW:** When sponsorship fails with "sponsor wallet" or "does not hold enough", the skill output will include:
+- sponsorWallet address and amountNeeded
+- Exact [[SEND_AGENT_TOKEN|tokenAddress|sponsorWallet|amount]] tag to fix it
+1. Ask the user: "Should I send the tokens to the sponsor wallet and retry sponsorship?"
+2. If yes: include [[SEND_AGENT_TOKEN|...]] in your response (use the exact tag from the error), then in a follow-up or next message include [[REQUEST_SELFCLAW_SPONSORSHIP]] to finalise.
+3. The system will execute the transfer, then you retry sponsorship.
+
+Track deployed tokens: after deploying, remember the token address. Use it when requesting sponsorship or when asked. Use tags when relevant.`;
+  }
+
+  // Fetch the owner's API key — fallback to another provider if selected one has no key
+  const { getUserApiKey, getFirstAvailableProviderAndKey } = await import("@/lib/api-keys");
+  const { getDefaultModel } = await import("@/lib/llm");
+
+  let apiKey: string;
+  let effectiveProvider = llmProvider as import("@/lib/types").LLMProvider;
+  let effectiveModel = llmModel;
+
+  try {
+    apiKey = await getUserApiKey(
+      agent.ownerId,
+      llmProvider as import("@/lib/types").LLMProvider
+    );
+  } catch (keyErr) {
+    const msg = keyErr instanceof Error ? keyErr.message : "";
+    if (!msg.includes("API key") && !msg.includes("configured")) {
+      throw keyErr;
+    }
+    const fallback = await getFirstAvailableProviderAndKey(agent.ownerId);
+    if (fallback) {
+      apiKey = fallback.apiKey;
+      effectiveProvider = fallback.provider;
+      effectiveModel = getDefaultModel(fallback.provider);
+      console.warn(
+        `[OpenClaw] No key for ${llmProvider}; using fallback ${effectiveProvider}/${effectiveModel}`
+      );
+    } else {
+      throw keyErr;
+    }
+  }
 
   // Build messages array
   const { chat } = await import("@/lib/llm");
@@ -134,13 +190,13 @@ Example — user says "send 5 cUSD to 0xDEF...456":
 
   // For OpenRouter free models: retry with fallback models on 429
   let response;
-  let usedModel = llmModel;
+  let usedModel = effectiveModel;
 
-  if (llmProvider === "openrouter" && llmModel.endsWith(":free")) {
+  if (effectiveProvider === "openrouter" && effectiveModel.endsWith(":free")) {
     // Build fallback list: requested model first, then others
     const fallbacks = [
-      llmModel,
-      ...OPENROUTER_FALLBACK_MODELS.filter((m) => m !== llmModel),
+      effectiveModel,
+      ...OPENROUTER_FALLBACK_MODELS.filter((m) => m !== effectiveModel),
     ];
 
     let lastError: Error | null = null;
@@ -149,7 +205,7 @@ Example — user says "send 5 cUSD to 0xDEF...456":
       try {
         response = await chat(
           messages,
-          llmProvider as import("@/lib/types").LLMProvider,
+          effectiveProvider,
           fallbackModel,
           apiKey
         );
@@ -175,11 +231,11 @@ Example — user says "send 5 cUSD to 0xDEF...456":
   } else {
     // Non-OpenRouter or paid model — single attempt
     response = await chat(
-    messages,
-      llmProvider as import("@/lib/types").LLMProvider,
-    llmModel,
-    apiKey
-  );
+      messages,
+      effectiveProvider,
+      effectiveModel,
+      apiKey
+    );
   }
 
   // Log the interaction
@@ -187,12 +243,12 @@ Example — user says "send 5 cUSD to 0xDEF...456":
     data: {
       agentId,
       type: "action",
-      message: `Processed message via ${llmProvider}/${usedModel}`,
+      message: `Processed message via ${effectiveProvider}/${usedModel}`,
       metadata: JSON.stringify({
         userMessage: userMessage.slice(0, 100),
         responseLength: response.content.length,
         usage: response.usage,
-        fallbackUsed: usedModel !== llmModel ? usedModel : undefined,
+        fallbackUsed: usedModel !== effectiveModel ? usedModel : undefined,
       }),
     },
   });

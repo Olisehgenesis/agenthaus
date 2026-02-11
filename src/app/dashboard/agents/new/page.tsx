@@ -22,6 +22,7 @@ import {
   ConfigureStep,
   SecurityStep,
   ReviewStep,
+  type WalletOption,
 } from "./_components";
 
 const steps = [
@@ -37,7 +38,7 @@ export default function NewAgentPage() {
   const [currentStep, setCurrentStep] = React.useState("template");
   const [isDeploying, setIsDeploying] = React.useState(false);
   const [deployStatus, setDeployStatus] = React.useState<
-    "idle" | "creating" | "signing" | "confirming" | "activating" | "done" | "error"
+    "idle" | "creating" | "uploading" | "signing" | "confirming" | "activating" | "done" | "error"
   >("idle");
   const [deployError, setDeployError] = React.useState<string | null>(null);
 
@@ -66,6 +67,8 @@ export default function NewAgentPage() {
   const [llmModel, setLlmModel] = React.useState("meta-llama/llama-3.3-70b-instruct:free");
   const [spendingLimit, setSpendingLimit] = React.useState(100);
   const [config, setConfig] = React.useState<AgentConfig>({});
+  const [imageFile, setImageFile] = React.useState<File | null>(null);
+  const [walletOption, setWalletOption] = React.useState<WalletOption>("dedicated");
   const [apiKey, setApiKey] = React.useState("");
   const [apiKeySaving, setApiKeySaving] = React.useState(false);
   const [apiKeySaved, setApiKeySaved] = React.useState(false);
@@ -187,6 +190,7 @@ export default function NewAgentPage() {
           spendingLimit,
           configuration: config,
           ownerAddress: address,
+          walletOption,
         }),
       });
 
@@ -196,6 +200,21 @@ export default function NewAgentPage() {
       }
 
       const agent = await createRes.json();
+
+      // Upload agent image before registration (ERC-8004 best practice)
+      if (imageFile) {
+        setDeployStatus("uploading");
+        const formData = new FormData();
+        formData.append("file", imageFile);
+        const imgRes = await fetch(`/api/agents/${agent.id}/image`, {
+          method: "POST",
+          body: formData,
+        });
+        if (!imgRes.ok) {
+          const err = await imgRes.json();
+          throw new Error(err.error || "Failed to upload image");
+        }
+      }
 
       // ERC-8004 On-Chain Registration
       setDeployStatus("signing");
@@ -283,6 +302,8 @@ export default function NewAgentPage() {
           setLlmModel={setLlmModel}
           config={config}
           setConfig={setConfig}
+          imageFile={imageFile}
+          setImageFile={setImageFile}
           apiKey={apiKey}
           setApiKey={setApiKey}
           apiKeySaving={apiKeySaving}
@@ -297,6 +318,8 @@ export default function NewAgentPage() {
         <SecurityStep
           spendingLimit={spendingLimit}
           setSpendingLimit={setSpendingLimit}
+          walletOption={walletOption}
+          setWalletOption={setWalletOption}
         />
       )}
 
@@ -304,6 +327,10 @@ export default function NewAgentPage() {
         <ReviewStep
           name={name}
           selectedTemplate={selectedTemplate}
+          walletOption={walletOption}
+          hasImage={!!imageFile}
+          webUrl={config.webUrl}
+          contactEmail={config.contactEmail}
           llmProvider={llmProvider}
           llmModel={llmModel}
           spendingLimit={spendingLimit}

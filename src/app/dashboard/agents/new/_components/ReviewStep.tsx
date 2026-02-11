@@ -5,17 +5,28 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Check, Rocket, AlertCircle, Loader2 } from "lucide-react";
 import type { AgentTemplate, LLMProvider } from "@/lib/types";
+import type { WalletOption } from "./SecurityStep";
 
-type DeployStatus = "idle" | "creating" | "signing" | "confirming" | "activating" | "done" | "error";
+type DeployStatus = "idle" | "creating" | "uploading" | "signing" | "confirming" | "activating" | "done" | "error";
+
+const WALLET_OPTION_LABELS: Record<WalletOption, string> = {
+  dedicated: "Create dedicated wallet",
+  owner: "Use my connected wallet",
+  later: "Initialize later",
+};
 
 interface ReviewStepProps {
   name: string;
   selectedTemplate: AgentTemplate | null;
+  walletOption: WalletOption;
   llmProvider: LLMProvider;
   llmModel: string;
   spendingLimit: number;
   systemPrompt: string;
   address: string | undefined;
+  hasImage?: boolean;
+  webUrl?: string;
+  contactEmail?: string;
   deployStatus: DeployStatus;
   isDeploying: boolean;
   deployError: string | null;
@@ -27,23 +38,28 @@ interface ReviewStepProps {
 }
 
 const DEPLOY_STEPS = [
-  { key: "creating", label: "Creating agent & HD wallet..." },
+  { key: "creating", label: "Creating agent..." },
+  { key: "uploading", label: "Uploading image..." },
   { key: "signing", label: "Sign ERC-8004 registration transaction..." },
   { key: "confirming", label: "Waiting for on-chain confirmation..." },
   { key: "activating", label: "Activating agent & generating pairing code..." },
   { key: "done", label: "Agent deployed!" },
 ];
 
-const STEP_ORDER = ["creating", "signing", "confirming", "activating", "done"];
+const STEP_ORDER = ["creating", "uploading", "signing", "confirming", "activating", "done"];
 
 export function ReviewStep({
   name,
   selectedTemplate,
+  walletOption,
   llmProvider,
   llmModel,
   spendingLimit,
   systemPrompt,
   address,
+  hasImage,
+  webUrl,
+  contactEmail,
   deployStatus,
   isDeploying,
   deployError,
@@ -69,6 +85,10 @@ export function ReviewStep({
               {[
                 { label: "Name", value: name.trim() || "(auto-generated #XXXXXX)" },
                 { label: "Template", value: selectedTemplate },
+                { label: "Image", value: hasImage ? "Yes (will upload to IPFS)" : "No" },
+                ...(webUrl ? [{ label: "Web URL", value: webUrl }] : []),
+                ...(contactEmail ? [{ label: "Contact Email", value: contactEmail }] : []),
+                { label: "Wallet", value: WALLET_OPTION_LABELS[walletOption] },
                 { label: "LLM Provider", value: llmProvider },
                 { label: "Model", value: llmModel },
                 { label: "Spending Limit", value: `$${spendingLimit}` },

@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useAccount } from "wagmi";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,12 +27,14 @@ import {
 import { SpendingLimitModal } from "./_components/SpendingLimitModal";
 import { getTemplateIcon, getStatusColor, formatCurrency, formatDate, formatAddress } from "@/lib/utils";
 import { getBlockExplorer } from "@/lib/constants";
+import { ipfsToPublicGatewayUrl } from "@/lib/ipfs-url";
 
 interface AgentData {
   id: string;
   name: string;
   description: string | null;
   templateType: string;
+  imageUrl: string | null;
   status: string;
   llmProvider: string;
   llmModel: string;
@@ -143,19 +146,30 @@ export default function AgentsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-forest">My Agents</h1>
-          <p className="text-forest-muted text-sm mt-1">
-            Manage and monitor your deployed AI agents
-          </p>
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+        <div className="flex-1 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-forest">My Agents</h1>
+            <p className="text-forest-muted text-sm mt-1">
+              Manage and monitor your deployed AI agents
+            </p>
+          </div>
+          <Link href="/dashboard/agents/new">
+            <Button variant="glow">
+              <Plus className="w-4 h-4" />
+              New Agent
+            </Button>
+          </Link>
         </div>
-        <Link href="/dashboard/agents/new">
-          <Button variant="glow">
-            <Plus className="w-4 h-4" />
-            New Agent
-          </Button>
-        </Link>
+        <div className="hidden lg:block w-56 flex-shrink-0">
+          <Image
+            src="/images/04-Dashboard_Main_Overview-Option_C-Bots_on_Agent_Cards.png"
+            alt="AgentHaus bots on agent cards"
+            width={224}
+            height={126}
+            className="w-full h-auto rounded-xl object-contain"
+          />
+        </div>
       </div>
 
       {/* Agents Grid */}
@@ -183,7 +197,20 @@ export default function AgentsPage() {
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="text-2xl">{getTemplateIcon(agent.templateType)}</div>
+                    <div className="h-12 w-12 shrink-0 rounded-full overflow-hidden bg-blue-500/20 border-2 border-blue-400/40 flex items-center justify-center">
+                      {agent.imageUrl ? (
+                        <Image
+                          src={ipfsToPublicGatewayUrl(agent.imageUrl)}
+                          alt={agent.name}
+                          width={48}
+                          height={48}
+                          className="w-full h-full object-cover"
+                          unoptimized={agent.imageUrl.startsWith("ipfs://")}
+                        />
+                      ) : (
+                        <span className="text-2xl">{getTemplateIcon(agent.templateType)}</span>
+                      )}
+                    </div>
                     <div>
                       <div className="flex items-center gap-1.5">
                       <h3 className="font-semibold text-forest">{agent.name}</h3>

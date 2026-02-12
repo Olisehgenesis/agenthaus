@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { AppKitButton } from "@reown/appkit/react";
 import { Bell, Search } from "lucide-react";
 
 export function Header() {
@@ -28,11 +28,7 @@ export function Header() {
         </button>
 
         {/* Wallet Connect */}
-        <ConnectButton
-          chainStatus="icon"
-          showBalance={true}
-          accountStatus="avatar"
-        />
+        <AppKitButton />
       </div>
     </header>
   );

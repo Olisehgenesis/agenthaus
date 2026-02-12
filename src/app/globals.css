@@ -46,6 +46,12 @@
   --color-celo: #FCFF52;
   --color-celo-hover: #F0F34A;
 
+  /* Wood (earthy accents) */
+  --color-wood: #655947;
+
+  /* Sand (warmer midtone, section dividers) */
+  --color-sand: #E7E3D4;
+
   --font-sans: var(--font-playfair);
   --font-mono: var(--font-geist-mono);
 }

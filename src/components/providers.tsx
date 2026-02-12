@@ -2,29 +2,44 @@
 
 import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider } from "wagmi";
-import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
-import "@rainbow-me/rainbowkit/styles.css";
-import { config } from "@/lib/wagmi-config";
+import { cookieToInitialState, WagmiProvider, type Config } from "wagmi";
+import { createAppKit } from "@reown/appkit/react";
+import { wagmiAdapter, projectId, networks } from "@/config/appkit";
 
 const queryClient = new QueryClient();
 
-export function Providers({ children }: { children: React.ReactNode }) {
+// Create AppKit modal (must be called once, outside components)
+createAppKit({
+  adapters: [wagmiAdapter],
+  projectId,
+  networks: [...networks],
+  defaultNetwork: networks[0],
+  metadata: {
+    name: "Agent Haus",
+    description: "Deploy AI agents on Celo without code",
+    url: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+    icons: ["/logo.svg"],
+  },
+  features: {
+    analytics: true,
+  },
+});
+
+export function Providers({
+  children,
+  cookies,
+}: {
+  children: React.ReactNode;
+  cookies?: string | null;
+}) {
+  const initialState = cookieToInitialState(
+    wagmiAdapter.wagmiConfig as Config,
+    cookies ?? null
+  );
+
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider
-          theme={darkTheme({
-            accentColor: "#10b981",
-            accentColorForeground: "white",
-            borderRadius: "medium",
-            overlayBlur: "small",
-          })}
-        >
-          {children}
-        </RainbowKitProvider>
-      </QueryClientProvider>
+    <WagmiProvider config={wagmiAdapter.wagmiConfig as Config} initialState={initialState}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </WagmiProvider>
   );
 }
-

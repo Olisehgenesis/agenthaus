@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Bot, Loader2 } from "lucide-react";
@@ -62,7 +63,9 @@ export default function AgentDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* ── Header ── */}
+      {/* ── Header with illustration ── */}
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+        <div className="flex-1 min-w-0">
         <AgentHeader
           agent={agent}
           agentChainId={agent.erc8004ChainId ?? ad.connectedChainId ?? undefined}
@@ -80,6 +83,17 @@ export default function AgentDetailPage() {
         onSwitchToCelo={() => ad.switchChain({ chainId: ad.CELO_MAINNET_CHAIN_ID })}
         onOpenTokenTab={() => setActiveTab("token-trade")}
       />
+        </div>
+        <div className="hidden lg:block w-44 flex-shrink-0">
+          <Image
+            src="/images/07-Dashboard_Agent_Detail-Option_A-Bot_at_Agent_Hub.png"
+            alt="AgentHaus bot at agent hub"
+            width={176}
+            height={99}
+            className="w-full h-auto rounded-xl object-contain"
+          />
+        </div>
+      </div>
 
       {/* ── Stats Cards ── */}
       <StatsCards

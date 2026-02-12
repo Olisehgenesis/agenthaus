@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { useAccount, useChainId } from "wagmi";
 import type { LLMProvider } from "@/lib/types";
 import {
@@ -157,12 +158,23 @@ export default function SettingsPage() {
   // ── Render ───────────────────────────────────────────────────────────
   return (
     <div className="max-w-3xl space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-forest">Settings</h1>
-        <p className="text-forest-muted text-sm mt-1">
-          Manage your API keys, channels, and preferences
-        </p>
+      {/* Header + Illustration */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-forest">Settings</h1>
+          <p className="text-forest-muted text-sm mt-1">
+            Manage your API keys, channels, and preferences
+          </p>
+        </div>
+        <div className="hidden lg:block w-52 flex-shrink-0">
+          <Image
+            src="/images/10-Dashboard_Settings-Option_A-Bot_at_Settings_Hub.png"
+            alt="AgentHaus bot at settings hub"
+            width={208}
+            height={117}
+            className="w-full h-auto rounded-xl object-contain"
+          />
+        </div>
       </div>
 
       <WalletNetworkSection address={address} chainId={chainId} />

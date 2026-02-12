@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { useAccount, useChainId } from "wagmi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -134,15 +135,26 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-forest">Analytics</h1>
-        <p className="text-forest-muted text-sm mt-1">
-          Performance metrics and insights across all agents
-          <Badge variant="outline" className="ml-2 text-[10px]">
-            {chainId === 42220 ? "Celo Mainnet" : chainId === 11142220 ? "Celo Sepolia Testnet" : `Chain ${chainId}`}
-          </Badge>
-        </p>
+      {/* Header + Illustration */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-forest">Analytics</h1>
+          <p className="text-forest-muted text-sm mt-1">
+            Performance metrics and insights across all agents
+            <Badge variant="outline" className="ml-2 text-[10px]">
+              {chainId === 42220 ? "Celo Mainnet" : chainId === 11142220 ? "Celo Sepolia Testnet" : `Chain ${chainId}`}
+            </Badge>
+          </p>
+        </div>
+        <div className="hidden lg:block w-64 flex-shrink-0">
+          <Image
+            src="/images/08-Dashboard_Analytics-Option_A-Bot_with_Charts.png"
+            alt="AgentHaus bot with analytics charts"
+            width={256}
+            height={144}
+            className="w-full h-auto rounded-xl object-contain"
+          />
+        </div>
       </div>
 
       {/* Metrics Grid */}

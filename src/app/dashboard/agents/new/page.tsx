@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { type Address } from "viem";
@@ -258,8 +259,9 @@ export default function NewAgentPage() {
   // ── Render ──────────────────────────────────────────────────────────
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
+      {/* Header + Illustration */}
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+        <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -268,6 +270,16 @@ export default function NewAgentPage() {
           <p className="text-forest-muted text-sm">
             Deploy an AI agent on Celo with ERC-8004 identity
           </p>
+        </div>
+        </div>
+        <div className="hidden lg:block w-48 flex-shrink-0">
+          <Image
+            src="/images/06-Dashboard_New_Agent-Option_A-Bot_Choosing_Template.png"
+            alt="AgentHaus bot choosing template"
+            width={192}
+            height={108}
+            className="w-full h-auto rounded-xl object-contain"
+          />
         </div>
       </div>
 

@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useAccount, useSwitchChain } from "wagmi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -78,8 +79,9 @@ export default function VerifyPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      {/* Header */}
-      <div>
+      {/* Header + Illustration */}
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+        <div className="flex-1">
         <div className="flex items-center gap-3 mb-2">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-forest to-forest-light flex items-center justify-center shadow-lg shadow-forest/10">
             <ShieldCheck className="w-5 h-5 text-forest" />
@@ -99,6 +101,16 @@ export default function VerifyPage() {
               × Self.xyz zero-knowledge proofs
             </p>
           </div>
+        </div>
+        </div>
+        <div className="hidden lg:block w-48 flex-shrink-0">
+          <Image
+            src="/images/09-Dashboard_Verify-Option_A-Bot_with_Verification_Badge_v3.png"
+            alt="AgentHaus bot with verification badge"
+            width={192}
+            height={108}
+            className="w-full h-auto rounded-xl object-contain"
+          />
         </div>
       </div>
 

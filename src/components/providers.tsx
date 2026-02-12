@@ -23,6 +23,11 @@ createAppKit({
   features: {
     analytics: true,
   },
+  themeVariables: {
+    "--apkt-accent": "#AB9FF2",
+    "--apkt-color-mix": "#AB9FF2",
+    "--apkt-color-mix-strength": 20,
+  },
 });
 
 export function Providers({

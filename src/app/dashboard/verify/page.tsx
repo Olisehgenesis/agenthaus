@@ -20,6 +20,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { getTemplateIcon, getStatusColor } from "@/lib/utils";
+import { DEPLOYMENT_ATTRIBUTION } from "@/lib/constants";
 
 interface AgentWithVerification {
   id: string;
@@ -42,29 +43,53 @@ export default function VerifyPage() {
   const isCeloMainnet = chainId === CELO_MAINNET_CHAIN_ID;
   const [agents, setAgents] = React.useState<AgentWithVerification[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [syncing, setSyncing] = React.useState(false);
+
+  const fetchAgents = React.useCallback(async () => {
+    if (!address) return;
+    try {
+      const res = await fetch(`/api/agents?ownerAddress=${address}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAgents(data.agents || []);
+      }
+    } catch (err) {
+      console.error("Failed to load agents:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [address]);
 
   React.useEffect(() => {
     if (!address) {
       setLoading(false);
       return;
     }
-
-    async function fetchAgents() {
-      try {
-        const res = await fetch(`/api/agents?ownerAddress=${address}`);
-        if (res.ok) {
-          const data = await res.json();
-          setAgents(data.agents || []);
-        }
-      } catch (err) {
-        console.error("Failed to load agents:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
+    setLoading(true);
     fetchAgents();
-  }, [address]);
+  }, [address, fetchAgents]);
+
+  const handleSyncFromSelfClaw = React.useCallback(async () => {
+    if (!address) return;
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/agents/verify-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ownerAddress: address }),
+      });
+      const data = await res.json();
+      if (res.ok && data.agents) {
+        setAgents(data.agents);
+      } else if (res.ok) {
+        await fetchAgents();
+      }
+    } catch (err) {
+      console.error("Sync failed:", err);
+    } finally {
+      setSyncing(false);
+    }
+  }, [address, fetchAgents]);
 
   const verifiedCount = agents.filter(a => a.verification?.selfxyzVerified).length;
   const unverifiedCount = agents.filter(a => !a.verification?.selfxyzVerified).length;
@@ -94,7 +119,7 @@ export default function VerifyPage() {
                 href="https://selfclaw.ai"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-violet-400 hover:text-violet-300"
+                className="text-accent hover:text-accent-light"
               >
                 selfclaw.ai
               </a>{" "}
@@ -147,7 +172,21 @@ export default function VerifyPage() {
             <div className="text-xs text-forest-muted/70">Total Agents</div>
           </CardContent>
         </Card>
-        <Card className="border-forest/20">
+        <Card className="border-forest/20 relative">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute right-1 top-1 h-6 w-6 p-0 text-forest-muted hover:text-forest"
+            onClick={handleSyncFromSelfClaw}
+            disabled={syncing || agents.length === 0}
+            title="Re-check verification from SelfClaw"
+          >
+            {syncing ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+          </Button>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-forest-light">{verifiedCount}</div>
             <div className="text-xs text-forest-light/60">Verified</div>
@@ -162,11 +201,11 @@ export default function VerifyPage() {
       </div>
 
       {/* What is SelfClaw */}
-      <Card className="border-violet-500/20">
+      <Card className="border-accent/20">
         <CardContent className="p-5">
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0">
-              <Shield className="w-8 h-8 text-violet-400" />
+              <Shield className="w-8 h-8 text-accent" />
             </div>
             <div>
               <h3 className="text-forest font-semibold mb-1">Why Verify?</h3>
@@ -176,7 +215,7 @@ export default function VerifyPage() {
                 — zero-knowledge proofs that work in 180+ countries with any NFC-enabled passport.
               </p>
               <div className="flex items-center gap-4 text-xs">
-                <div className="flex items-center gap-1.5 text-violet-400">
+                <div className="flex items-center gap-1.5 text-accent">
                   <ScanLine className="w-3.5 h-3.5" />
                   Zero-Knowledge Proofs
                 </div>
@@ -252,6 +291,7 @@ export default function VerifyPage() {
                               </span>
                             )}
                           </div>
+                          <div className="text-[10px] text-forest-faint mt-0.5">{DEPLOYMENT_ATTRIBUTION}</div>
                         </div>
                       </div>
 

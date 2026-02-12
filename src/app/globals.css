@@ -6,6 +6,8 @@
  * Gypsum:            #FCF6F1  → main background (calm, breathable)
  * Forest:            #476520  → primary text, structure (trust, grounded)
  * Prosperity Yellow: #FCFF52  → CTAs, highlights, action (optimism)
+ * Accent:            #4E44CE  → verification, links, secondary actions (purple)
+ * Connect:           #AB9FF2  → connect wallet buttons, wallet UI
  */
 
 :root {
@@ -25,6 +27,14 @@
   --celo-yellow: #FCFF52;
   --celo-yellow-hover: #F0F34A;
   --celo-yellow-muted: #FCFF5233; /* 20% opacity */
+
+  --accent: #4E44CE;
+  --accent-light: #6B62D9;
+  --accent-muted: #9B94E8;
+
+  /* Connect / wallet primary (replaces forest for connect buttons) */
+  --connect: #AB9FF2;
+  --connect-hover: #AB9FF2E6;
 }
 
 @theme inline {
@@ -45,6 +55,14 @@
   /* Prosperity Yellow (CTAs / highlights) */
   --color-celo: #FCFF52;
   --color-celo-hover: #F0F34A;
+
+  /* Accent (verification, links, secondary actions) */
+  --color-accent: #4E44CE;
+  --color-accent-light: #6B62D9;
+  --color-accent-muted: #9B94E8;
+
+  /* Connect / wallet primary */
+  --color-connect: #AB9FF2;
 
   /* Wood (earthy accents) */
   --color-wood: #655947;
@@ -92,6 +110,11 @@ body {
 
 .glow-yellow {
   box-shadow: 0 0 20px rgba(252, 255, 82, 0.25), 0 0 60px rgba(252, 255, 82, 0.08);
+}
+
+/* Accent glow (#4E44CE) */
+.glow-accent {
+  box-shadow: 0 0 20px rgba(78, 68, 206, 0.2), 0 0 60px rgba(78, 68, 206, 0.08);
 }
 
 /* Grid pattern background */

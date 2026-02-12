@@ -1,26 +1,16 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaLibSql } from "@prisma/adapter-libsql";
-import path from "path";
+import { PrismaPg } from "@prisma/adapter-pg";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-function getDatabaseUrl(): string {
-  const envUrl = process.env.DATABASE_URL;
-  // If the env var is a relative file: URL, resolve it to an absolute path
-  if (envUrl && envUrl.startsWith("file:")) {
-    const filePath = envUrl.replace("file:", "").replace("./", "");
-    return `file:${path.join(process.cwd(), filePath)}`;
-  }
-  // Fallback: absolute path to dev.db in project root
-  return `file:${path.join(process.cwd(), "dev.db")}`;
-}
-
 function createPrismaClient() {
-  const adapter = new PrismaLibSql({
-    url: getDatabaseUrl(),
-  });
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not set");
+  }
+  const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({ adapter });
 }
 

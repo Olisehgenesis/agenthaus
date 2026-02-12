@@ -7,8 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Key, ExternalLink, Info, Upload, X } from "lucide-react";
-import { AGENT_TEMPLATES, LLM_MODELS, LLM_PROVIDER_INFO } from "@/lib/constants";
+import { Key, ExternalLink, Info, Upload, X, AlertCircle } from "lucide-react";
+import { AGENT_TEMPLATES, LLM_MODELS, LLM_PROVIDER_INFO, DEPLOYMENT_ATTRIBUTION } from "@/lib/constants";
 import type { AgentTemplate, LLMProvider, AgentConfig } from "@/lib/types";
 
 interface ConfigureStepProps {
@@ -61,6 +61,9 @@ export function ConfigureStep({
   onResetKey,
 }: ConfigureStepProps) {
   const [imagePreview, setImagePreview] = React.useState<string | null>(null);
+  const [nameTaken, setNameTaken] = React.useState<{ suggestion?: string } | null>(null);
+  const [nameChecking, setNameChecking] = React.useState(false);
+
   React.useEffect(() => {
     if (imageFile) {
       const url = URL.createObjectURL(imageFile);
@@ -70,6 +73,26 @@ export function ConfigureStep({
       setImagePreview(null);
     }
   }, [imageFile]);
+
+  React.useEffect(() => {
+    if (!name?.trim() || name.length < 3) {
+      setNameTaken(null);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setNameChecking(true);
+      try {
+        const res = await fetch(`/api/selfclaw/check-name?name=${encodeURIComponent(name.trim())}`);
+        const data = await res.json();
+        setNameTaken(data.available ? null : { suggestion: data.suggestion });
+      } catch {
+        setNameTaken(null);
+      } finally {
+        setNameChecking(false);
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [name]);
   const providerInfo = LLM_PROVIDER_INFO[llmProvider];
   const currentTemplate = AGENT_TEMPLATES.find((t) => t.id === selectedTemplate);
 
@@ -141,6 +164,22 @@ export function ConfigureStep({
             <p className="text-[10px] text-forest-muted/70 mt-1">
               Leave blank to auto-generate. If provided: 3–200 characters.
             </p>
+            {nameTaken && (
+              <div className="mt-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-xs text-amber-300">This name is already taken on SelfClaw.</p>
+                  {nameTaken.suggestion && (
+                    <p className="text-xs text-forest-muted mt-1">
+                      Verification will use a unique suffix (e.g. {nameTaken.suggestion}) automatically.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+            {nameChecking && (
+              <p className="text-[10px] text-forest-muted mt-1">Checking name availability...</p>
+            )}
           </div>
           <div>
             <Input
@@ -154,7 +193,7 @@ export function ConfigureStep({
             </p>
           </div>
 
-          {/* ERC-8004 human-facing endpoints (optional) */}
+          {/* ERC-8004 metadata (optional) */}
           <div className="grid md:grid-cols-2 gap-4">
             <Input
               label="Web URL (optional)"
@@ -170,6 +209,12 @@ export function ConfigureStep({
               value={config.contactEmail ?? ""}
               onChange={(e) => setConfig({ ...config, contactEmail: e.target.value.trim() || undefined })}
             />
+          </div>
+          <div className="p-3 rounded-lg bg-forest/5 border border-forest/10">
+            <p className="text-xs text-forest-muted">
+              <span className="font-medium text-forest">{DEPLOYMENT_ATTRIBUTION}</span>
+              {" "}— included in all agent metadata (ERC-8004 registration)
+            </p>
           </div>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -238,7 +283,7 @@ export function ConfigureStep({
           {/* Inline API Key Configuration */}
           <div className="mt-4 p-4 rounded-lg bg-gypsum border border-forest/15/50">
             <div className="flex items-center gap-2 mb-3">
-              <Key className="w-4 h-4 text-purple-400" />
+              <Key className="w-4 h-4 text-accent" />
               <span className="text-sm font-medium text-forest/80">
                 {providerInfo.label} API Key
               </span>

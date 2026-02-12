@@ -13,7 +13,7 @@
  */
 
 import { type Address, isAddress } from "viem";
-import { sendCelo, sendToken, getWalletBalance, getPublicClient, detectFeeCurrency, getFeeCurrencyLabel } from "./wallet";
+import { sendCelo, sendToken, getWalletBalance, getPublicClient, detectFeeCurrency, getFeeCurrencyLabel, deriveAddress } from "./wallet";
 import { prisma } from "@/lib/db";
 import { CELO_TOKENS, BLOCK_EXPLORER } from "@/lib/constants";
 
@@ -213,6 +213,49 @@ async function executeIntent(
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    const isNonceTooLow = /nonce too low|nonce provided.*lower/i.test(msg);
+
+    if (isNonceTooLow) {
+      console.warn(`Transaction failed (nonce too low), retrying once...`);
+      try {
+        let txHashRetry: string;
+        if (intent.action === "send_celo") {
+          txHashRetry = await sendCelo(walletIndex, intent.to as Address, intent.amount);
+        } else if (intent.action === "send_agent_token" && intent.tokenAddress && validateAddress(intent.tokenAddress)) {
+          txHashRetry = await sendToken(walletIndex, intent.tokenAddress as Address, intent.to as Address, intent.amount, 18);
+        } else {
+          const tokenInfo = getTokenInfo(intent.currency);
+          if (!tokenInfo) throw error;
+          if (tokenInfo.address === "0x0000000000000000000000000000000000000000") {
+            txHashRetry = await sendCelo(walletIndex, intent.to as Address, intent.amount);
+          } else {
+            txHashRetry = await sendToken(walletIndex, tokenInfo.address as Address, intent.to as Address, intent.amount, tokenInfo.decimals);
+          }
+        }
+        const publicClient = getPublicClient();
+        const receipt = await publicClient.waitForTransactionReceipt({ hash: txHashRetry as `0x${string}`, timeout: 30_000 });
+        const feeCurrencyAddr = await detectFeeCurrency(deriveAddress(walletIndex));
+        const feeCurrencyLabel = getFeeCurrencyLabel(feeCurrencyAddr);
+        await prisma.transaction.create({
+          data: {
+            agentId,
+            txHash: txHashRetry,
+            type: "send",
+            status: receipt.status === "success" ? "confirmed" : "failed",
+            toAddress: intent.to,
+            amount: parseFloat(intent.amount),
+            currency: intent.currency,
+            gasUsed: receipt.gasUsed ? Number(receipt.gasUsed) / 1e18 : null,
+            blockNumber: receipt.blockNumber ? Number(receipt.blockNumber) : null,
+            description: `Sent ${intent.amount} ${intent.currency} to ${intent.to} (gas: ${feeCurrencyLabel})`,
+          },
+        });
+        return { success: receipt.status === "success", txHash: txHashRetry, intent, feeCurrencyUsed: feeCurrencyLabel };
+      } catch (retryError) {
+        console.error(`Retry failed:`, retryError);
+      }
+    }
+
     console.error(`Transaction execution failed:`, msg);
 
     // Record failed tx in DB

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Check, Rocket, AlertCircle, Loader2 } from "lucide-react";
 import type { AgentTemplate, LLMProvider } from "@/lib/types";
+import { DEPLOYMENT_ATTRIBUTION } from "@/lib/constants";
 import type { WalletOption } from "./SecurityStep";
 
 type DeployStatus = "idle" | "creating" | "uploading" | "signing" | "confirming" | "activating" | "done" | "error";
@@ -85,7 +86,7 @@ export function ReviewStep({
               {[
                 { label: "Name", value: name.trim() || "(auto-generated #XXXXXX)" },
                 { label: "Template", value: selectedTemplate },
-                { label: "Image", value: hasImage ? "Yes (will upload to IPFS)" : "No" },
+                { label: "Image", value: hasImage ? "Yes (compressed PNG)" : "No" },
                 ...(webUrl ? [{ label: "Web URL", value: webUrl }] : []),
                 ...(contactEmail ? [{ label: "Contact Email", value: contactEmail }] : []),
                 { label: "Wallet", value: WALLET_OPTION_LABELS[walletOption] },
@@ -93,6 +94,7 @@ export function ReviewStep({
                 { label: "Model", value: llmModel },
                 { label: "Spending Limit", value: `$${spendingLimit}` },
                 { label: "Owner", value: address || "Not connected" },
+                { label: "Attribution", value: DEPLOYMENT_ATTRIBUTION },
               ].map((item) => (
                 <div key={item.label} className="p-3 rounded-lg bg-gypsum">
                   <div className="text-xs text-forest-muted/70 mb-1">{item.label}</div>
@@ -172,6 +174,11 @@ export function ReviewStep({
                     Your agent will be registered on-chain via the ERC-8004 IdentityRegistry. This
                     mints an identity NFT and requires a wallet signature to pay gas.
                   </p>
+                  <p className="text-xs text-forest-muted/90 mb-4">
+                    After deployment: fund your agent&apos;s wallet to enable trades and on-chain
+                    actions. Add a Telegram bot or other channels from the agent dashboard to
+                    communicate with your agent.
+                  </p>
 
                   {/* ERC-8004 deployment status */}
                   {erc8004Deployed === false && (
@@ -183,7 +190,7 @@ export function ReviewStep({
                             ERC-8004 contracts not found on chain {currentChainId}.
                           </p>
                           <p className="text-xs text-forest-muted mt-1">
-                            Switch to Celo Mainnet (42220) to deploy your agent.
+                            Switch to Celo Mainnet (42220) or Celo Sepolia (11142220) to deploy.
                           </p>
                         </div>
                       </div>
@@ -221,7 +228,7 @@ export function ReviewStep({
               </Button>
 
               {!address && (
-                <p className="text-xs text-amber-400 mt-2">⚠️ Connect your wallet to deploy</p>
+                <p className="text-xs text-[#AB9FF2] mt-2">⚠️ Connect your wallet to deploy</p>
               )}
             </div>
           </div>

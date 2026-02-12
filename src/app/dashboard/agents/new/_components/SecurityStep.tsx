@@ -2,7 +2,8 @@
 
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { AlertCircle, Check, Wallet, User, Clock } from "lucide-react";
+import { AlertCircle, Check, Wallet, User, Clock, MessageSquare, Info } from "lucide-react";
+import { DEPLOYMENT_ATTRIBUTION } from "@/lib/constants";
 
 export type WalletOption = "dedicated" | "owner" | "later";
 
@@ -25,6 +26,15 @@ export function SecurityStep({ spendingLimit, setSpendingLimit, walletOption, se
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+            <div className="flex items-start gap-2">
+              <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-forest-muted">
+                A wallet will be created for your agent. You can fund it to let your agent trade and
+                undertake on-chain transactions.
+              </p>
+            </div>
+          </div>
           <div className="space-y-2">
             {[
               {
@@ -67,6 +77,25 @@ export function SecurityStep({ spendingLimit, setSpendingLimit, walletOption, se
               </button>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Channels & Bots */}
+      <Card className="border-blue-500/20">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-blue-400" />
+            <CardTitle>Channels & Bots</CardTitle>
+          </div>
+          <CardDescription>
+            Connect your agent to Telegram and other channels after deployment
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-forest-muted">
+            You can add a bot to your agent to communicate with it via Telegram and such. Connect
+            channels from the agent detail page → Channels &amp; Tasks after you deploy.
+          </p>
         </CardContent>
       </Card>
 
@@ -133,6 +162,7 @@ export function SecurityStep({ spendingLimit, setSpendingLimit, walletOption, se
               "Agent wallet address linked to identity",
               "Reputation tracking via ReputationRegistry",
               "Registration metadata on IPFS (when Pinata configured)",
+              DEPLOYMENT_ATTRIBUTION,
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-3">
                 <div className="flex items-center justify-center w-5 h-5 rounded-full bg-forest/10">

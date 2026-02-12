@@ -136,12 +136,14 @@ Skills (no dashboard needed):
 [[SELFCLAW_LOG_COST|amount|category|desc]]
 [[REQUEST_SELFCLAW_SPONSORSHIP]] or [[REQUEST_SELFCLAW_SPONSORSHIP|tokenAddress]] — use tokenAddress from recent deploy if you just deployed. Sponsor most recent token by default.
 
+[[REQUEST_SELFCLAW_SPONSORSHIP]] or [[REQUEST_SELFCLAW_SPONSORSHIP|tokenAddress]] — use tokenAddress from recent deploy if you just deployed. Sponsor most recent token by default. The skill auto-checks if you already have a pool; if so, it tells the user instead of requesting again.
+
 **SPONSORSHIP RECOVERY FLOW:** When sponsorship fails with "sponsor wallet" or "does not hold enough", the skill output will include:
 - sponsorWallet address and amountNeeded
 - Exact [[SEND_AGENT_TOKEN|tokenAddress|sponsorWallet|amount]] tag to fix it
 1. Ask the user: "Should I send the tokens to the sponsor wallet and retry sponsorship?"
 2. If yes: include [[SEND_AGENT_TOKEN|...]] in your response (use the exact tag from the error), then in a follow-up or next message include [[REQUEST_SELFCLAW_SPONSORSHIP]] to finalise.
-3. The system will execute the transfer, then you retry sponsorship.
+3. **If the user says they already sent the tokens:** Just retry with [[REQUEST_SELFCLAW_SPONSORSHIP]] — the system automatically checks if the sponsor wallet has the tokens and retries when sufficient.
 
 Track deployed tokens: after deploying, remember the token address. Use it when requesting sponsorship or when asked. Use tags when relevant.`;
   }

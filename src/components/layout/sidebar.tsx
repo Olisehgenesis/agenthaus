@@ -263,7 +263,7 @@ export function Sidebar() {
                     setMenuActive(false);
                   }}
                   className={cn(
-                    "flex flex-1 items-center justify-center gap-2 rounded-lg border border-forest-light/30 bg-forest/5 px-3 py-2 text-sm font-medium text-forest-light transition-colors hover:bg-forest/15 hover:text-forest-light",
+                    "flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#AB9FF2]/30 bg-[#AB9FF2]/10 px-3 py-2 text-sm font-medium text-[#AB9FF2] transition-colors hover:bg-[#AB9FF2]/20 hover:text-[#8B7ED9]",
                     isCollapsed && "lg:justify-center lg:px-2"
                   )}
                   title="Wallet"

@@ -215,6 +215,28 @@ export function useVerification(agentId: string | undefined) {
   }, []);
 
   /* ── Open verify modal intelligently ─────────────────────────────── */
+  const handleSyncVerification = React.useCallback(async () => {
+    if (!agentId) return;
+    try {
+      const res = await fetch(`/api/agents/${agentId}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sync" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.verified) {
+          setVerificationStatus((prev) =>
+            prev ? { ...prev, ...data, verified: true } : data
+          );
+        }
+        await fetchVerification();
+      }
+    } catch (err) {
+      console.warn("[SelfClaw] sync failed:", err);
+    }
+  }, [agentId, fetchVerification]);
+
   const openVerifyModal = React.useCallback(() => {
     setVerifyModalOpen(true);
     if (isQrReady && isSessionActive) {
@@ -249,6 +271,7 @@ export function useVerification(agentId: string | undefined) {
     fetchVerification,
     handleStartVerification,
     handleRestartVerification,
+    handleSyncVerification,
     handleQrSuccess,
     handleQrError,
     openVerifyModal,

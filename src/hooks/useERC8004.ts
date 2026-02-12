@@ -4,8 +4,6 @@ import { useCallback, useState } from "react";
 import { usePublicClient, useWalletClient, useChainId } from "wagmi";
 import { type Address } from "viem";
 import {
-  IDENTITY_REGISTRY_ABI,
-  REPUTATION_REGISTRY_ABI,
   registerAgent,
   parseAgentRegisteredEvent,
   isRegistryDeployed,
@@ -13,6 +11,7 @@ import {
   getAgentTokenURI,
   getAgentOwner,
   getERC8004Addresses,
+  giveFeedback,
 } from "@/lib/blockchain/erc8004";
 import { BLOCK_EXPLORERS } from "@/lib/constants";
 
@@ -31,6 +30,15 @@ interface UseERC8004Return {
     internalAgentId: string, // Our DB agent ID
     agentName?: string // Optional — stored on-chain as "name" metadata
   ) => Promise<RegistrationResult>;
+
+  // Reputation
+  giveFeedback: (
+    agentId: bigint,
+    value: number,
+    valueDecimals: number,
+    tag1?: string,
+    tag2?: string
+  ) => Promise<{ txHash: string }>;
 
   // Read operations
   getAgent: (agentId: bigint) => Promise<{
@@ -195,6 +203,41 @@ export function useERC8004(): UseERC8004Return {
   );
 
   /**
+   * Submit feedback for an agent on the Reputation Registry.
+   * User signs tx; caller must not be the agent owner (self-feedback blocked on-chain).
+   * @param value — raw value (e.g. 45 for 4.5 stars with valueDecimals=1)
+   */
+  const submitFeedback = useCallback(
+    async (
+      agentId: bigint,
+      value: number,
+      valueDecimals: number = 1,
+      tag1: string = "starred",
+      tag2: string = "deployment"
+    ): Promise<{ txHash: string }> => {
+      if (!walletClient) throw new Error("Wallet not connected");
+      if (!contractAddresses) {
+        throw new Error(
+          `ERC-8004 contracts not deployed on chain ${chainId}. Switch to Celo Mainnet or Sepolia.`
+        );
+      }
+
+      const txHash = await giveFeedback(
+        walletClient,
+        contractAddresses.reputationRegistry,
+        agentId,
+        value,
+        valueDecimals,
+        tag1,
+        tag2
+      );
+
+      return { txHash };
+    },
+    [walletClient, contractAddresses, chainId]
+  );
+
+  /**
    * Get agent details from the on-chain IdentityRegistry.
    */
   const getAgent = useCallback(
@@ -222,6 +265,7 @@ export function useERC8004(): UseERC8004Return {
 
   return {
     register,
+    giveFeedback: submitFeedback,
     getAgent,
     checkDeployed,
     chainId,

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { getTemplateIcon, getStatusColor } from "@/lib/utils";
 import { ipfsToPublicGatewayUrl } from "@/lib/ipfs-url";
-import { getBlockExplorer, getERC8004ScanUrl } from "@/lib/constants";
+import { getBlockExplorer, get8004ScanAgentUrl, DEPLOYMENT_ATTRIBUTION } from "@/lib/constants";
 import type { AgentData, VerificationStatus } from "../_types";
 
 interface AgentHeaderProps {
@@ -129,6 +129,7 @@ export function AgentHeader({
             <p className="text-forest-muted text-sm mt-1">
               {agent.description || "No description"}
             </p>
+            <p className="text-[10px] text-forest-faint mt-1">{DEPLOYMENT_ATTRIBUTION}</p>
           </div>
         </div>
       </div>
@@ -157,22 +158,22 @@ export function AgentHeader({
         {agent.erc8004AgentId && (
           <>
             <a
-              href={getERC8004ScanUrl(agent.erc8004ChainId ?? agentChainId ?? 42220, agent.erc8004AgentId)}
+              href={get8004ScanAgentUrl(agent.erc8004ChainId ?? agentChainId ?? 42220, agent.erc8004AgentId)}
               target="_blank"
               rel="noopener noreferrer"
             >
               <Button
                 variant="secondary"
                 size="sm"
-                className="border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+                className="border-accent/30 text-accent hover:bg-accent/10"
               >
-                <ScanSearch className="w-4 h-4" /> Scan ERC-8004
+                <ScanSearch className="w-4 h-4" /> View on 8004scan
               </Button>
             </a>
             <Button
               variant="secondary"
               size="sm"
-              className="border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+              className="border-accent/30 text-accent hover:bg-accent/10"
               onClick={onOpenIdentityModal}
             >
               <Shield className="w-4 h-4" /> Identity
@@ -202,7 +203,7 @@ export function AgentHeader({
             <BadgeCheck className="w-4 h-4" /> Verified
           </Button>
         ) : !isConnected ? (
-          <Button variant="secondary" size="sm" className="border-forest/20 text-forest-muted" disabled>
+          <Button variant="secondary" size="sm" className="border-[#AB9FF2]/30 text-[#AB9FF2] bg-[#AB9FF2]/5" disabled>
             <ShieldCheck className="w-4 h-4" /> Connect Wallet to Verify
           </Button>
         ) : !isCeloMainnet ? (
@@ -218,7 +219,7 @@ export function AgentHeader({
           <Button
             variant="secondary"
             size="sm"
-            className="border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+            className="border-accent/30 text-accent hover:bg-accent/10"
             onClick={onOpenVerifyModal}
             disabled={verifyLoading}
           >

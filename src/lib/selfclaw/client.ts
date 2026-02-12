@@ -162,6 +162,37 @@ export async function signChallenge(
 }
 
 /**
+ * Check if an agent name is available on SelfClaw.
+ * Returns true if available, false if already taken by another verified agent.
+ */
+export async function checkAgentNameAvailable(
+  agentName: string
+): Promise<{ available: boolean; suggestion?: string }> {
+  if (!agentName?.trim()) return { available: true };
+
+  let res: Response;
+  try {
+    res = await fetch(
+      `${SELFCLAW_BASE_URL}/agent?name=${encodeURIComponent(agentName.trim())}`,
+      { signal: AbortSignal.timeout(SELFCLAW_FETCH_TIMEOUT_MS) }
+    );
+  } catch (networkError) {
+    return { available: true }; // Assume available on network error
+  }
+
+  if (!res.ok || res.status === 404) return { available: true };
+
+  const data = (await res.json()) as AgentVerificationStatus;
+  if (data.verified) {
+    return {
+      available: false,
+      suggestion: `${agentName}-${Date.now().toString(36)}`,
+    };
+  }
+  return { available: true };
+}
+
+/**
  * Check if an agent is verified on SelfClaw.
  * Can pass either a public key or agent name as identifier.
  */
@@ -280,6 +311,31 @@ export async function registerToken(
     tokenAddress,
     txHash,
   }) as Promise<{ success?: boolean }>;
+}
+
+/**
+ * Register token with retries — SelfClaw may need time to verify on-chain.
+ */
+export async function registerTokenWithRetry(
+  signedPayload: SignedPayload,
+  tokenAddress: string,
+  txHash: string,
+  maxRetries = 3
+): Promise<void> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await registerToken(signedPayload, tokenAddress, txHash);
+      return;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const isVerifyError = /verify|confirmed|index/i.test(msg);
+      if (attempt < maxRetries && isVerifyError) {
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      } else {
+        throw err;
+      }
+    }
+  }
 }
 
 /**

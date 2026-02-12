@@ -3,7 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import { useAccount } from "wagmi";
-import { AppKitButton } from "@reown/appkit/react";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { Zap } from "lucide-react";
@@ -33,7 +33,7 @@ export default function DashboardLayout({
             Connect your Celo wallet to access the AgentHAUS dashboard.
           </p>
           <div className="flex justify-center">
-            <AppKitButton />
+            <ConnectWalletButton size="lg" />
           </div>
           <div className="flex items-center justify-center gap-2 text-xs text-forest-faint">
             <Zap className="w-3 h-3" />

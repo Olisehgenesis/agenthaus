@@ -24,6 +24,23 @@ export const CHAIN_NAMES: Record<number, string> = {
 
 export const IS_TESTNET = ACTIVE_CHAIN_ID !== CELO_CHAIN_ID;
 
+/** Deployment attribution — included in all agent metadata (ERC-8004 registration JSON) */
+export const DEPLOYMENT_ATTRIBUTION = "Agent deployed by agenthaus.space";
+export const DEPLOYMENT_URL = "https://agenthaus.space";
+
+/** Agent Haus as ERC-8004 agent — deploy tx + user feedback attribute to its reputation */
+export const AGENT_HAUS_AGENT_ID_MAINNET =
+  process.env.NEXT_PUBLIC_AGENT_HAUS_AGENT_ID_MAINNET || null;
+export const AGENT_HAUS_AGENT_ID_TESTNET =
+  process.env.NEXT_PUBLIC_AGENT_HAUS_AGENT_ID_TESTNET || null;
+
+/** Get Agent Haus on-chain agentId for a chain (Celo mainnet/testnet) */
+export function getAgentHausAgentId(chainId: number): string | null {
+  if (chainId === 42220) return AGENT_HAUS_AGENT_ID_MAINNET || null;
+  if (chainId === 11142220) return AGENT_HAUS_AGENT_ID_TESTNET || null;
+  return null;
+}
+
 /** Get human-readable chain name */
 export function getChainName(chainId?: number): string {
   return CHAIN_NAMES[chainId ?? ACTIVE_CHAIN_ID] || `Chain ${chainId}`;
@@ -71,6 +88,38 @@ const BLOCK_EXPLORERS_EXT: Record<number, string> = {
   137: "https://polygonscan.com",
   42161: "https://arbiscan.io",
 };
+
+/** 8004scan — ERC-8004 agent explorer (shows score, feedback, leaderboard). */
+export const ERC8004_SCAN_BASE = "https://www.8004scan.io";
+
+/** Chain ID → 8004scan URL slug (same format as https://www.8004scan.io/agents/celo/15) */
+const CHAIN_SLUGS: Record<number, string> = {
+  1: "ethereum",
+  11155111: "sepolia",
+  42220: "celo",
+  11142220: "celo-sepolia",
+  8453: "base",
+  84532: "base-sepolia",
+  137: "polygon",
+  80002: "polygon-amoy",
+  42161: "arbitrum",
+  421614: "arbitrum-sepolia",
+  10: "optimism",
+  11155420: "optimism-sepolia",
+  59144: "linea",
+  43114: "avalanche",
+  56: "bsc",
+  97: "bsc-testnet",
+  534352: "scroll",
+  100: "gnosis",
+  167000: "taiko",
+};
+
+/** Get 8004scan agent page URL (Browse Agents — shows score, feedback, AI, etc.). */
+export function get8004ScanAgentUrl(chainId: number, agentId: string): string {
+  const slug = CHAIN_SLUGS[chainId] ?? String(chainId);
+  return `${ERC8004_SCAN_BASE}/agents/${slug}/${agentId}`;
+}
 
 /** Get ERC-8004 scan URL (block explorer token/NFT view) for an agent. */
 export function getERC8004ScanUrl(
@@ -229,7 +278,7 @@ export const AGENT_TEMPLATES: TemplateInfo[] = [
   {
     id: "payment",
     name: "Payment Agent",
-    description: "Process natural language payments with multi-currency support on Celo. Handle stablecoin transfers, generate receipts, and manage transaction confirmations.",
+    description: "Process natural language payments on Celo with multi-currency support (cUSD, cEUR, USDC). Execute stablecoin transfers, generate receipts, enforce spending limits. Interact via chat — deploy at agenthaus.space, connect wallet, send payment requests. Supports fee abstraction (pay gas in cUSD).",
     icon: "💳",
     color: "from-forest to-forest-light",
     features: [
@@ -273,7 +322,7 @@ Rules:
   {
     id: "trading",
     name: "Trading Agent",
-    description: "Monitor prices and execute conditional swaps on Celo DEXes. Set up automated trading strategies with risk management controls.",
+    description: "Monitor token prices across Celo DEXes (Ubeswap, Mento) and execute conditional swaps. Set stop-loss, take-profit, and risk rules. Track portfolio performance. Interact via chat — request trades, check prices, set strategies. ERC-8004 on-chain identity for trust.",
     icon: "📈",
     color: "from-blue-500 to-indigo-600",
     features: [
@@ -314,7 +363,7 @@ Safety rules:
   {
     id: "forex",
     name: "Forex Trader",
-    description: "Monitor Mento stablecoin exchange rates, execute swaps between CELO and cUSD/cEUR/cREAL, analyze market conditions with trend analysis and predictions, and manage a forex trading portfolio on Celo. Supports fee abstraction — pay gas in cUSD instead of CELO.",
+    description: "Monitor Mento stablecoin exchange rates, execute CELO ↔ cUSD/cEUR/cREAL swaps, analyze trends and momentum. Track portfolio, get price alerts. Interact via chat — request quotes, execute swaps, view analysis. Fee abstraction: pay gas in cUSD instead of CELO. On-chain SortedOracles data.",
     icon: "💹",
     color: "from-yellow-500 to-amber-600",
     features: [
@@ -386,7 +435,7 @@ Supported pairs: CELO/cUSD, CELO/cEUR, CELO/cREAL, cUSD/cEUR (cross-stable via C
   {
     id: "social",
     name: "Social Agent",
-    description: "Engage with communities across Telegram and Twitter. Automate responses, distribute tips, and manage social interactions.",
+    description: "Engage communities on Telegram and Twitter. Automate responses, distribute tips, share updates. Real on-chain wallet for CELO/cUSD tips. Interact via chat or connected channels. Configure platforms, tip amounts, auto-reply. ERC-8004 identity for verified presence.",
     icon: "💬",
     color: "from-purple-500 to-pink-600",
     features: [
@@ -426,7 +475,7 @@ Tip distribution rules:
   {
     id: "custom",
     name: "Custom Agent",
-    description: "Start from scratch with a blank canvas. Define your own prompts, tools, and configuration for any use case on Celo.",
+    description: "Blank canvas for any use case on Celo. Define prompts, tools, LLM config. Execute token transfers, query prices, interact with contracts. Interact via chat — customize system prompt and skills. Full Celo blockchain access. ERC-8004 on-chain identity.",
     icon: "🔧",
     color: "from-orange-500 to-red-600",
     features: [
@@ -462,6 +511,12 @@ Customize this prompt to define your agent's specific role and behavior.`,
     },
   },
 ];
+
+/** Get template description for ERC-8004 metadata when agent has no custom description */
+export function getTemplateDescription(templateType: string): string {
+  const t = AGENT_TEMPLATES.find((x) => x.id === templateType);
+  return t?.description ?? `${templateType} agent powered by AgentHaus`;
+}
 
 // Navigation items (sidebar order — Create Agent is a separate bottom action)
 export const NAV_ITEMS = [

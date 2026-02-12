@@ -45,7 +45,7 @@ export function IdentityModal({ open, onClose, agent, verificationStatus }: Iden
       <div className="p-6 space-y-5">
         {/* Modal Header */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-accent-light flex items-center justify-center shadow-lg shadow-accent/20">
             <Shield className="w-5 h-5 text-forest" />
           </div>
           <div className="flex-1">
@@ -84,7 +84,7 @@ export function IdentityModal({ open, onClose, agent, verificationStatus }: Iden
               <CopyRow
                 label="Agent Registry"
                 value={`eip155:${agent.erc8004ChainId}:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`}
-                className="text-violet-500 text-[10px]"
+                className="text-accent text-[10px]"
               />
             )}
 
@@ -182,7 +182,7 @@ export function IdentityModal({ open, onClose, agent, verificationStatus }: Iden
                 href="https://8004.org"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1"
+                className="text-xs text-accent hover:text-accent-light flex items-center gap-1"
               >
                 ERC-8004 Spec <ExternalLink className="w-3 h-3" />
               </a>

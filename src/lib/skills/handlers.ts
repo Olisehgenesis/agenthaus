@@ -900,7 +900,7 @@ export async function executeRequestSelfClawSponsorship(
   params: string[],
   ctx: SkillContext
 ): Promise<SkillResult> {
-  const { requestSponsorshipForAgent } = await import("@/lib/selfclaw/agentActions");
+  const { requestSponsorshipForAgent, getAgentTokenInfo } = await import("@/lib/selfclaw/agentActions");
 
   const tokenAddressOverride = params[0]?.trim();
   if (tokenAddressOverride && !tokenAddressOverride.startsWith("0x")) {
@@ -912,6 +912,26 @@ export async function executeRequestSelfClawSponsorship(
   }
 
   try {
+    const tokenInfo = await getAgentTokenInfo(ctx.agentId);
+    if (tokenInfo.pools && tokenInfo.pools.length > 0) {
+      return {
+        success: true,
+        data: { alreadySponsored: true },
+        display: [
+          "Already Sponsored",
+          "",
+          "Your token already has SELFCLAW liquidity sponsorship. You have a pool paired with SELFCLAW.",
+          "",
+          tokenInfo.pools
+            .map(
+              (p) =>
+                `• ${p.agentName || "Pool"}: $${p.price?.toFixed(4) ?? "—"} | MCap: $${p.marketCap?.toLocaleString() ?? "—"}`
+            )
+            .join("\n"),
+        ].join("\n"),
+      };
+    }
+
     const result = await requestSponsorshipForAgent(
       ctx.agentId,
       undefined,
@@ -925,8 +945,12 @@ export async function executeRequestSelfClawSponsorship(
         display: [
           "SELFCLAW Sponsorship Requested",
           "",
-          "Token liquidity pool request submitted. SelfClaw will create a trading pool pairing your token with SELFCLAW.",
-          "One sponsorship per human (sybil protection). Pools may take a few minutes to appear.",
+          "Your liquidity pool request was submitted successfully. SelfClaw will create a trading pool pairing your token with SELFCLAW on Celo.",
+          "",
+          "What happens next:",
+          "• Pool creation may take a few minutes",
+          "• One sponsorship per human (sybil protection)",
+          "• View your pool in the Token & Trade tab or at selfclaw.ai/pools",
         ].join("\n"),
       };
     }
@@ -934,11 +958,13 @@ export async function executeRequestSelfClawSponsorship(
     const lines = [`Sponsorship Request Failed: ${result.error ?? "Unknown error"}`];
     const tokenAddr = result.tokenAddress ?? tokenAddressOverride;
     if (result.sponsorWallet && result.amountNeeded && tokenAddr) {
-      const amountHuman = (parseFloat(result.amountNeeded) / 1e18).toLocaleString(undefined, { maximumFractionDigits: 0 });
+      const amountRaw = parseFloat(result.amountNeeded) / 1e18;
+      const amountHuman = amountRaw.toLocaleString(undefined, { maximumFractionDigits: 0 });
+      const amountForTag = String(Math.floor(amountRaw)); // No commas — parseUnits requires valid decimal
       lines.push("");
       lines.push("RECOVERY: The sponsor wallet needs your agent tokens. To fix:");
       lines.push(`1. Send ${amountHuman} of your agent token to ${result.sponsorWallet}`);
-      lines.push(`   Use: [[SEND_AGENT_TOKEN|${tokenAddr}|${result.sponsorWallet}|${amountHuman}]]`);
+      lines.push(`   Use: [[SEND_AGENT_TOKEN|${tokenAddr}|${result.sponsorWallet}|${amountForTag}]]`);
       lines.push("2. After transfer confirms, retry: [[REQUEST_SELFCLAW_SPONSORSHIP]]");
       lines.push("");
       lines.push("Ask the user: 'Should I send the tokens to the sponsor wallet and retry sponsorship?'");
@@ -1006,7 +1032,7 @@ export async function executeSelfClawDeployToken(
 
   const name = params[0]?.trim();
   const symbol = params[1]?.trim()?.toUpperCase();
-  const supply = params[2]?.trim() || "1000000";
+  const supply = (params[2]?.trim() || "1000000").replace(/,/g, "");
 
   if (!name || !symbol) {
     return {

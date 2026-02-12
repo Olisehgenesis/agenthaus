@@ -29,7 +29,7 @@ import {
   type WalletClient,
   type Chain,
 } from "viem";
-import { mnemonicToAccount, HDAccount } from "viem/accounts";
+import { mnemonicToAccount, HDAccount, nonceManager } from "viem/accounts";
 import { celoSepolia, celo } from "viem/chains";
 import { prisma } from "@/lib/db";
 import { CELO_TOKENS, ACTIVE_CHAIN_ID, CELO_SEPOLIA_CHAIN_ID, FEE_CURRENCIES } from "@/lib/constants";
@@ -95,9 +95,13 @@ export function deriveAddress(index: number): Address {
 /**
  * Create a wallet client that can sign transactions for an agent.
  * Private key only lives in memory for the duration of this client.
+ * Uses shared nonceManager to prevent "nonce too low" when multiple txs are sent.
  */
 export function getAgentWalletClient(index: number): WalletClient {
-  const account = deriveAccount(index);
+  const account = mnemonicToAccount(getMnemonic(), {
+    addressIndex: index,
+    nonceManager,
+  });
   return createWalletClient({
     account,
     chain: getActiveChain(),
@@ -266,7 +270,7 @@ export async function sendCelo(
   amountInEther: string
 ) {
   const walletClient = getAgentWalletClient(agentIndex);
-  const account = deriveAccount(agentIndex);
+  const account = walletClient.account ?? deriveAccount(agentIndex);
   const agentAddress = account.address;
 
   // Detect best fee currency
@@ -275,7 +279,7 @@ export async function sendCelo(
   const txParams: Record<string, unknown> = {
     account,
     to,
-    value: parseEther(amountInEther),
+    value: parseEther(String(amountInEther).replace(/,/g, "")),
     chain: getActiveChain(),
   };
 
@@ -300,7 +304,7 @@ export async function sendToken(
   decimals: number = 18
 ) {
   const walletClient = getAgentWalletClient(agentIndex);
-  const account = deriveAccount(agentIndex);
+  const account = walletClient.account ?? deriveAccount(agentIndex);
   const agentAddress = account.address;
 
   const { encodeFunctionData } = await import("viem");
@@ -319,7 +323,7 @@ export async function sendToken(
       },
     ],
     functionName: "transfer",
-    args: [to, parseUnits(amount, decimals)],
+    args: [to, parseUnits(String(amount).replace(/,/g, ""), decimals)],
   });
 
   // Detect best fee currency

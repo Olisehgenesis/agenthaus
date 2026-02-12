@@ -98,6 +98,7 @@ export default function AgentDetailPage() {
       {/* ── Stats Cards ── */}
       <StatsCards
         agent={agent}
+        agentId={agentId ?? ""}
         verificationStatus={vf.verificationStatus}
         isConnected={ad.isConnected}
         isCeloMainnet={ad.isCeloMainnet}
@@ -206,6 +207,7 @@ export default function AgentDetailPage() {
         showVerifyDebug={vf.showVerifyDebug}
         handleStartVerification={vf.handleStartVerification}
         handleRestartVerification={vf.handleRestartVerification}
+        handleSyncVerification={vf.handleSyncVerification}
         handleQrSuccess={vf.handleQrSuccess}
         handleQrError={vf.handleQrError}
         setQrSessionExpired={vf.setQrSessionExpired}

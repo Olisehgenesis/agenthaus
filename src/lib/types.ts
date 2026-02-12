@@ -116,6 +116,9 @@ export interface TemplateInfo {
 /**
  * ERC-8004 service/endpoint entry.
  * Spec: name + endpoint (not type/url).
+ *
+ * All agents deployed via agenthaus.space include a "deployedBy" service
+ * with endpoint https://agenthaus.space for attribution.
  */
 export interface ERC8004Service {
   name: string;
@@ -137,6 +140,10 @@ export interface ERC8004RegistrationEntry {
  * ERC-8004 Agent Registration File shape.
  * @see https://eips.ethereum.org/EIPS/eip-8004
  * @see https://best-practices.8004scan.io/docs/01-agent-metadata-standard.html
+ *
+ * Deployment attribution: All agents deployed via agenthaus.space include
+ * - description suffix: "Agent deployed by agenthaus.space"
+ * - services: { name: "deployedBy", endpoint: "https://agenthaus.space" }
  */
 export interface ERC8004Registration {
   type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1";

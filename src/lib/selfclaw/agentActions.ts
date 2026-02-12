@@ -8,7 +8,7 @@ import {
   checkAgentStatus,
   createWallet as createWalletSelfClaw,
   deployToken as getDeployTx,
-  registerToken,
+  registerTokenWithRetry,
   logRevenue as logRevenueSelfClaw,
   logCost as logCostSelfClaw,
   getAgentEconomics,
@@ -27,6 +27,15 @@ import { getTokenBalanceWei } from "@/lib/blockchain/celoData";
 import { parseUnits } from "viem";
 
 const COST_CATEGORIES = ["infra", "compute", "ai_credits", "bandwidth", "storage", "other"] as const;
+
+/** Sanitize supply string: remove commas, validate decimal, default to 1000000. */
+function sanitizeSupply(s: string): string {
+  const cleaned = String(s).replace(/,/g, "").trim();
+  if (!cleaned) return "1000000";
+  const num = parseFloat(cleaned);
+  if (Number.isNaN(num) || num <= 0 || !Number.isFinite(num)) return "1000000";
+  return String(Math.floor(num));
+}
 
 export interface AgentTokenInfo {
   verified: boolean;
@@ -229,7 +238,7 @@ export async function requestSponsorshipForAgent(
     }
   } else if (storedSupply) {
     try {
-      const supplyWei = parseUnits(storedSupply, 18);
+      const supplyWei = parseUnits(sanitizeSupply(storedSupply), 18);
       const balanceBig = BigInt(balanceWei);
       amountWei = String(supplyWei <= balanceBig ? supplyWei : balanceBig);
     } catch {
@@ -254,12 +263,32 @@ export async function requestSponsorshipForAgent(
       if (match) sponsorWallet = match[0];
     }
 
+    const amountNeeded = result.needs ?? amountWei;
+    const isSponsorWalletError =
+      /sponsor|hold|enough|transfer/i.test(result.error ?? "") && sponsorWallet;
+
+    if (isSponsorWalletError && sponsorWallet) {
+      const sponsorBalanceWei = await getTokenBalanceWei(
+        tokenAddress as `0x${string}`,
+        sponsorWallet as `0x${string}`
+      );
+      const neededBig = BigInt(amountNeeded);
+      const hasBig = BigInt(sponsorBalanceWei);
+      if (hasBig >= neededBig) {
+        const signedRetry = await signAuthenticatedPayload(verification.publicKey, privateKeyHex);
+        const retry = await requestSelfClawSponsorship(signedRetry, tokenAddress, amountWei);
+        if (retry.success) {
+          return { success: true };
+        }
+      }
+    }
+
     return {
       success: false,
       error: result.error ?? "Failed to request sponsorship",
       tokenAddress,
       sponsorWallet: sponsorWallet ?? undefined,
-      amountNeeded: result.needs ?? amountWei,
+      amountNeeded,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed to request sponsorship";
@@ -333,10 +362,11 @@ export async function deployTokenForAgent(
   }
 
   try {
+    const supply = sanitizeSupply(initialSupply);
     const privateKeyHex = decryptPrivateKey(agent.verification.encryptedPrivateKey);
     const signed = await signAuthenticatedPayload(agent.verification.publicKey, privateKeyHex);
 
-    const result = await getDeployTx(signed, name, symbol, String(initialSupply));
+    const result = await getDeployTx(signed, name, symbol, supply);
     const unsignedTx = result.unsignedTx as Record<string, unknown> | undefined;
 
     if (!unsignedTx) {
@@ -344,7 +374,7 @@ export async function deployTokenForAgent(
     }
 
     const walletClient = getAgentWalletClient(agent.walletDerivationIndex);
-    const account = deriveAccount(agent.walletDerivationIndex);
+    const account = walletClient.account ?? deriveAccount(agent.walletDerivationIndex);
 
     const txParams = {
       account,
@@ -360,16 +390,28 @@ export async function deployTokenForAgent(
     const publicClient = getPublicClient();
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
-    const tokenAddress = receipt.contractAddress;
+    let tokenAddress = receipt.contractAddress;
+    if (!tokenAddress && receipt.logs?.length) {
+      const factoryAddr = receipt.to?.toLowerCase();
+      const seen = new Set<string>();
+      for (const log of receipt.logs) {
+        const addr = log.address?.toLowerCase();
+        if (addr && addr !== factoryAddr && !seen.has(addr)) {
+          seen.add(addr);
+          tokenAddress = log.address;
+          break;
+        }
+      }
+    }
     if (!tokenAddress) {
-      return { success: false, error: "Deploy succeeded but no contract address." };
+      return { success: false, error: "Deploy succeeded but no contract address in receipt." };
     }
 
     const signed2 = await signAuthenticatedPayload(agent.verification.publicKey, privateKeyHex);
-    await registerToken(signed2, tokenAddress, hash);
+    await registerTokenWithRetry(signed2, tokenAddress, hash);
 
     // Persist so sponsorship works before SelfClaw indexes; supports multiple tokens
-    const tokenEntry = { address: tokenAddress, name, symbol, supply: initialSupply, deployedAt: new Date().toISOString() };
+    const tokenEntry = { address: tokenAddress, name, symbol, supply, deployedAt: new Date().toISOString() };
     const existing = await prisma.agent.findUnique({
       where: { id: agentId },
       select: { agentDeployedTokens: true },

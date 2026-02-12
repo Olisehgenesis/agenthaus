@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model User {
@@ -55,8 +55,10 @@ model Agent {
   // Legacy OpenClaw (optional, kept for backward compat)
   openclawAgentId       String?
   
-  // Per-agent image (IPFS or HTTPS URL)
-  imageUrl        String?  // Agent avatar/logo for ERC-8004 registration
+  // Per-agent image: URL (agenthaus.space/images/...) and base64 PNG data
+  imageUrl        String?  // https://agenthaus.space/images/agentname-xxxx.png
+  imageSlug       String?  // agentname-xxxx.png — for serving via /api/images/[slug]
+  imageDataBase64 String?  // Compressed PNG as base64 (served from API)
   
   // ERC-8004 (on-chain identity)
   erc8004AgentId  String?  // On-chain NFT tokenId from IdentityRegistry

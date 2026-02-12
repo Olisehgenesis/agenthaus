@@ -117,7 +117,7 @@ export default function AnalyticsPage() {
       label: "Success Rate",
       value: metrics ? `${metrics.successRate.toFixed(1)}%` : "—",
       icon: TrendingUp,
-      color: "text-purple-400",
+      color: "text-accent",
     },
     {
       label: "Total Gas Spent",

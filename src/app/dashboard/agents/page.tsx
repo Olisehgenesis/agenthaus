@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { SpendingLimitModal } from "./_components/SpendingLimitModal";
 import { getTemplateIcon, getStatusColor, formatCurrency, formatDate, formatAddress } from "@/lib/utils";
-import { getBlockExplorer } from "@/lib/constants";
+import { getBlockExplorer, DEPLOYMENT_ATTRIBUTION } from "@/lib/constants";
 import { ipfsToPublicGatewayUrl } from "@/lib/ipfs-url";
 
 interface AgentData {
@@ -221,6 +221,7 @@ export default function AgentsPage() {
                         )}
                       </div>
                       <p className="text-xs text-forest-muted capitalize">{agent.templateType} agent</p>
+                      <p className="text-[10px] text-forest-faint mt-0.5">{DEPLOYMENT_ATTRIBUTION}</p>
                     </div>
                   </div>
                   <div className="relative">

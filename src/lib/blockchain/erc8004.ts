@@ -27,6 +27,8 @@ import {
   getAddress,
 } from "viem";
 import { type ERC8004Registration } from "@/lib/types";
+import { DEPLOYMENT_ATTRIBUTION, DEPLOYMENT_URL } from "@/lib/constants";
+import { ipfsToPublicGatewayUrl } from "@/lib/ipfs-url";
 import { IDENTITY_REGISTRY_ABI, REPUTATION_REGISTRY_ABI } from "./erc8004-abis";
 import { getOASFSkills, getOASFDomains, OASF_VERSION } from "./erc8004-oasf";
 
@@ -168,11 +170,22 @@ export function generateRegistrationJSON(params: GenerateRegistrationJSONParams)
   const addresses = getERC8004Addresses(chainId);
   const identityRegistry = addresses?.identityRegistry ?? "0x0000000000000000000000000000000000000000";
   const baseUrl = appUrl.replace(/\/api\/.*/, "");
-  const image = imageUrl || `${baseUrl}/icon.png`;
+  const image = imageUrl
+    ? imageUrl.startsWith("ipfs://")
+      ? ipfsToPublicGatewayUrl(imageUrl)
+      : imageUrl.includes("/images/")
+        ? `${DEPLOYMENT_URL}/images/${imageUrl.split("/images/")[1]}` // Canonical URL for 8004scan
+        : imageUrl
+    : `${baseUrl}/icon.png`;
+
+  const descriptionWithAttribution = description.trim()
+    ? `${description.trim()}\n\n${DEPLOYMENT_ATTRIBUTION}`
+    : DEPLOYMENT_ATTRIBUTION;
 
   const services = [
     { name: "web", endpoint: webUrl && webUrl.startsWith("http") ? webUrl : `${baseUrl}/dashboard/agents/${agentId}` },
     ...(contactEmail ? [{ name: "email" as const, endpoint: contactEmail }] : []),
+    { name: "deployedBy" as const, endpoint: DEPLOYMENT_URL },
     { name: "agenthaus-chat", endpoint: serviceUrl, version: "1.0" },
     ...(agentWalletAddress
       ? [{ name: "agentWallet" as const, endpoint: `eip155:${chainId}:${agentWalletAddress}` }]
@@ -189,7 +202,7 @@ export function generateRegistrationJSON(params: GenerateRegistrationJSONParams)
   return {
     type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
     name,
-    description,
+    description: descriptionWithAttribution,
     image,
     services,
     registrations: [
@@ -198,8 +211,8 @@ export function generateRegistrationJSON(params: GenerateRegistrationJSONParams)
         agentId: erc8004AgentId ? parseInt(erc8004AgentId, 10) : null,
       },
     ],
-    supportedTrust: ["reputation"],
-    active: status === "active",
+    supportedTrust: ["reputation", "crypto-economic", "tee-attestation"],
+    active: true,
     x402Support: !!agentWalletAddress,
     updatedAt: Math.floor(Date.now() / 1000),
   };

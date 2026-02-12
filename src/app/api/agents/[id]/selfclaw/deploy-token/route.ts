@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { decryptPrivateKey } from "@/lib/selfclaw/keys";
 import {
   deployToken as getDeployTx,
-  registerToken,
+  registerTokenWithRetry,
   signAuthenticatedPayload,
 } from "@/lib/selfclaw/client";
 import {
@@ -21,7 +21,11 @@ export async function POST(
 
   try {
     const body = await request.json();
-    const { name, symbol, initialSupply = "1000000" } = body;
+    let { name, symbol, initialSupply = "1000000" } = body;
+    const cleaned = String(initialSupply).replace(/,/g, "").trim();
+    const num = parseFloat(cleaned);
+    initialSupply =
+      !cleaned || Number.isNaN(num) || num <= 0 ? "1000000" : String(Math.floor(num));
 
     if (!name || !symbol) {
       return NextResponse.json(
@@ -69,7 +73,7 @@ export async function POST(
     }
 
     const walletClient = getAgentWalletClient(agent.walletDerivationIndex);
-    const account = deriveAccount(agent.walletDerivationIndex);
+    const account = walletClient.account ?? deriveAccount(agent.walletDerivationIndex);
 
     // SelfClaw may return tx in different formats; normalize for viem
     const txParams = {
@@ -86,7 +90,19 @@ export async function POST(
     const publicClient = getPublicClient();
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
-    const tokenAddress = receipt.contractAddress;
+    let tokenAddress = receipt.contractAddress;
+    if (!tokenAddress && receipt.logs?.length) {
+      const factoryAddr = receipt.to?.toLowerCase();
+      const seen = new Set<string>();
+      for (const log of receipt.logs) {
+        const addr = log.address?.toLowerCase();
+        if (addr && addr !== factoryAddr && !seen.has(addr)) {
+          seen.add(addr);
+          tokenAddress = log.address;
+          break;
+        }
+      }
+    }
     if (!tokenAddress) {
       return NextResponse.json(
         { error: "Deploy succeeded but no contract address in receipt" },
@@ -98,7 +114,7 @@ export async function POST(
       agent.verification.publicKey,
       privateKeyHex
     );
-    await registerToken(signed2, tokenAddress, hash);
+    await registerTokenWithRetry(signed2, tokenAddress, hash);
 
     return NextResponse.json({
       success: true,

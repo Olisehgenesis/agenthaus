@@ -71,7 +71,7 @@ export function SpendingLimitModal({
     <Modal open={open} onClose={onClose}>
       <div className="p-6">
         <div className="flex items-center gap-2 mb-4">
-          <DollarSign className="w-5 h-5 text-purple-400" />
+          <DollarSign className="w-5 h-5 text-accent" />
           <h2 className="text-lg font-semibold text-forest">Spending Limit</h2>
         </div>
         <p className="text-sm text-forest-muted mb-4">

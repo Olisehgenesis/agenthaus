@@ -61,7 +61,7 @@ export function ApiKeysSection({
     <Card>
       <CardHeader>
         <div className="flex items-center gap-2">
-          <Key className="w-5 h-5 text-purple-400" />
+          <Key className="w-5 h-5 text-accent" />
           <CardTitle>Your LLM API Keys</CardTitle>
         </div>
         <CardDescription>

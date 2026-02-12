@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { generateRegistrationJSON } from "@/lib/blockchain/erc8004";
+import { DEPLOYMENT_URL, getTemplateDescription } from "@/lib/constants";
 
 /**
  * GET /api/agents/[id]/registration.json
@@ -43,13 +44,14 @@ export async function GET(
       return NextResponse.json({ error: "Agent not found" }, { status: 404 });
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    // Always use production URL for published metadata (8004scan, ERC-8004)
+    const appUrl = DEPLOYMENT_URL;
     const serviceUrl = `${appUrl}/api/agents/${agent.id}/chat`;
 
     const config = (agent.configuration ? JSON.parse(agent.configuration) : {}) as { webUrl?: string; contactEmail?: string };
     const registrationJSON = generateRegistrationJSON({
       name: agent.name,
-      description: agent.description || `${agent.templateType} agent powered by AgentHaus`,
+      description: agent.description || getTemplateDescription(agent.templateType),
       imageUrl: agent.imageUrl,
       appUrl,
       agentId: agent.id,

@@ -194,10 +194,10 @@ export function ContentTabs({
                   <div key={tx.id} className="flex items-center justify-between p-3 rounded-lg bg-gypsum/80 hover:bg-gypsum transition-colors">
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        tx.type === "send" ? "bg-purple-500/10" : "bg-forest/10"
+                        tx.type === "send" ? "bg-accent/10" : "bg-forest/10"
                       }`}>
                         {tx.type === "send" ? (
-                          <ArrowUpRight className="w-4 h-4 text-purple-400" />
+                          <ArrowUpRight className="w-4 h-4 text-accent" />
                         ) : (
                           <Shield className="w-4 h-4 text-forest-light" />
                         )}

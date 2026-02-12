@@ -129,9 +129,11 @@ export async function POST(
         return handleCheck(agentId);
       case "restart":
         return handleRestart(agent);
+      case "sync":
+        return handleSync(agentId);
       default:
         return NextResponse.json(
-          { error: 'Invalid action. Use "start", "sign", "check", or "restart".' },
+          { error: 'Invalid action. Use "start", "sign", "check", "restart", or "sync".' },
           { status: 400 }
         );
     }
@@ -165,21 +167,32 @@ async function handleStart(agent: { id: string; name: string }) {
   const { publicKey, privateKeyHex } = await generateKeyPair();
   const encryptedKey = encryptPrivateKey(privateKeyHex);
 
-  // Call SelfClaw to start verification
-  let selfClawResponse;
-  try {
-    selfClawResponse = await startVerification({
-      agentPublicKey: publicKey,
-      agentName: agent.name,
-    });
-    console.log("[SelfClaw] start-verification response:", JSON.stringify(selfClawResponse, null, 2));
-  } catch (apiError) {
-    console.error("[SelfClaw] start-verification FAILED:", apiError);
-    const msg = apiError instanceof Error ? apiError.message : "Unknown error";
-    return NextResponse.json(
-      { error: msg.startsWith("Request to SelfClaw") || msg.startsWith("Could not") || msg.startsWith("SelfClaw server") ? msg : `SelfClaw API error: ${msg}` },
-      { status: 502 }
-    );
+  // Call SelfClaw to start verification (retry with unique name if taken)
+  let selfClawResponse: Awaited<ReturnType<typeof startVerification>> | undefined;
+  let agentNameForSelfClaw = agent.name;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      selfClawResponse = await startVerification({
+        agentPublicKey: publicKey,
+        agentName: agentNameForSelfClaw,
+      });
+      break;
+    } catch (apiError) {
+      const msg = apiError instanceof Error ? apiError.message : "Unknown error";
+      if (attempt === 0 && msg.includes("Agent name already taken")) {
+        agentNameForSelfClaw = `${agent.name}-${agent.id.slice(0, 8)}`;
+        console.log("[SelfClaw] Name taken, retrying with:", agentNameForSelfClaw);
+        continue;
+      }
+      console.error("[SelfClaw] start-verification FAILED:", apiError);
+      return NextResponse.json(
+        { error: msg.startsWith("Request to SelfClaw") || msg.startsWith("Could not") || msg.startsWith("SelfClaw server") ? msg : `SelfClaw API error: ${msg}` },
+        { status: 502 }
+      );
+    }
+  }
+  if (!selfClawResponse) {
+    return NextResponse.json({ error: "Failed to start verification" }, { status: 500 });
   }
 
   // Parse challenge to extract expiry timestamp
@@ -455,5 +468,112 @@ async function handleRestart(agent: { id: string; name: string }) {
   });
 
   return handleStart(agent);
+}
+
+/** Re-check SelfClaw API and update local DB if verified there. */
+async function handleSync(agentId: string) {
+  const verification = await prisma.agentVerification.findUnique({
+    where: { agentId },
+  });
+
+  if (!verification) {
+    return NextResponse.json({
+      status: "not_started",
+      verified: false,
+      synced: false,
+      message: "No verification record. Start verification first.",
+    });
+  }
+
+  if (verification.selfxyzVerified) {
+    return NextResponse.json({
+      status: "verified",
+      verified: true,
+      synced: true,
+      humanId: verification.humanId,
+      verifiedAt: verification.verifiedAt,
+    });
+  }
+
+  try {
+    const agentStatus = await checkAgentStatus(verification.publicKey);
+    console.log("[SelfClaw] sync check for", verification.publicKey.slice(0, 20) + "...", "→", agentStatus.verified);
+
+    if (agentStatus.verified) {
+      const agent = await prisma.agent.findUnique({
+        where: { id: agentId },
+        select: { agentWalletAddress: true },
+      });
+
+      await prisma.agentVerification.update({
+        where: { agentId },
+        data: {
+          status: "verified",
+          selfxyzVerified: true,
+          humanId: agentStatus.humanId || null,
+          swarmUrl: agentStatus.swarm || null,
+          selfxyzRegisteredAt: agentStatus.selfxyz?.registeredAt
+            ? new Date(agentStatus.selfxyz.registeredAt)
+            : null,
+          verifiedAt: new Date(),
+        },
+      });
+
+      // Auto-register wallet with SelfClaw if needed
+      const walletAddr = agent?.agentWalletAddress;
+      const alreadyHasWallet =
+        (agentStatus as { walletAddress?: string }).walletAddress != null;
+      if (walletAddr && !alreadyHasWallet && verification.encryptedPrivateKey) {
+        try {
+          const privateKeyHex = decryptPrivateKey(verification.encryptedPrivateKey);
+          const signed = await signAuthenticatedPayload(
+            verification.publicKey,
+            privateKeyHex
+          );
+          await createWalletSelfClaw(signed, walletAddr, "celo");
+          console.log("[SelfClaw] Auto-registered wallet after sync:", walletAddr.slice(0, 10) + "...");
+        } catch (walletErr) {
+          console.warn("[SelfClaw] Auto create-wallet after sync failed (non-fatal):", walletErr);
+        }
+      }
+
+      await prisma.activityLog.create({
+        data: {
+          agentId,
+          type: "action",
+          message: `✅ Verification synced from SelfClaw (humanId: ${agentStatus.humanId || "unknown"})`,
+          metadata: JSON.stringify({
+            humanId: agentStatus.humanId,
+            swarm: agentStatus.swarm,
+          }),
+        },
+      });
+
+      return NextResponse.json({
+        status: "verified",
+        verified: true,
+        synced: true,
+        humanId: agentStatus.humanId,
+        swarmUrl: agentStatus.swarm,
+        verifiedAt: new Date().toISOString(),
+        message: "Verification synced from SelfClaw.",
+      });
+    }
+
+    return NextResponse.json({
+      status: verification.status,
+      verified: false,
+      synced: true,
+      message: "SelfClaw reports not verified. Complete QR scan to verify.",
+    });
+  } catch (error) {
+    console.warn("[SelfClaw] sync checkAgentStatus error:", error instanceof Error ? error.message : error);
+    return NextResponse.json({
+      status: verification.status,
+      verified: false,
+      synced: false,
+      message: "Could not reach SelfClaw. Check your connection and try again.",
+    });
+  }
 }
 

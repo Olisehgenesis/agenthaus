@@ -23,6 +23,7 @@ import {
   ConfigureStep,
   SecurityStep,
   ReviewStep,
+  DeploySuccessFeedback,
   type WalletOption,
 } from "./_components";
 
@@ -35,7 +36,7 @@ const steps = [
 
 export default function NewAgentPage() {
   const router = useRouter();
-  const { address } = useAccount();
+  const { address, chainId, isConnected } = useAccount();
   const [currentStep, setCurrentStep] = React.useState("template");
   const [isDeploying, setIsDeploying] = React.useState(false);
   const [deployStatus, setDeployStatus] = React.useState<
@@ -46,6 +47,7 @@ export default function NewAgentPage() {
   // ERC-8004 on-chain registration
   const {
     register: registerOnChain,
+    giveFeedback,
     checkDeployed,
     isRegistering,
     error: erc8004Error,
@@ -54,6 +56,7 @@ export default function NewAgentPage() {
     blockExplorerUrl,
   } = useERC8004();
   const [erc8004Deployed, setErc8004Deployed] = React.useState<boolean | null>(null);
+  const [createdAgentId, setCreatedAgentId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     checkDeployed().then(setErc8004Deployed);
@@ -238,7 +241,7 @@ export default function NewAgentPage() {
       });
 
       setDeployStatus("done");
-        router.push(`/dashboard/agents/${agent.id}`);
+      setCreatedAgentId(agent.id);
     } catch (error) {
       console.error("Failed to deploy agent:", error);
       setDeployError(error instanceof Error ? error.message : "Deployment failed");
@@ -269,6 +272,11 @@ export default function NewAgentPage() {
           <h1 className="text-2xl font-bold text-forest">Create New Agent</h1>
           <p className="text-forest-muted text-sm">
             Deploy an AI agent on Celo with ERC-8004 identity
+            {isConnected && (
+              <span className="ml-2 text-xs">
+                — connected to {chainId === 42220 ? "Celo Mainnet" : chainId === 11142220 ? "Celo Sepolia" : `chain ${chainId}`}
+              </span>
+            )}
           </p>
         </div>
         </div>
@@ -336,27 +344,36 @@ export default function NewAgentPage() {
       )}
 
       {currentStep === "review" && (
-        <ReviewStep
-          name={name}
-          selectedTemplate={selectedTemplate}
-          walletOption={walletOption}
-          hasImage={!!imageFile}
-          webUrl={config.webUrl}
-          contactEmail={config.contactEmail}
-          llmProvider={llmProvider}
-          llmModel={llmModel}
-          spendingLimit={spendingLimit}
-          systemPrompt={systemPrompt}
-          address={address}
-          deployStatus={deployStatus}
-          isDeploying={isDeploying}
-          deployError={deployError}
-          erc8004Error={erc8004Error}
-          erc8004Deployed={erc8004Deployed}
-          erc8004Contracts={erc8004Contracts}
-          currentChainId={currentChainId}
-          onDeploy={handleDeploy}
-        />
+        <>
+          <ReviewStep
+            name={name}
+            selectedTemplate={selectedTemplate}
+            walletOption={walletOption}
+            hasImage={!!imageFile}
+            webUrl={config.webUrl}
+            contactEmail={config.contactEmail}
+            llmProvider={llmProvider}
+            llmModel={llmModel}
+            spendingLimit={spendingLimit}
+            systemPrompt={systemPrompt}
+            address={address}
+            deployStatus={deployStatus}
+            isDeploying={isDeploying}
+            deployError={deployError}
+            erc8004Error={erc8004Error}
+            erc8004Deployed={erc8004Deployed}
+            erc8004Contracts={erc8004Contracts}
+            currentChainId={currentChainId}
+            onDeploy={handleDeploy}
+          />
+          {deployStatus === "done" && createdAgentId && (
+            <DeploySuccessFeedback
+              chainId={currentChainId}
+              giveFeedback={giveFeedback}
+              onDone={() => router.push(`/dashboard/agents/${createdAgentId}`)}
+            />
+          )}
+        </>
       )}
 
       {/* Navigation */}

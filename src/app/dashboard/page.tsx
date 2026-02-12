@@ -20,6 +20,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { formatAddress, formatCurrency, getTemplateIcon, formatDate } from "@/lib/utils";
+import { DEPLOYMENT_ATTRIBUTION } from "@/lib/constants";
 
 interface DashboardStats {
   totalAgents: number;
@@ -129,7 +130,7 @@ export default function DashboardPage() {
           { label: "Total Agents", value: stats?.totalAgents ?? 0, icon: Bot, color: "text-forest" },
           { label: "Active", value: stats?.activeAgents ?? 0, icon: Activity, color: "text-forest-light" },
           { label: "Transactions", value: stats?.totalTransactions ?? 0, icon: TrendingUp, color: "text-blue-600" },
-          { label: "Value Moved", value: formatCurrency(stats?.totalValueTransferred ?? 0), icon: DollarSign, color: "text-purple-600" },
+          { label: "Value Moved", value: formatCurrency(stats?.totalValueTransferred ?? 0), icon: DollarSign, color: "text-accent" },
           { label: "Avg Reputation", value: stats?.averageReputation ? `${stats.averageReputation}/5` : "—", icon: Star, color: "text-amber-600" },
           { label: "Gas Spent", value: stats?.totalGasSpent ? `${stats.totalGasSpent} CELO` : "0 CELO", icon: Fuel, color: "text-orange-600" },
         ].map((stat) => (
@@ -180,6 +181,7 @@ export default function DashboardPage() {
                           <div>
                             <div className="text-sm font-medium text-forest">{agent.name}</div>
                             <div className="text-xs text-forest-muted capitalize">{agent.templateType}</div>
+                            <div className="text-[10px] text-forest-faint mt-0.5">{DEPLOYMENT_ATTRIBUTION}</div>
                           </div>
                         </div>
                         <Badge variant={agent.status === "active" ? "default" : "warning"}>

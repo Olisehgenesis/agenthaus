@@ -24,10 +24,10 @@ export function BotConfigSection({ keyStatus }: BotConfigSectionProps) {
   return (
     <>
       {/* Bot Configuration */}
-      <Card className="border-violet-500/20">
+      <Card className="border-accent/20">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Bot className="w-5 h-5 text-violet-400" />
+            <Bot className="w-5 h-5 text-accent" />
             <CardTitle>Bot Configuration</CardTitle>
           </div>
           <CardDescription>Default settings for your AI agents</CardDescription>
@@ -115,7 +115,7 @@ export function BotConfigSection({ keyStatus }: BotConfigSectionProps) {
                   className="flex items-start justify-between p-3 rounded-lg bg-gypsum"
                 >
                   <div className="flex items-start gap-2.5 flex-1">
-                    <item.icon className="w-4 h-4 text-violet-400 mt-0.5 flex-shrink-0" />
+                    <item.icon className="w-4 h-4 text-accent mt-0.5 flex-shrink-0" />
                     <div>
                       <span className="text-sm text-forest/80 block">{item.label}</span>
                       <span className="text-[10px] text-forest-muted/70">{item.desc}</span>
@@ -169,7 +169,7 @@ export function BotConfigSection({ keyStatus }: BotConfigSectionProps) {
               href="https://selfclaw.ai"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-violet-400 hover:text-violet-300"
+              className="text-accent hover:text-accent-light"
             >
               selfclaw.ai
             </a>
@@ -211,7 +211,7 @@ export function BotConfigSection({ keyStatus }: BotConfigSectionProps) {
               href="https://selfclaw.ai/docs"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1"
+              className="text-xs text-accent hover:text-accent-light flex items-center gap-1"
             >
               SelfClaw Docs <ExternalLink className="w-3 h-3" />
             </a>

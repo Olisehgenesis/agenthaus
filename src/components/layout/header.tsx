@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { AppKitButton } from "@reown/appkit/react";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { Bell, Search } from "lucide-react";
 
 export function Header() {
@@ -28,7 +28,7 @@ export function Header() {
         </button>
 
         {/* Wallet Connect */}
-        <AppKitButton />
+        <ConnectWalletButton size="md" showAddress />
       </div>
     </header>
   );

@@ -13,7 +13,7 @@ const SelfQRcodeWrapper = dynamic(
     ssr: false,
     loading: () => (
       <div className="flex items-center justify-center p-10">
-        <div className="w-10 h-10 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
+        <div className="w-10 h-10 rounded-full border-2 border-accent border-t-transparent animate-spin" />
       </div>
     ),
   }

@@ -7,8 +7,8 @@ import {
   Shield, Copy, ExternalLink, CheckCircle, AlertCircle,
   Loader2, Code, ChevronDown, ChevronUp,
 } from "lucide-react";
-import { formatDate } from "@/lib/utils";
-import { BLOCK_EXPLORER, BLOCK_EXPLORERS, getERC8004ScanUrl } from "@/lib/constants";
+import { formatDate, cn } from "@/lib/utils";
+import { BLOCK_EXPLORER, BLOCK_EXPLORERS, getERC8004ScanUrl, DEPLOYMENT_ATTRIBUTION } from "@/lib/constants";
 import type { AgentData, RegistrationResult } from "../_types";
 
 interface AgentIdentityCardProps {
@@ -65,7 +65,7 @@ export function AgentIdentityCard({
                   <CopyRow
                     label="Agent Registry"
                     value={`eip155:${agent.erc8004ChainId}:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`}
-                    className="text-[10px] text-violet-300 font-mono break-all leading-relaxed"
+                    className="text-[10px] text-accent-light font-mono break-all leading-relaxed"
                   />
                 )}
 
@@ -75,6 +75,9 @@ export function AgentIdentityCard({
                   value="0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
                   className="text-[10px] text-blue-300 font-mono"
                 />
+
+                {/* Attribution */}
+                <p className="text-[10px] text-forest-muted pt-1">{DEPLOYMENT_ATTRIBUTION}</p>
 
                 {/* Tx Hash */}
                 {agent.erc8004TxHash && (
@@ -144,7 +147,7 @@ export function AgentIdentityCard({
                   href={getERC8004ScanUrl(agent.erc8004ChainId || 42220, agent.erc8004AgentId!)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[10px] text-violet-400 hover:text-violet-300 flex items-center gap-1"
+                  className="text-[10px] text-accent hover:text-accent-light flex items-center gap-1"
                 >
                   Scan on ERC-8004 <ExternalLink className="w-3 h-3" />
                 </a>
@@ -161,7 +164,7 @@ export function AgentIdentityCard({
                 <a href="https://agentscan.info" target="_blank" rel="noopener noreferrer" className="text-[10px] text-forest-muted hover:text-forest/80 flex items-center gap-1">
                   Agentscan <ExternalLink className="w-3 h-3" />
                 </a>
-                <a href="https://8004.org" target="_blank" rel="noopener noreferrer" className="text-[10px] text-violet-400 hover:text-violet-300 flex items-center gap-1">
+                <a href="https://8004.org" target="_blank" rel="noopener noreferrer" className="text-[10px] text-accent hover:text-accent-light flex items-center gap-1">
                   ERC-8004 Spec <ExternalLink className="w-3 h-3" />
                 </a>
                 <a href="https://github.com/erc-8004/erc-8004-contracts" target="_blank" rel="noopener noreferrer" className="text-[10px] text-forest-muted hover:text-forest/80 flex items-center gap-1">
@@ -206,7 +209,7 @@ export function AgentIdentityCard({
 
             <Button
               size="sm"
-              className="w-full text-xs h-8"
+              className={cn("w-full text-xs h-8", !userAddress && "border-[#AB9FF2]/30 text-[#AB9FF2] bg-[#AB9FF2]/10")}
               disabled={isRegistering || !userAddress || erc8004Deployed === false}
               onClick={handleRegisterOnChain}
             >

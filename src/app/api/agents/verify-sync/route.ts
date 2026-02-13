@@ -11,11 +11,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { checkAgentStatus } from "@/lib/selfclaw/client";
+import { decryptPrivateKey } from "@/lib/selfclaw/keys";
 import {
-  decryptPrivateKey,
+  createWallet as createWalletSelfClaw,
   signAuthenticatedPayload,
-} from "@/lib/selfclaw/keys";
-import { createWallet as createWalletSelfClaw } from "@/lib/selfclaw/client";
+} from "@/lib/selfclaw/client";
 
 export async function POST(request: Request) {
   try {

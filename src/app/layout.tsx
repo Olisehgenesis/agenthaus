@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   title: "Celo AgentHAUS | No-Code AI Agent Platform",
   description: "Create, deploy, and manage AI agents on the Celo blockchain. No coding required.",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/favicon.svg",
   },
 };
 

@@ -511,6 +511,40 @@ const SKILL_DEFINITIONS: SkillDefinition[] = [
     requiresWallet: false,
     mutatesState: false,
   },
+  // ── QR Code Skills ────────────────────────────────────────────────────────
+  {
+    id: "generate_qr",
+    name: "Generate QR Code",
+    description: "Generate a QR code from text or URL. Returns an image the user can scan. Tracks generation in activity log.",
+    category: "data",
+    commandTag: "GENERATE_QR",
+    params: [
+      { name: "content", description: "Text or URL to encode (e.g. https://example.com, payment address)", required: true, example: "https://agenthaus.space" },
+    ],
+    examples: [
+      { input: "generate a QR code for https://example.com", output: "[[GENERATE_QR|https://example.com]]" },
+      { input: "create a QR for my payment address 0xABC...", output: "[[GENERATE_QR|0xABC...]]" },
+      { input: "make a QR code and send it", output: "[[GENERATE_QR|<content>]]" },
+    ],
+    requiresWallet: false,
+    mutatesState: false,
+  },
+  {
+    id: "list_qr_history",
+    name: "List QR History",
+    description: "Show recently generated QR codes for this agent (tracking).",
+    category: "data",
+    commandTag: "LIST_QR_HISTORY",
+    params: [
+      { name: "limit", description: "Max items (default 10)", required: false, example: "10" },
+    ],
+    examples: [
+      { input: "show my QR history", output: "[[LIST_QR_HISTORY]]" },
+      { input: "what QRs have I generated?", output: "[[LIST_QR_HISTORY|5]]" },
+    ],
+    requiresWallet: false,
+    mutatesState: false,
+  },
   {
     id: "price_alerts",
     name: "Price Alerts",

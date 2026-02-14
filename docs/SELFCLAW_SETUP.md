@@ -462,6 +462,8 @@ The decoded signature must be exactly **64 bytes** (standard Ed25519).
 
 Full SelfClaw docs: [https://selfclaw.ai/docs](https://selfclaw.ai/docs)
 
+**Self Protocol docs** (underlying verification): [https://docs.self.xyz](https://docs.self.xyz) — see [SELF_DOCS_ALIGNMENT.md](./SELF_DOCS_ALIGNMENT.md) for our alignment.
+
 ---
 
 ## External References

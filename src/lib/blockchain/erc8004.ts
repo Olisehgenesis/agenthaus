@@ -211,8 +211,8 @@ export function generateRegistrationJSON(params: GenerateRegistrationJSONParams)
         agentId: erc8004AgentId ? parseInt(erc8004AgentId, 10) : null,
       },
     ],
-    supportedTrust: ["reputation", "crypto-economic", "tee-attestation"],
-    active: true,
+    supportedTrust: ["reputation"],
+    active: status === "active",
     x402Support: !!agentWalletAddress,
     updatedAt: Math.floor(Date.now() / 1000),
   };

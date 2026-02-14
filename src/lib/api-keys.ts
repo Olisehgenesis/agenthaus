@@ -101,13 +101,21 @@ const FALLBACK_PROVIDER_ORDER: LLMProvider[] = [
   "openrouter", "groq", "zai", "openai", "gemini", "deepseek", "grok",
 ];
 
+/** Beta chat prefers Groq (fast, no Clerk auth issues) */
+export const BETA_CHAT_PROVIDER_ORDER: LLMProvider[] = [
+  "groq", "openrouter", "zai", "openai", "gemini", "deepseek", "grok",
+];
+
 /**
  * Get the first available provider + API key for a user.
  * Used as fallback when the agent's selected provider has no key configured.
+ * @param preferredProviders - Optional custom order (e.g. BETA_CHAT_PROVIDER_ORDER for Groq-first)
  */
 export async function getFirstAvailableProviderAndKey(
-  ownerId: string
+  ownerId: string,
+  preferredProviders?: LLMProvider[]
 ): Promise<{ provider: LLMProvider; apiKey: string } | null> {
+  const order = preferredProviders ?? FALLBACK_PROVIDER_ORDER;
   const status = await getUserKeyStatus(ownerId);
   const hasKey: Record<LLMProvider, boolean> = {
     openrouter: !!status.hasOpenrouterKey,
@@ -119,7 +127,7 @@ export async function getFirstAvailableProviderAndKey(
     zai: !!status.hasZaiKey,
   };
 
-  for (const provider of FALLBACK_PROVIDER_ORDER) {
+  for (const provider of order) {
     if (hasKey[provider]) {
       try {
         const apiKey = await getUserApiKey(ownerId, provider);

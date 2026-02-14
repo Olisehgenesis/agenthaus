@@ -1160,6 +1160,137 @@ export async function executeSelfClawLogCost(
   }
 }
 
+// ─── QR Code handlers ────────────────────────────────────────────────────────
+
+export async function executeGenerateQR(
+  params: string[],
+  ctx: SkillContext
+): Promise<SkillResult> {
+  const content = params[0]?.trim();
+  if (!content) {
+    return {
+      success: false,
+      error: "Missing content",
+      display: "Usage: [[GENERATE_QR|content]] — e.g. [[GENERATE_QR|https://example.com]]",
+    };
+  }
+
+  const { generateQRDataUrl } = await import("@/lib/qr/generate");
+  const { prisma } = await import("@/lib/db");
+
+  try {
+    const dataUrl = await generateQRDataUrl(content);
+
+    if (ctx.agentId) {
+      await prisma.activityLog.create({
+        data: {
+          agentId: ctx.agentId,
+          type: "info",
+          message: "QR code generated",
+          metadata: JSON.stringify({
+            contentPreview: content.slice(0, 80) + (content.length > 80 ? "…" : ""),
+            contentLength: content.length,
+            generatedAt: new Date().toISOString(),
+          }),
+        },
+      });
+    }
+
+    const display = [
+      "📱 **QR Code Generated**",
+      "",
+      `Content encoded: ${content.length > 60 ? content.slice(0, 60) + "…" : content}`,
+      "",
+      "Scan the QR code below:",
+      "",
+      `![QR Code](${dataUrl})`,
+      "",
+      "_QR generation logged to activity._",
+    ].join("\n");
+
+    return {
+      success: true,
+      data: { contentLength: content.length } as unknown as Record<string, unknown>,
+      display,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: String(error),
+      display: `❌ QR generation failed: ${error}`,
+    };
+  }
+}
+
+export async function executeListQRHistory(
+  params: string[],
+  ctx: SkillContext
+): Promise<SkillResult> {
+  const limit = Math.min(parseInt(params[0] || "10", 10) || 10, 50);
+
+  if (!ctx.agentId) {
+    return {
+      success: false,
+      error: "No agent context",
+      display: "Cannot list QR history without agent context.",
+    };
+  }
+
+  const { prisma } = await import("@/lib/db");
+
+  try {
+    const logs = await prisma.activityLog.findMany({
+      where: {
+        agentId: ctx.agentId,
+        type: "info",
+        message: "QR code generated",
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
+
+    if (logs.length === 0) {
+      return {
+        success: true,
+        data: { count: 0 },
+        display: "📋 **QR History**\n\nNo QR codes generated yet. Use [[GENERATE_QR|content]] to create one.",
+      };
+    }
+
+    const lines = logs.map((log, i) => {
+      let preview = "(unknown)";
+      try {
+        const meta = log.metadata ? (JSON.parse(log.metadata) as { contentPreview?: string }) : {};
+        preview = meta.contentPreview || preview;
+      } catch {
+        // ignore invalid metadata
+      }
+      const at = log.createdAt ? new Date(log.createdAt).toLocaleString() : "—";
+      return `${i + 1}. ${preview} — ${at}`;
+    });
+
+    const display = [
+      "📋 **QR Code History**",
+      "",
+      ...lines,
+      "",
+      `_${logs.length} recent QR generation(s)._`,
+    ].join("\n");
+
+    return {
+      success: true,
+      data: { count: logs.length } as unknown as Record<string, unknown>,
+      display,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: String(error),
+      display: `❌ Failed to list QR history: ${error}`,
+    };
+  }
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 export function formatPeriodLabel(minutes: number): string {

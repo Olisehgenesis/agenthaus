@@ -145,3 +145,14 @@ body {
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
+
+/* Typing dots for "AI is thinking" */
+@keyframes typing-dots {
+  0%, 33% { opacity: 0.3; }
+  34%, 66% { opacity: 0.6; }
+  67%, 100% { opacity: 1; }
+}
+
+.typing-dots {
+  animation: typing-dots 1.2s ease-in-out infinite;
+}

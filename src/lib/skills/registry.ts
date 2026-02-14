@@ -52,6 +52,8 @@ import {
   executeSelfClawDeployToken,
   executeSelfClawLogRevenue,
   executeSelfClawLogCost,
+  executeGenerateQR,
+  executeListQRHistory,
 } from "./handlers";
 
 // ─── Handler Registry ─────────────────────────────────────────────────────────
@@ -95,6 +97,8 @@ for (const def of SKILL_DEFINITIONS) {
     case "selfclaw_deploy_token": registerHandler(def, executeSelfClawDeployToken); break;
     case "selfclaw_log_revenue": registerHandler(def, executeSelfClawLogRevenue); break;
     case "selfclaw_log_cost": registerHandler(def, executeSelfClawLogCost); break;
+    case "generate_qr": registerHandler(def, executeGenerateQR); break;
+    case "list_qr_history": registerHandler(def, executeListQRHistory); break;
     // send_celo and send_token are handled by executor.ts directly
   }
 }
@@ -143,12 +147,14 @@ export function getSkillsForTemplate(templateId: string): SkillDefinition[] {
     "get_proposal_details",
   ];
 
+  const QR_SKILLS = ["generate_qr", "list_qr_history"];
+
   const TEMPLATE_SKILLS: Record<string, string[]> = {
-    payment: ["send_celo", "send_token", "check_balance", "query_rate", "gas_price", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS],
-    trading: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status", "price_track", "price_trend", "price_predict", "price_alerts", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS],
-    forex: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status", "price_track", "price_trend", "price_predict", "price_alerts", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS],
-    social: ["send_celo", "send_token", "check_balance", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS],
-    custom: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "gas_price", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS],
+    payment: ["send_celo", "send_token", "check_balance", "query_rate", "gas_price", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS, ...QR_SKILLS],
+    trading: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status", "price_track", "price_trend", "price_predict", "price_alerts", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS, ...QR_SKILLS],
+    forex: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status", "price_track", "price_trend", "price_predict", "price_alerts", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS, ...QR_SKILLS],
+    social: ["send_celo", "send_token", "check_balance", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS, ...QR_SKILLS],
+    custom: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "gas_price", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS, ...QR_SKILLS],
   };
 
   const skillIds = TEMPLATE_SKILLS[templateId] || TEMPLATE_SKILLS.custom;

@@ -6,6 +6,7 @@
 import { prisma } from "@/lib/db";
 import {
   checkAgentStatus,
+  confirmErc8004,
   createWallet as createWalletSelfClaw,
   deployToken as getDeployTx,
   registerTokenWithRetry,
@@ -147,6 +148,7 @@ export interface RequestSponsorshipResult {
   tokenAddress?: string;
   sponsorWallet?: string;
   amountNeeded?: string;
+  agentBalanceWei?: string;
 }
 
 /**
@@ -168,7 +170,13 @@ export async function requestSponsorshipForAgent(
     }),
     prisma.agent.findUnique({
       where: { id: agentId },
-      select: { agentWalletAddress: true, walletDerivationIndex: true, agentDeployedTokens: true },
+      select: {
+        agentWalletAddress: true,
+        walletDerivationIndex: true,
+        agentDeployedTokens: true,
+        erc8004AgentId: true,
+        name: true,
+      },
     }),
   ]);
 
@@ -183,6 +191,15 @@ export async function requestSponsorshipForAgent(
     return {
       success: false,
       error: "Agent has no wallet. Initialize wallet and register with SelfClaw first.",
+    };
+  }
+
+  if (!agent.erc8004AgentId) {
+    return {
+      success: false,
+      error:
+        "ERC-8004 onchain identity is required before requesting sponsorship. " +
+        "Register on-chain first using the button below (or the Register On-Chain quick action), then retry sponsorship.",
     };
   }
 
@@ -225,27 +242,29 @@ export async function requestSponsorshipForAgent(
     };
   }
 
-  // If explicit amount provided, cap at balance
+  // SelfClaw requires 10% slippage buffer: we must SEND poolAmount * 1.1 to sponsor.
+  // Cap pool amount to balance/1.1 so we can send our full balance and meet the buffer.
+  const balanceBig = BigInt(balanceWei);
+  const maxPoolWei = (balanceBig * 10n) / 11n; // floor(balance / 1.1)
+
   let amountWei: string;
   if (tokenAmountOverride?.trim()) {
-    const requested = tokenAmountOverride.trim();
     try {
-      const requestedBig = BigInt(requested);
-      const balanceBig = BigInt(balanceWei);
-      amountWei = String(requestedBig <= balanceBig ? requestedBig : balanceBig);
+      const requestedBig = BigInt(tokenAmountOverride.trim());
+      amountWei = String(requestedBig <= maxPoolWei ? requestedBig : maxPoolWei);
     } catch {
-      amountWei = balanceWei;
+      amountWei = String(maxPoolWei);
     }
   } else if (storedSupply) {
     try {
       const supplyWei = parseUnits(sanitizeSupply(storedSupply), 18);
-      const balanceBig = BigInt(balanceWei);
-      amountWei = String(supplyWei <= balanceBig ? supplyWei : balanceBig);
+      const supplyBig = BigInt(supplyWei);
+      amountWei = String(supplyBig <= maxPoolWei ? supplyBig : maxPoolWei);
     } catch {
-      amountWei = balanceWei;
+      amountWei = String(maxPoolWei);
     }
   } else {
-    amountWei = balanceWei;
+    amountWei = String(maxPoolWei);
   }
 
   try {
@@ -289,6 +308,7 @@ export async function requestSponsorshipForAgent(
       tokenAddress,
       sponsorWallet: sponsorWallet ?? undefined,
       amountNeeded,
+      agentBalanceWei: balanceWei,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed to request sponsorship";
@@ -298,6 +318,48 @@ export async function requestSponsorshipForAgent(
       error: msg,
       sponsorWallet: match ? match[0] : undefined,
       amountNeeded: undefined,
+    };
+  }
+}
+
+/**
+ * Sync ERC-8004 registration to SelfClaw after on-chain registration.
+ * Calls POST /confirm-erc8004 so SelfClaw updates verifiedBots.metadata.erc8004TokenId.
+ * Required for sponsorship to work. Non-blocking — call .catch() to log failures.
+ */
+export async function syncErc8004ToSelfClaw(
+  agentId: string,
+  txHash: string
+): Promise<{ success: boolean; error?: string }> {
+  const agent = await prisma.agent.findUnique({
+    where: { id: agentId },
+    select: {
+      verification: {
+        select: { publicKey: true, encryptedPrivateKey: true, selfxyzVerified: true },
+      },
+    },
+  });
+
+  if (
+    !agent?.verification?.encryptedPrivateKey ||
+    !agent.verification.selfxyzVerified
+  ) {
+    return { success: false, error: "Agent not SelfClaw verified — sync skipped" };
+  }
+
+  try {
+    const privateKeyHex = decryptPrivateKey(agent.verification.encryptedPrivateKey);
+    const signed = await signAuthenticatedPayload(agent.verification.publicKey, privateKeyHex);
+    const result = await confirmErc8004(signed, txHash);
+
+    if (result.success) {
+      return { success: true };
+    }
+    return { success: false, error: result.error };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "SelfClaw confirm failed",
     };
   }
 }
@@ -341,7 +403,7 @@ export async function deployTokenForAgent(
   agentId: string,
   name: string,
   symbol: string,
-  initialSupply: string = "1000000"
+  initialSupply: string = "1100000" // 1.1M default for SelfClaw 10% slippage buffer
 ): Promise<{ success: boolean; tokenAddress?: string; txHash?: string; error?: string }> {
   const agent = await prisma.agent.findUnique({
     where: { id: agentId },
@@ -407,8 +469,9 @@ export async function deployTokenForAgent(
       return { success: false, error: "Deploy succeeded but no contract address in receipt." };
     }
 
-    const signed2 = await signAuthenticatedPayload(agent.verification.publicKey, privateKeyHex);
-    await registerTokenWithRetry(signed2, tokenAddress, hash);
+    const getSignedPayload = () =>
+      signAuthenticatedPayload(agent.verification.publicKey, privateKeyHex);
+    await registerTokenWithRetry(getSignedPayload, tokenAddress, hash);
 
     // Persist so sponsorship works before SelfClaw indexes; supports multiple tokens
     const tokenEntry = { address: tokenAddress, name, symbol, supply, deployedAt: new Date().toISOString() };

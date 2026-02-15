@@ -8,8 +8,10 @@ import { type Address, isAddress } from "viem";
 /**
  * POST /api/agents/:id/execute — Execute a transaction from the agent's wallet
  *
+ * Only the agent owner can call this. Requires walletAddress in body (must match owner).
+ *
  * Body:
- *   { to: "0x...", amount: "1.5", currency: "CELO" | "cUSD" | "cEUR" | "cREAL" }
+ *   { to: "0x...", amount: "1.5", currency: "CELO" | "cUSD" | "cEUR" | "cREAL", walletAddress: "0x..." }
  */
 export async function POST(
   request: Request,
@@ -18,7 +20,31 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { to, amount, currency = "CELO" } = body;
+    const { to, amount, currency = "CELO", walletAddress } = body;
+
+    // Only agent owner can execute from agent wallet
+    const agent = await prisma.agent.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        walletDerivationIndex: true,
+        agentWalletAddress: true,
+        spendingLimit: true,
+        spendingUsed: true,
+        erc8004ChainId: true,
+        owner: { select: { walletAddress: true } },
+      },
+    });
+    if (!agent) {
+      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    }
+    const ownerWallet = agent.owner.walletAddress?.toLowerCase();
+    if (!walletAddress || ownerWallet !== String(walletAddress).toLowerCase()) {
+      return NextResponse.json(
+        { error: "Only the agent owner can execute transactions from the agent's wallet" },
+        { status: 403 }
+      );
+    }
 
     // Validate inputs
     if (!to || !amount) {
@@ -41,23 +67,6 @@ export async function POST(
         { error: `Invalid amount: ${amount}` },
         { status: 400 }
       );
-    }
-
-    // Load agent
-    const agent = await prisma.agent.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        walletDerivationIndex: true,
-        agentWalletAddress: true,
-        spendingLimit: true,
-        spendingUsed: true,
-        erc8004ChainId: true,
-      },
-    });
-
-    if (!agent) {
-      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
     }
 
     if (agent.walletDerivationIndex === null || !agent.agentWalletAddress) {

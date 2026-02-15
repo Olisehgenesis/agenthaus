@@ -226,7 +226,7 @@ export function ConfigureStep({
                   size="sm"
                   className="text-xs h-7 text-forest-muted hover:text-forest"
                   onClick={() => {
-                    const defProvider = "openrouter" as LLMProvider;
+                    const defProvider = "groq" as LLMProvider;
                     setLlmProvider(defProvider);
                     setLlmModel(LLM_MODELS[defProvider][0].id);
                     setApiKey("");

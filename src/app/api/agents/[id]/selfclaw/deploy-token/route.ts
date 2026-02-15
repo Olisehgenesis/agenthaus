@@ -110,11 +110,9 @@ export async function POST(
       );
     }
 
-    const signed2 = await signAuthenticatedPayload(
-      agent.verification.publicKey,
-      privateKeyHex
-    );
-    await registerTokenWithRetry(signed2, tokenAddress, hash);
+    const getSignedPayload = () =>
+      signAuthenticatedPayload(agent.verification.publicKey, privateKeyHex);
+    await registerTokenWithRetry(getSignedPayload, tokenAddress, hash);
 
     return NextResponse.json({
       success: true,

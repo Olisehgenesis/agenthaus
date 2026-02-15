@@ -20,11 +20,13 @@ import {
   Coins,
   Wallet,
   LogOut,
+  User,
 } from "lucide-react";
 import { WalletModal } from "./WalletModal";
 
 const primaryNavItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Profile", href: "/dashboard/profile", icon: User },
   { name: "My Agents", href: "/dashboard/agents", icon: Bot },
   { name: "Verify", href: "/dashboard/verify", icon: ShieldCheck },
   { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },

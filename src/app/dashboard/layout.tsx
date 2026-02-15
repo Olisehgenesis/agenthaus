@@ -3,6 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import { useAccount } from "wagmi";
+import { usePathname } from "next/navigation";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
@@ -14,6 +15,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { isConnected } = useAccount();
+  const pathname = usePathname();
+  const isAgentDetail = /^\/dashboard\/agents\/[^/]+$/.test(pathname ?? "");
 
   if (!isConnected) {
     return (
@@ -40,6 +43,14 @@ export default function DashboardLayout({
             <span>Supports WalletConnect & MiniPay</span>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (isAgentDetail) {
+    return (
+      <div className="min-h-screen flex flex-col overflow-hidden bg-gypsum">
+        <main className="flex-1 overflow-auto">{children}</main>
       </div>
     );
   }

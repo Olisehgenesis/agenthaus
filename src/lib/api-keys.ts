@@ -96,9 +96,9 @@ export async function getUserApiKey(
   );
 }
 
-/** Fallback order when selected provider has no key — prefers free/fast providers */
+/** Fallback order when selected provider has no key — Groq first (fast, no Clerk auth issues) */
 const FALLBACK_PROVIDER_ORDER: LLMProvider[] = [
-  "openrouter", "groq", "zai", "openai", "gemini", "deepseek", "grok",
+  "groq", "openrouter", "zai", "openai", "gemini", "deepseek", "grok",
 ];
 
 /** Beta chat prefers Groq (fast, no Clerk auth issues) */

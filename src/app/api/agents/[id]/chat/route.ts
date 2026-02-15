@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { processMessage, processChannelMessage } from "@/lib/openclaw/manager";
-import { getOrCreateWebChatBinding, getWebChatBindingId, loadSessionHistory } from "@/lib/openclaw/router";
+import { getOrCreateWebChatBinding, getWebChatBindingId, loadSessionHistory, clearSessionHistory } from "@/lib/openclaw/router";
 
 // GET /api/agents/:id/chat?walletAddress=0x... - Load persisted chat history
 export async function GET(
@@ -64,10 +64,10 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { message, conversationHistory = [], walletAddress } = body;
+    const { message, conversationHistory = [], walletAddress, welcome } = body;
 
-    if (!message) {
-      return NextResponse.json({ error: "Message is required" }, { status: 400 });
+    if (!message && !welcome) {
+      return NextResponse.json({ error: "Message or welcome is required" }, { status: 400 });
     }
 
     // Verify agent exists and is active
@@ -89,29 +89,32 @@ export async function POST(
 
     let response: string;
 
-    if (walletAddress) {
+    const isAdmin =
+      !!walletAddress &&
+      agent.owner.walletAddress?.toLowerCase() === String(walletAddress).toLowerCase();
+
+    if (welcome) {
+      const introPrompt =
+        "Introduce yourself to the user in one short, cool paragraph. Say who you are (use your name), what you can help with. Be friendly, welcoming, and a bit charismatic. Keep it concise—no bullet points or markdown.";
+      response = await processMessage(id, introPrompt, [], { canUseAgentWallet: false });
+    } else if (walletAddress && isAdmin) {
       // Persist session: verify wallet is owner, get/create web binding, use processChannelMessage
-      const ownerWallet = agent.owner.walletAddress?.toLowerCase();
-      const providedWallet = String(walletAddress).toLowerCase();
-      if (ownerWallet !== providedWallet) {
-        return NextResponse.json(
-          { error: "Wallet address does not match agent owner" },
-          { status: 403 }
-        );
-      }
-      const bindingId = await getOrCreateWebChatBinding(id, providedWallet);
+      const bindingId = await getOrCreateWebChatBinding(id, String(walletAddress).toLowerCase());
       response = await processChannelMessage(id, bindingId, message);
     } else {
-      // No wallet: ephemeral chat (no persistence)
-      response = await processMessage(id, message, conversationHistory);
+      // External user (no wallet or not owner): ephemeral chat, no agent wallet execution
+      response = await processMessage(id, message, conversationHistory, {
+        canUseAgentWallet: false,
+      });
     }
 
-    // Log the interaction
-    await prisma.activityLog.create({
-      data: {
-        agentId: id,
-        type: "action",
-        message: `Chat: "${message.slice(0, 80)}${message.length > 80 ? "..." : ""}"`,
+    // Log the interaction (skip for welcome)
+    if (!welcome) {
+      await prisma.activityLog.create({
+        data: {
+          agentId: id,
+          type: "action",
+          message: `Chat: "${(message as string).slice(0, 80)}${(message as string).length > 80 ? "..." : ""}"`,
         metadata: JSON.stringify({
           userMessage: message,
           responsePreview: response.slice(0, 200),
@@ -120,6 +123,7 @@ export async function POST(
         }),
       },
     });
+    }
 
     return NextResponse.json({
       response,
@@ -139,6 +143,52 @@ export async function POST(
         action: isMissingKey ? "Go to Settings to add your API key" : undefined,
       },
       { status: isMissingKey ? 422 : 500 }
+    );
+  }
+}
+
+// DELETE /api/agents/:id/chat - Clear chat history (owner only)
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const walletAddress = searchParams.get("walletAddress");
+
+    if (!walletAddress) {
+      return NextResponse.json(
+        { error: "walletAddress query param is required" },
+        { status: 400 }
+      );
+    }
+
+    const agent = await prisma.agent.findUnique({
+      where: { id },
+      include: { owner: true },
+    });
+
+    if (!agent) {
+      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    }
+
+    const ownerWallet = agent.owner.walletAddress?.toLowerCase();
+    const providedWallet = walletAddress.toLowerCase();
+    if (ownerWallet !== providedWallet) {
+      return NextResponse.json(
+        { error: "Wallet address does not match agent owner" },
+        { status: 403 }
+      );
+    }
+
+    const cleared = await clearSessionHistory(id, providedWallet);
+    return NextResponse.json({ success: true, cleared });
+  } catch (error) {
+    console.error("Clear chat error:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to clear chat" },
+      { status: 500 }
     );
   }
 }

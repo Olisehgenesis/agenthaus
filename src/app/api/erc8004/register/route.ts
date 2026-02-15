@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { generateRegistrationJSON } from "@/lib/blockchain/erc8004";
 import { uploadJsonToIPFS, isPinataConfigured } from "@/lib/ipfs";
 import { ERC8004_CONTRACTS, DEPLOYMENT_URL, getTemplateDescription } from "@/lib/constants";
+import { syncErc8004ToSelfClaw } from "@/lib/selfclaw/agentActions";
 
 /**
  * GET /api/erc8004/register?agentId=...&chainId=...
@@ -144,6 +145,11 @@ export async function POST(request: Request) {
         description: `ERC-8004 registration (agentId #${erc8004AgentId})`,
       },
     });
+
+    // Sync to SelfClaw so sponsorship works (updates verifiedBots.metadata.erc8004TokenId)
+    syncErc8004ToSelfClaw(agentId, erc8004TxHash).catch((err) =>
+      console.warn("[erc8004] SelfClaw sync failed (non-blocking):", err)
+    );
 
     return NextResponse.json({
       success: true,

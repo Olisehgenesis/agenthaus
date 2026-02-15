@@ -67,8 +67,8 @@ export default function NewAgentPage() {
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [systemPrompt, setSystemPrompt] = React.useState("");
-  const [llmProvider, setLlmProvider] = React.useState<LLMProvider>("openrouter");
-  const [llmModel, setLlmModel] = React.useState("meta-llama/llama-3.3-70b-instruct:free");
+  const [llmProvider, setLlmProvider] = React.useState<LLMProvider>("groq");
+  const [llmModel, setLlmModel] = React.useState("llama-3.3-70b-versatile");
   const [spendingLimit, setSpendingLimit] = React.useState(100);
   const [config, setConfig] = React.useState<AgentConfig>({});
   const [imageFile, setImageFile] = React.useState<File | null>(null);

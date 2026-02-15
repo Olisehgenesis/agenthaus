@@ -35,11 +35,18 @@ const OPENROUTER_FALLBACK_MODELS = [
  * For OpenRouter, if a free model is rate-limited (429), automatically
  * retries with alternative free models.
  */
+export interface ProcessMessageOptions {
+  /** When false, agent wallet is NOT used: no tx execution, no agent-wallet skills. For external/public users. */
+  canUseAgentWallet?: boolean;
+}
+
 export async function processMessage(
   agentId: string,
   userMessage: string,
-  conversationHistory: { role: "user" | "assistant"; content: string }[] = []
+  conversationHistory: { role: "user" | "assistant"; content: string }[] = [],
+  options: ProcessMessageOptions = {}
 ): Promise<string> {
+  const { canUseAgentWallet = true } = options;
   // Load agent config from DB
   const agent = await prisma.agent.findUnique({
     where: { id: agentId },
@@ -62,8 +69,9 @@ export async function processMessage(
   const llmModel = agent.llmModel;
 
   // ─── Inject transaction execution instructions ──────────────────────
-  // This is appended at runtime so even agents with old prompts can execute real txs.
-  if (agent.agentWalletAddress) {
+  // Only when caller is admin (canUseAgentWallet): agent can execute from its wallet.
+  // External users: AI prepares tx details, user signs with own wallet.
+  if (agent.agentWalletAddress && canUseAgentWallet) {
     systemPrompt += `
 
 [TRANSACTION EXECUTION — CRITICAL INSTRUCTIONS]
@@ -102,16 +110,25 @@ Example — user says "send 2 CELO to 0xABC...123":
 Example — user says "send 5 cUSD to 0xDEF...456":
   Your response: "Sending 5 cUSD now. [[SEND_TOKEN|cUSD|0xDEF...456|5]]"
 `;
+  } else if (agent.agentWalletAddress && !canUseAgentWallet) {
+    systemPrompt += `
+
+[TRANSACTION CONTEXT — EXTERNAL USER]
+The connected user is NOT the agent owner. You CANNOT execute transactions from the agent's wallet.
+- Do NOT use [[SEND_CELO]], [[SEND_TOKEN]], or [[SEND_AGENT_TOKEN]] — they will not execute.
+- Instead: prepare transaction details (recipient, amount, currency) and tell the user they can sign with their own wallet, or the agent owner must connect to execute.
+- You can still provide quotes, check public data, and advise.`;
   } else {
     systemPrompt += `\n\n[WALLET CONTEXT] This agent does not have a wallet initialized yet. You CANNOT execute any transactions. Tell the user to click "Initialize Wallet" on the agent dashboard first.`;
   }
 
   // ─── Inject skill instructions ─────────────────────────────────────
-  // Each template has a set of skills (oracle reads, Mento quotes, balance checks, etc.)
+  // When not admin: don't expose agent wallet to skills (no balance, no swaps from agent wallet)
   const { generateSkillPrompt, getSkillsForTemplate } = await import("@/lib/skills/registry");
+  const effectiveAgentWallet = canUseAgentWallet ? agent.agentWalletAddress : null;
   const skillPrompt = generateSkillPrompt(
     agent.templateType || "custom",
-    agent.agentWalletAddress
+    effectiveAgentWallet
   );
   if (skillPrompt) {
     systemPrompt += skillPrompt;
@@ -131,21 +148,25 @@ AUTH REQUIRED (Ed25519 signed payload): create-wallet, deploy-token, register-to
 Skills (no dashboard needed):
 [[AGENT_TOKENS]] — token info, revenue, pools, deployed tokens
 [[SELFCLAW_REGISTER_WALLET]] — register EVM wallet
-[[SELFCLAW_DEPLOY_TOKEN|name|symbol|1000000]] — deploy token (can deploy many)
+[[SELFCLAW_DEPLOY_TOKEN|name|symbol|1100000]] — deploy token (1.1M default for 10% SelfClaw buffer; can deploy many)
 [[SELFCLAW_LOG_REVENUE|amount|source|desc]]
 [[SELFCLAW_LOG_COST|amount|category|desc]]
 [[REQUEST_SELFCLAW_SPONSORSHIP]] or [[REQUEST_SELFCLAW_SPONSORSHIP|tokenAddress]] — use tokenAddress from recent deploy if you just deployed. Sponsor most recent token by default.
 
 [[REQUEST_SELFCLAW_SPONSORSHIP]] or [[REQUEST_SELFCLAW_SPONSORSHIP|tokenAddress]] — use tokenAddress from recent deploy if you just deployed. Sponsor most recent token by default. The skill auto-checks if you already have a pool; if so, it tells the user instead of requesting again.
 
+**IMPORTANT:** SelfClaw sponsorship requires ERC-8004 onchain identity. If sponsorship fails with "ERC-8004" or "identity required", the skill output will say to include __REGISTER_ERC8004_INLINE__ — you MUST include that exact string in your response so the user sees a Register On-Chain button right in chat. Everything happens in chat; no dashboard needed.
+
 **SPONSORSHIP RECOVERY FLOW:** When sponsorship fails with "sponsor wallet" or "does not hold enough", the skill output will include:
 - sponsorWallet address and amountNeeded
 - Exact [[SEND_AGENT_TOKEN|tokenAddress|sponsorWallet|amount]] tag to fix it
 1. Ask the user: "Should I send the tokens to the sponsor wallet and retry sponsorship?"
-2. If yes: include [[SEND_AGENT_TOKEN|...]] in your response (use the exact tag from the error), then in a follow-up or next message include [[REQUEST_SELFCLAW_SPONSORSHIP]] to finalise.
+2. If yes: copy the [[SEND_AGENT_TOKEN|...]] tag EXACTLY from the skill output — do NOT truncate addresses (must be full 0x + 40 hex chars), do NOT modify the amount.
 3. **If the user says they already sent the tokens:** Just retry with [[REQUEST_SELFCLAW_SPONSORSHIP]] — the system automatically checks if the sponsor wallet has the tokens and retries when sufficient.
 
-Track deployed tokens: after deploying, remember the token address. Use it when requesting sponsorship or when asked. Use tags when relevant.`;
+Track deployed tokens: after deploying, remember the token address. Use it when requesting sponsorship or when asked. Use tags when relevant.
+
+**DEPLOY FOR SPONSORSHIP:** Use supply 1100000 or more (e.g. [[SELFCLAW_DEPLOY_TOKEN|Firebird|FIREBIRD|1100000]]) — SelfClaw requires a 10% buffer. With 1M supply the agent cannot complete sponsorship.`;
   }
 
   // Fetch the owner's API key — fallback to another provider if selected one has no key
@@ -190,54 +211,69 @@ Track deployed tokens: after deploying, remember the token address. Use it when 
     { role: "user" as const, content: userMessage },
   ];
 
-  // For OpenRouter free models: retry with fallback models on 429
-  let response;
+  // For OpenRouter free models: retry with fallback models on 429/400/502
+  let response: Awaited<ReturnType<typeof chat>>;
   let usedModel = effectiveModel;
 
-  if (effectiveProvider === "openrouter" && effectiveModel.endsWith(":free")) {
-    // Build fallback list: requested model first, then others
-    const fallbacks = [
-      effectiveModel,
-      ...OPENROUTER_FALLBACK_MODELS.filter((m) => m !== effectiveModel),
-    ];
+  const attemptChat = async (provider: typeof effectiveProvider, model: string, key: string) =>
+    chat(messages, provider, model, key);
 
-    let lastError: Error | null = null;
+  try {
+    if (effectiveProvider === "openrouter" && effectiveModel.endsWith(":free")) {
+      // Build fallback list: requested model first, then others
+      const fallbacks = [
+        effectiveModel,
+        ...OPENROUTER_FALLBACK_MODELS.filter((m) => m !== effectiveModel),
+      ];
 
-    for (const fallbackModel of fallbacks) {
-      try {
-        response = await chat(
-          messages,
-          effectiveProvider,
-          fallbackModel,
-          apiKey
-        );
-        usedModel = fallbackModel;
-        break; // Success — stop retrying
-      } catch (err) {
-        lastError = err instanceof Error ? err : new Error(String(err));
-        const msg = lastError.message;
-        // Retry on 429 (rate limit) and 400 (provider errors like unsupported features)
-        // Only fail immediately on auth errors (401/403) or unknown errors
-        const isRetryable = msg.includes("429") || msg.includes("400");
-        if (!isRetryable) {
-          throw lastError;
+      let lastError: Error | null = null;
+
+      for (const fallbackModel of fallbacks) {
+        try {
+          response = await attemptChat(effectiveProvider, fallbackModel, apiKey);
+          usedModel = fallbackModel;
+          break;
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+          const msg = lastError.message;
+          // Retry on 429, 400, 502 (Clerk auth, rate limit, provider errors)
+          const isRetryable = msg.includes("429") || msg.includes("400") || msg.includes("502");
+          if (!isRetryable) {
+            throw lastError;
+          }
+          console.warn(`OpenRouter error on ${fallbackModel}, trying next model...`);
         }
-        const code = msg.includes("429") ? "429 rate-limited" : "400 provider error";
-        console.warn(`OpenRouter ${code} on ${fallbackModel}, trying next model...`);
       }
-    }
 
-    if (!response) {
-      throw lastError || new Error("All OpenRouter free models are rate-limited. Please try again shortly.");
+      if (!response) {
+        throw lastError || new Error("All OpenRouter models failed. Please try again shortly.");
+      }
+    } else {
+      // Non-OpenRouter or paid model — single attempt
+      response = await attemptChat(effectiveProvider, effectiveModel, apiKey);
     }
-  } else {
-    // Non-OpenRouter or paid model — single attempt
-    response = await chat(
-      messages,
-      effectiveProvider,
-      effectiveModel,
-      apiKey
-    );
+  } catch (firstErr) {
+    // When OpenRouter fails (502 Clerk auth, etc.), try Groq as fallback
+    const msg = firstErr instanceof Error ? firstErr.message : String(firstErr);
+    const isOpenRouterFailure = msg.includes("502") || msg.includes("Clerk") || msg.includes("OpenRouter");
+    if (isOpenRouterFailure) {
+      const fallback = await getFirstAvailableProviderAndKey(agent.ownerId);
+      if (fallback && fallback.provider !== "openrouter") {
+        const fallbackModel = getDefaultModel(fallback.provider);
+        console.warn(`[OpenClaw] OpenRouter failed, falling back to ${fallback.provider}/${fallbackModel}`);
+        try {
+          response = await attemptChat(fallback.provider, fallbackModel, fallback.apiKey);
+          effectiveProvider = fallback.provider;
+          usedModel = fallbackModel;
+        } catch {
+          throw firstErr;
+        }
+      } else {
+        throw firstErr;
+      }
+    } else {
+      throw firstErr;
+    }
   }
 
   // Log the interaction
@@ -256,12 +292,12 @@ Track deployed tokens: after deploying, remember the token address. Use it when 
   });
 
   // ─── Skill Execution ─────────────────────────────────────────────────
-  // Execute any skill commands (oracle reads, Mento quotes, balance checks, etc.)
+  // When not admin: no agent wallet access (skills that need it will fail gracefully)
   const { executeSkillCommands } = await import("@/lib/skills/registry");
   const skillResult = await executeSkillCommands(response.content, {
     agentId,
-    walletDerivationIndex: agent.walletDerivationIndex,
-    agentWalletAddress: agent.agentWalletAddress,
+    walletDerivationIndex: canUseAgentWallet ? agent.walletDerivationIndex : null,
+    agentWalletAddress: effectiveAgentWallet,
   });
 
   if (skillResult.executedCount > 0) {
@@ -275,12 +311,13 @@ Track deployed tokens: after deploying, remember the token address. Use it when 
   }
 
   // ─── Transaction Execution ───────────────────────────────────────────
-  // Check if the LLM response contains transaction commands and execute them
+  // Only execute when admin; otherwise replace tags with user-facing message
   const { executeTransactionsInResponse } = await import("@/lib/blockchain/executor");
   const txResult = await executeTransactionsInResponse(
-    skillResult.text, // use skill-processed text
+    skillResult.text,
     agentId,
-    agent.walletDerivationIndex
+    canUseAgentWallet ? agent.walletDerivationIndex : null,
+    canUseAgentWallet ? undefined : "Transaction execution requires the agent owner to be connected. Only the agent owner can sign transactions from this agent's wallet. You can prepare the transaction and sign it with your own wallet instead."
   );
 
   if (txResult.executedCount > 0) {
@@ -324,8 +361,10 @@ export async function processChannelMessage(
     history = await loadSessionHistory(bindingId, 20);
   }
 
-  // Run the main pipeline
-  const response = await processMessage(agentId, userMessage, history);
+  // Run the main pipeline — processChannelMessage is only used for owner sessions
+  const response = await processMessage(agentId, userMessage, history, {
+    canUseAgentWallet: true,
+  });
 
   // Persist the exchange
   if (bindingId) {

@@ -111,7 +111,12 @@ export function useAgentDetail(agentId: string | undefined) {
       const res = await fetch(`/api/agents/${agent.id}/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: sendTo, amount: sendAmount, currency: sendCurrency }),
+        body: JSON.stringify({
+          to: sendTo,
+          amount: sendAmount,
+          currency: sendCurrency,
+          walletAddress: userAddress,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -128,7 +133,7 @@ export function useAgentDetail(agentId: string | undefined) {
     } finally {
       setSendLoading(false);
     }
-  }, [agent, sendTo, sendAmount, sendCurrency, fetchBalance, refreshAgent]);
+  }, [agent, sendTo, sendAmount, sendCurrency, userAddress, fetchBalance, refreshAgent]);
 
   /* ── Toggle agent status ─────────────────────────────────────────── */
   const handleToggleStatus = React.useCallback(async () => {
@@ -190,18 +195,50 @@ export function useAgentDetail(agentId: string | undefined) {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  const handleSendMessage = React.useCallback(async () => {
-    if (!chatInput.trim() || isSending || !agent) return;
-    const userMessage = chatInput.trim();
-    setChatInput("");
+  const welcomeRequestedRef = React.useRef(false);
+
+  const fetchWelcomeMessage = React.useCallback(async () => {
+    if (!agentId || !agent || agent.status !== "active" || welcomeRequestedRef.current || isSending) return;
+    welcomeRequestedRef.current = true;
+    setIsSending(true);
+    try {
+      const res = await fetch(`/api/agents/${agentId}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ welcome: true }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setChatMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: data.response, timestamp: new Date() },
+        ]);
+      }
+    } catch {
+      welcomeRequestedRef.current = false;
+    } finally {
+      setIsSending(false);
+    }
+  }, [agentId, agent, isSending]);
+
+  React.useEffect(() => {
+    if (chatMessages.length === 0 && chatHistoryLoaded && agent?.status === "active") {
+      fetchWelcomeMessage();
+    }
+  }, [chatMessages.length, chatHistoryLoaded, agent?.status, fetchWelcomeMessage]);
+
+  const handleSendMessage = React.useCallback(async (override?: string) => {
+    const text = (override ?? chatInput).trim();
+    if (!text || isSending || !agent) return;
+    if (!override) setChatInput("");
     setChatMessages((prev) => [
       ...prev,
-      { role: "user", content: userMessage, timestamp: new Date() },
+      { role: "user", content: text, timestamp: new Date() },
     ]);
     setIsSending(true);
     try {
       const body: Record<string, unknown> = {
-        message: userMessage,
+        message: text,
         conversationHistory: chatMessages.map((m) => ({ role: m.role, content: m.content })),
       };
       if (userAddress) body.walletAddress = userAddress;
@@ -233,6 +270,24 @@ export function useAgentDetail(agentId: string | undefined) {
       setIsSending(false);
     }
   }, [chatInput, isSending, agent, agentId, chatMessages, userAddress]);
+
+  const handleClearChat = React.useCallback(async () => {
+    setChatMessages([]);
+    setChatInput("");
+    setChatHistoryLoaded(false);
+    welcomeRequestedRef.current = false;
+
+    if (agentId && userAddress && agent?.owner?.walletAddress?.toLowerCase() === userAddress.toLowerCase()) {
+      try {
+        await fetch(
+          `/api/agents/${agentId}/chat?walletAddress=${encodeURIComponent(userAddress)}`,
+          { method: "DELETE" }
+        );
+      } catch {
+        // Ignore — local state is already cleared
+      }
+    }
+  }, [agentId, userAddress, agent?.owner?.walletAddress]);
 
   /* ── Channels & Cron ─────────────────────────────────────────────── */
   const [channelData, setChannelData] = React.useState<ChannelData | null>(null);
@@ -335,6 +390,7 @@ export function useAgentDetail(agentId: string | undefined) {
     isSending,
     chatEndRef,
     handleSendMessage,
+    handleClearChat,
 
     // Channels
     channelData,

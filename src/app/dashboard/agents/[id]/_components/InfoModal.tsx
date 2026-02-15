@@ -1,0 +1,85 @@
+"use client";
+
+import React from "react";
+import { Modal } from "@/components/ui/modal";
+import { Badge } from "@/components/ui/badge";
+import { Shield, Wallet, Zap } from "lucide-react";
+import { getTemplateIcon } from "@/lib/utils";
+import type { AgentData, VerificationStatus } from "../_types";
+
+const TEMPLATE_SKILLS: Record<string, string[]> = {
+  payment: ["Send CELO", "Send Tokens", "Check Balance", "Query Rate", "Gas Price"],
+  trading: ["Send CELO", "Send Tokens", "Oracle Rates", "Mento Quote", "Mento Swap", "Forex Analysis", "Portfolio"],
+  forex: ["Oracle Rates", "Mento Quote", "Mento Swap", "Forex Analysis", "Portfolio", "Send CELO", "Balance Check", "Gas Price"],
+  social: ["Send CELO", "Send Tokens", "Check Balance"],
+  custom: ["Send CELO", "Send Tokens", "Oracle Rates", "Mento Quote", "Gas Price"],
+};
+
+interface InfoModalProps {
+  open: boolean;
+  onClose: () => void;
+  agent: AgentData;
+  verificationStatus: VerificationStatus | null;
+}
+
+export function InfoModal({ open, onClose, agent, verificationStatus }: InfoModalProps) {
+  const skills = TEMPLATE_SKILLS[agent.templateType] || TEMPLATE_SKILLS.custom;
+
+  return (
+    <Modal open={open} onClose={onClose} className="max-w-md max-h-[90vh] overflow-auto">
+      <div className="p-6 space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-gypsum border border-forest/15 flex items-center justify-center text-2xl">
+            {getTemplateIcon(agent.templateType)}
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-forest">{agent.name}</h2>
+            <Badge variant="outline" className="capitalize">{agent.templateType}</Badge>
+          </div>
+        </div>
+
+        {agent.description && (
+          <p className="text-sm text-forest-muted">{agent.description}</p>
+        )}
+
+        <div>
+          <h3 className="text-sm font-medium text-forest mb-2 flex items-center gap-2">
+            <Shield className="w-4 h-4" />
+            Verification
+          </h3>
+          <div className="flex items-center gap-2">
+            {verificationStatus?.verified ? (
+              <Badge variant="default" className="bg-forest-light">Verified</Badge>
+            ) : (
+              <Badge variant="secondary">Not verified</Badge>
+            )}
+          </div>
+        </div>
+
+        {agent.agentWalletAddress && (
+          <div>
+            <h3 className="text-sm font-medium text-forest mb-2 flex items-center gap-2">
+              <Wallet className="w-4 h-4" />
+              Wallet
+            </h3>
+            <code className="text-xs text-forest-muted break-all block bg-gypsum px-2 py-2 rounded-lg">
+              {agent.agentWalletAddress}
+            </code>
+          </div>
+        )}
+
+        <div>
+          <h3 className="text-sm font-medium text-forest mb-2 flex items-center gap-2">
+            <Zap className="w-4 h-4" />
+            Skills
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {skills.map((s) => (
+              <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}

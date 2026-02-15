@@ -244,7 +244,7 @@ const SKILL_DEFINITIONS: SkillDefinition[] = [
   {
     id: "request_selfclaw_sponsorship",
     name: "Request SELFCLAW Sponsorship",
-    description: "Request liquidity sponsorship (one per human). Optional: pass tokenAddress if you just deployed. AUTH: Ed25519",
+    description: "Request liquidity sponsorship (one per human). Requires ERC-8004 onchain identity first. Optional: pass tokenAddress if you just deployed. AUTH: Ed25519",
     category: "defi",
     commandTag: "REQUEST_SELFCLAW_SPONSORSHIP",
     params: [
@@ -280,7 +280,7 @@ const SKILL_DEFINITIONS: SkillDefinition[] = [
     params: [
       { name: "name", description: "Token name", required: true, example: "MyAgent" },
       { name: "symbol", description: "Token symbol", required: true, example: "MAT" },
-      { name: "supply", description: "Initial supply (default 1000000)", required: false, example: "1000000" },
+      { name: "supply", description: "Initial supply (default 1100000 for SelfClaw 10% buffer)", required: false, example: "1100000" },
     ],
     examples: [
       { input: "deploy a token named MyAgent symbol MAT", output: "[[SELFCLAW_DEPLOY_TOKEN|MyAgent|MAT|1000000]]" },
@@ -541,6 +541,22 @@ const SKILL_DEFINITIONS: SkillDefinition[] = [
     examples: [
       { input: "show my QR history", output: "[[LIST_QR_HISTORY]]" },
       { input: "what QRs have I generated?", output: "[[LIST_QR_HISTORY|5]]" },
+    ],
+    requiresWallet: false,
+    mutatesState: false,
+  },
+  // ── Reputation / Feedback ─────────────────────────────────────────────
+  {
+    id: "request_feedback",
+    name: "Request Feedback",
+    description: "Show an inline rating widget so the user can rate this agent on-chain (ERC-8004 Reputation Registry). Use after completing a task the user asked for.",
+    category: "social",
+    commandTag: "REQUEST_FEEDBACK",
+    params: [],
+    examples: [
+      { input: "user asked for payment and you sent it", output: "[[REQUEST_FEEDBACK]]" },
+      { input: "you completed a swap or answered a question", output: "[[REQUEST_FEEDBACK]]" },
+      { input: "task done, user satisfied", output: "[[REQUEST_FEEDBACK]]" },
     ],
     requiresWallet: false,
     mutatesState: false,

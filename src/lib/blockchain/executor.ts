@@ -12,8 +12,9 @@
  * transaction receipt block.
  */
 
-import { type Address, isAddress } from "viem";
+import { type Address, isAddress, parseUnits } from "viem";
 import { sendCelo, sendToken, getWalletBalance, getPublicClient, detectFeeCurrency, getFeeCurrencyLabel, deriveAddress } from "./wallet";
+import { getTokenBalanceWei } from "./celoData";
 import { prisma } from "@/lib/db";
 import { CELO_TOKENS, BLOCK_EXPLORER } from "@/lib/constants";
 
@@ -101,9 +102,12 @@ function validateAddress(addr: string): addr is Address {
   return isAddress(addr);
 }
 
-function validateAmount(amount: string): boolean {
+function validateAmount(amount: string, isAgentToken = false): boolean {
   const n = parseFloat(amount);
-  return !isNaN(n) && n > 0 && n < 1_000_000;
+  if (isNaN(n) || n <= 0) return false;
+  // Agent tokens (e.g. for sponsorship) can have large supplies (1M, 10M+)
+  if (isAgentToken) return n <= 1e15; // cap at 1 quadrillion
+  return n < 1_000_000; // CELO/stablecoins: cap at 1M
 }
 
 function getTokenInfo(currency: string) {
@@ -130,8 +134,8 @@ async function executeIntent(
     };
   }
 
-  // Validate amount
-  if (!validateAmount(intent.amount)) {
+  // Validate amount (agent tokens allow larger amounts for sponsorship)
+  if (!validateAmount(intent.amount, intent.action === "send_agent_token")) {
     return {
       success: false,
       error: `Invalid amount: ${intent.amount}`,
@@ -151,6 +155,26 @@ async function executeIntent(
     if (intent.action === "send_celo") {
       txHash = await sendCelo(walletIndex, intent.to as Address, intent.amount);
     } else if (intent.action === "send_agent_token" && intent.tokenAddress && validateAddress(intent.tokenAddress)) {
+      // Check balance before sending — avoid "Insufficient balance" revert
+      const balanceWei = await getTokenBalanceWei(intent.tokenAddress as Address, agentAddress);
+      let amountWei: bigint;
+      try {
+        amountWei = parseUnits(intent.amount, 18);
+      } catch {
+        return {
+          success: false,
+          error: `Invalid amount format: ${intent.amount}. Use a number without commas.`,
+          intent,
+        };
+      }
+      if (BigInt(balanceWei) < amountWei) {
+        const balanceHuman = (Number(balanceWei) / 1e18).toLocaleString(undefined, { maximumFractionDigits: 0 });
+        return {
+          success: false,
+          error: `Insufficient balance. Wallet has ${balanceHuman} tokens, but ${intent.amount} requested. Deploy the token with this agent wallet first, or use a token this wallet holds.`,
+          intent,
+        };
+      }
       txHash = await sendToken(
         walletIndex,
         intent.tokenAddress as Address,
@@ -312,7 +336,8 @@ function formatTxResult(result: TransactionResult): string {
 export async function executeTransactionsInResponse(
   responseText: string,
   agentId: string,
-  walletIndex: number | null
+  walletIndex: number | null,
+  disallowedReason?: string
 ): Promise<{ text: string; executedCount: number; results: TransactionResult[] }> {
   const intents = parseTransactionIntents(responseText);
 
@@ -320,14 +345,14 @@ export async function executeTransactionsInResponse(
     return { text: responseText, executedCount: 0, results: [] };
   }
 
-  // Agent must have a wallet
+  // Agent must have a wallet (or caller must be admin)
   if (walletIndex === null) {
+    const msg =
+      disallowedReason ??
+      "Cannot execute transaction — this agent does not have a wallet initialized. Please initialize a wallet first.";
     let updatedText = responseText;
     for (const intent of intents) {
-      updatedText = updatedText.replace(
-        intent.raw,
-        "\n⚠️ **Cannot execute transaction** — this agent does not have a wallet initialized. Please initialize a wallet first."
-      );
+      updatedText = updatedText.replace(intent.raw, `\n⚠️ **${msg}**`);
     }
     return { text: updatedText, executedCount: 0, results: [] };
   }

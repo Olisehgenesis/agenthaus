@@ -315,22 +315,27 @@ export async function registerToken(
 
 /**
  * Register token with retries — SelfClaw may need time to verify on-chain.
+ * Each retry MUST use a fresh signed payload (unique nonce). Pass a callback
+ * that returns a new SignedPayload on each call.
  */
 export async function registerTokenWithRetry(
-  signedPayload: SignedPayload,
+  getSignedPayload: () => Promise<SignedPayload>,
   tokenAddress: string,
   txHash: string,
   maxRetries = 3
 ): Promise<void> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      await registerToken(signedPayload, tokenAddress, txHash);
+      const signed = await getSignedPayload();
+      await registerToken(signed, tokenAddress, txHash);
       return;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       const isVerifyError = /verify|confirmed|index/i.test(msg);
-      if (attempt < maxRetries && isVerifyError) {
-        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      const isNonceError = /nonce already used/i.test(msg);
+      if (attempt < maxRetries && (isVerifyError || isNonceError)) {
+        // SelfClaw indexer may need 3–5s to verify Celo tx; fresh nonce on each retry
+        await new Promise((r) => setTimeout(r, 3000 * attempt));
       } else {
         throw err;
       }
@@ -464,6 +469,35 @@ export async function getSelfClawSponsorship(
     throw new Error(data.error || `SelfClaw API error: ${res.status}`);
   }
   return data;
+}
+
+/**
+ * Confirm ERC-8004 registration with SelfClaw after the agent has signed and submitted
+ * the IdentityRegistry.register() transaction. SelfClaw parses the tx to get the tokenId
+ * and updates verifiedBots.metadata.erc8004TokenId — required for sponsorship.
+ * @see https://selfclaw.app/developers
+ */
+export async function confirmErc8004(
+  signedPayload: SignedPayload,
+  txHash: string
+): Promise<{ success?: boolean; tokenId?: string; error?: string }> {
+  const body = { ...signedPayload, txHash };
+  const res = await fetch(`${SELFCLAW_BASE_URL}/confirm-erc8004`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json()) as Record<string, unknown>;
+  if (!res.ok) {
+    return {
+      success: false,
+      error: String(data.error ?? data.message ?? `SelfClaw API error: ${res.status}`),
+    };
+  }
+  return {
+    success: true,
+    tokenId: data.tokenId as string | undefined,
+  };
 }
 
 export { signAuthenticatedPayload } from "./auth";

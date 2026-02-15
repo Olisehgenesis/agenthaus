@@ -115,8 +115,8 @@ export async function POST(request: Request) {
         description,
         templateType,
         systemPrompt,
-        llmProvider: llmProvider || "openrouter",
-        llmModel: llmModel || "meta-llama/llama-3.3-70b-instruct:free",
+        llmProvider: llmProvider || "groq",
+        llmModel: llmModel || "llama-3.3-70b-versatile",
         spendingLimit: spendingLimit || 100,
         configuration: configuration ? JSON.stringify(configuration) : null,
         ownerId: user.id,
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
       data: {
         agentId: agent.id,
         type: "info",
-        message: `Agent "${name}" created with ${llmProvider || "openrouter"}/${llmModel || "default"}`,
+        message: `Agent "${name}" created with ${llmProvider || "groq"}/${llmModel || "default"}`,
       },
     });
 

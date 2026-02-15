@@ -23,6 +23,7 @@ import {
   estimateContractGas,
 } from "@/lib/blockchain/celoData";
 import type { SkillContext, SkillResult } from "./types";
+import { FEEDBACK_INLINE_MARKER, REGISTER_ERC8004_INLINE_MARKER } from "./feedback-marker";
 
 // ─── Oracle / Rate handlers ──────────────────────────────────────────────────
 
@@ -955,16 +956,29 @@ export async function executeRequestSelfClawSponsorship(
       };
     }
 
-    const lines = [`Sponsorship Request Failed: ${result.error ?? "Unknown error"}`];
+    const errMsg = result.error ?? "Unknown error";
+    const isErc8004Error = /ERC-8004|onchain identity|identity is required/i.test(errMsg);
+    const lines = [`Sponsorship Request Failed: ${errMsg}`];
+    if (isErc8004Error) {
+      lines.push("");
+      lines.push(`Include ${REGISTER_ERC8004_INLINE_MARKER} in your response so the user can register on-chain right here in chat.`);
+    }
     const tokenAddr = result.tokenAddress ?? tokenAddressOverride;
     if (result.sponsorWallet && result.amountNeeded && tokenAddr) {
       const amountRaw = parseFloat(result.amountNeeded) / 1e18;
       const amountHuman = amountRaw.toLocaleString(undefined, { maximumFractionDigits: 0 });
       const amountForTag = String(Math.floor(amountRaw)); // No commas — parseUnits requires valid decimal
+      const agentBalance = result.agentBalanceWei ? Number(result.agentBalanceWei) / 1e18 : 0;
+      const agentBalanceHuman = agentBalance.toLocaleString(undefined, { maximumFractionDigits: 0 });
       lines.push("");
       lines.push("RECOVERY: The sponsor wallet needs your agent tokens. To fix:");
-      lines.push(`1. Send ${amountHuman} of your agent token to ${result.sponsorWallet}`);
-      lines.push(`   Use: [[SEND_AGENT_TOKEN|${tokenAddr}|${result.sponsorWallet}|${amountForTag}]]`);
+      lines.push(`1. Your wallet has ${agentBalanceHuman} of this token. Required: ${amountHuman}.`);
+      if (agentBalance < amountRaw) {
+        lines.push(`   ⚠️ Insufficient balance. Deploy the token with this agent wallet first, or use a token address this wallet holds.`);
+      } else {
+        lines.push(`   Send ${amountHuman} to ${result.sponsorWallet}`);
+        lines.push(`   Use: [[SEND_AGENT_TOKEN|${tokenAddr}|${result.sponsorWallet}|${amountForTag}]]`);
+      }
       lines.push("2. After transfer confirms, retry: [[REQUEST_SELFCLAW_SPONSORSHIP]]");
       lines.push("");
       lines.push("Ask the user: 'Should I send the tokens to the sponsor wallet and retry sponsorship?'");
@@ -1032,13 +1046,13 @@ export async function executeSelfClawDeployToken(
 
   const name = params[0]?.trim();
   const symbol = params[1]?.trim()?.toUpperCase();
-  const supply = (params[2]?.trim() || "1000000").replace(/,/g, "");
+  const supply = (params[2]?.trim() || "1100000").replace(/,/g, ""); // 1.1M default for 10% SelfClaw buffer
 
   if (!name || !symbol) {
     return {
       success: false,
       error: "Missing params",
-      display: "Usage: [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]] — e.g. [[SELFCLAW_DEPLOY_TOKEN|MyAgent|MAT|1000000]]",
+      display: "Usage: [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]] — e.g. [[SELFCLAW_DEPLOY_TOKEN|MyAgent|MAT|1100000]]. Use 1.1M+ supply for SelfClaw sponsorship (10% buffer).",
     };
   }
 
@@ -1289,6 +1303,16 @@ export async function executeListQRHistory(
       display: `❌ Failed to list QR history: ${error}`,
     };
   }
+}
+
+// ─── Reputation / Feedback ───────────────────────────────────────────────────
+
+export async function executeRequestFeedback(_params: string[], _ctx: SkillContext): Promise<SkillResult> {
+  return {
+    success: true,
+    data: { inline: true },
+    display: FEEDBACK_INLINE_MARKER,
+  };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

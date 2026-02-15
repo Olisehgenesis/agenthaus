@@ -54,6 +54,7 @@ import {
   executeSelfClawLogCost,
   executeGenerateQR,
   executeListQRHistory,
+  executeRequestFeedback,
 } from "./handlers";
 
 // ─── Handler Registry ─────────────────────────────────────────────────────────
@@ -99,6 +100,7 @@ for (const def of SKILL_DEFINITIONS) {
     case "selfclaw_log_cost": registerHandler(def, executeSelfClawLogCost); break;
     case "generate_qr": registerHandler(def, executeGenerateQR); break;
     case "list_qr_history": registerHandler(def, executeListQRHistory); break;
+    case "request_feedback": registerHandler(def, executeRequestFeedback); break;
     // send_celo and send_token are handled by executor.ts directly
   }
 }
@@ -132,6 +134,8 @@ export function getSkillsForTemplate(templateId: string): SkillDefinition[] {
     "selfclaw_log_cost",
   ];
 
+  const FEEDBACK_SKILLS = ["request_feedback"];
+
   const CELO_MCP_SKILLS = [
     "network_status",
     "get_block",
@@ -150,11 +154,11 @@ export function getSkillsForTemplate(templateId: string): SkillDefinition[] {
   const QR_SKILLS = ["generate_qr", "list_qr_history"];
 
   const TEMPLATE_SKILLS: Record<string, string[]> = {
-    payment: ["send_celo", "send_token", "check_balance", "query_rate", "gas_price", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS, ...QR_SKILLS],
-    trading: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status", "price_track", "price_trend", "price_predict", "price_alerts", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS, ...QR_SKILLS],
-    forex: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status", "price_track", "price_trend", "price_predict", "price_alerts", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS, ...QR_SKILLS],
-    social: ["send_celo", "send_token", "check_balance", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS, ...QR_SKILLS],
-    custom: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "gas_price", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS, ...QR_SKILLS],
+    payment: ["send_celo", "send_token", "check_balance", "query_rate", "gas_price", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS, ...QR_SKILLS, ...FEEDBACK_SKILLS],
+    trading: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status", "price_track", "price_trend", "price_predict", "price_alerts", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS, ...QR_SKILLS, ...FEEDBACK_SKILLS],
+    forex: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "mento_swap", "gas_price", "forex_analysis", "portfolio_status", "price_track", "price_trend", "price_predict", "price_alerts", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS, ...QR_SKILLS, ...FEEDBACK_SKILLS],
+    social: ["send_celo", "send_token", "check_balance", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS, ...QR_SKILLS, ...FEEDBACK_SKILLS],
+    custom: ["send_celo", "send_token", "check_balance", "query_rate", "query_all_rates", "mento_quote", "gas_price", ...CELO_MCP_SKILLS, ...SELFCLAW_SKILLS, ...QR_SKILLS, ...FEEDBACK_SKILLS],
   };
 
   const skillIds = TEMPLATE_SKILLS[templateId] || TEMPLATE_SKILLS.custom;
@@ -278,6 +282,8 @@ export function generateSkillPrompt(templateId: string, walletAddress: string | 
   lines.push("- The system will execute the skill and replace the tag with real data.");
   lines.push("- DO NOT fabricate data — always use the command tags to get real information.");
   lines.push("- You can use multiple skill tags in one response.");
+  lines.push("");
+  lines.push("**FEEDBACK:** After completing a task the user asked for (payment sent, swap done, question answered, etc.), include [[REQUEST_FEEDBACK]] at the end of your response. This shows an inline rating widget so the user can rate you on-chain (ERC-8004). Do NOT ask verbally — just include the tag.");
 
   return lines.join("\n");
 }

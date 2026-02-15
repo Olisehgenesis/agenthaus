@@ -421,6 +421,21 @@ export async function saveSessionMessages(
 }
 
 /**
+ * Clear session history for a web chat binding.
+ * Returns true if messages were deleted.
+ */
+export async function clearSessionHistory(
+  agentId: string,
+  ownerWalletAddress: string
+): Promise<boolean> {
+  const bindingId = await getWebChatBindingId(agentId, ownerWalletAddress.toLowerCase());
+  if (!bindingId) return false;
+
+  await prisma.sessionMessage.deleteMany({ where: { bindingId } });
+  return true;
+}
+
+/**
  * Get all active bindings for an agent.
  */
 export async function getAgentBindings(agentId: string) {

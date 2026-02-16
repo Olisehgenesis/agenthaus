@@ -20,6 +20,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useERC8004 } from "@/hooks/useERC8004";
+import { ChatMessageContent } from "@/components/chat/ChatMessageContent";
 import { VerifyInChat } from "./_components/VerifyInChat";
 
 type FundWalletPayload = {
@@ -369,21 +370,10 @@ export default function BetaCreatePage() {
                     />
                   </div>
                 )}
-                <p
-                  className={`text-sm whitespace-pre-wrap ${
-                    msg.role === "user" ? "text-white/95" : "text-forest/90"
-                  }`}
-                >
-                  {msg.content.split(/(\*\*[^*]+\*\*)/g).map((part, j) =>
-                    part.startsWith("**") && part.endsWith("**") ? (
-                      <strong key={j} className={msg.role === "user" ? "text-white" : "text-forest"}>
-                        {part.slice(2, -2)}
-                      </strong>
-                    ) : (
-                      part
-                    )
-                  )}
-                </p>
+                <ChatMessageContent
+                  content={msg.content}
+                  variant={msg.role === "user" ? "user" : "assistant"}
+                />
                 {msg.role === "assistant" && msg.needsSign && msg.agentId && msg.agentName && (
                   <div className="mt-3 flex flex-col gap-2">
                     <Button

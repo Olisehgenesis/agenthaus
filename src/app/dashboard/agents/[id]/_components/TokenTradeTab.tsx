@@ -59,7 +59,7 @@ export function TokenTradeTab({
   } = useSelfClawEconomy(agentId, verified);
   const [deployName, setDeployName] = useState("");
   const [deploySymbol, setDeploySymbol] = useState("");
-  const [deploySupply, setDeploySupply] = useState("1000000");
+  const [deploySupply, setDeploySupply] = useState("10000000000");
   const [showDeployForm, setShowDeployForm] = useState(false);
   const [showLogRevenue, setShowLogRevenue] = useState(false);
   const [showLogCost, setShowLogCost] = useState(false);
@@ -75,7 +75,7 @@ export function TokenTradeTab({
       setShowDeployForm(false);
       setDeployName("");
       setDeploySymbol("");
-      setDeploySupply("1000000");
+      setDeploySupply("10000000000");
     } catch {
       // error handled in parent
     }

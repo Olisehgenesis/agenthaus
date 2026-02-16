@@ -16,6 +16,20 @@
 const SELFCLAW_BASE_URL =
   process.env.SELFCLAW_API_URL || "https://selfclaw.ai/api/selfclaw/v1";
 
+/** Parse response as JSON; if HTML or invalid, throw a clear error. */
+async function safeParseJson(res: Response, path: string): Promise<unknown> {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    const preview = text.slice(0, 80).replace(/\s+/g, " ");
+    throw new Error(
+      `SelfClaw API returned non-JSON (status ${res.status}) for ${path}. ` +
+        `The server may be down or the endpoint changed. Response preview: ${preview}...`
+    );
+  }
+}
+
 const SELFCLAW_FETCH_TIMEOUT_MS =
   Number(process.env.SELFCLAW_FETCH_TIMEOUT_MS) || 25_000;
 
@@ -260,11 +274,14 @@ async function authenticatedFetch(
     method,
     headers: { "Content-Type": "application/json" },
     body: method === "POST" ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(SELFCLAW_FETCH_TIMEOUT_MS),
   });
-  const data = await res.json();
+  const data = (await safeParseJson(res, path)) as Record<string, unknown>;
   if (!res.ok) {
     console.error(`[SelfClaw] ${path} error:`, res.status, data);
-    throw new Error(data.error || data.message || `SelfClaw API error: ${res.status}`);
+    throw new Error(
+      (data.error as string) || (data.message as string) || `SelfClaw API error: ${res.status}`
+    );
   }
   return data;
 }
@@ -345,6 +362,7 @@ export async function registerTokenWithRetry(
 
 /**
  * Log revenue event.
+ * @see https://selfclaw.ai — API: amount, token (CELO/USD/SELFCLAW), source, description?, txHash?, chain?
  */
 export async function logRevenue(
   signedPayload: SignedPayload,
@@ -356,48 +374,53 @@ export async function logRevenue(
 ): Promise<{ success?: boolean }> {
   return authenticatedFetch("/log-revenue", "POST", signedPayload, {
     amount,
+    token: currency,
     currency,
     source,
     description,
     txHash,
+    chain: "celo",
   }) as Promise<{ success?: boolean }>;
 }
 
 /**
  * Log cost event.
+ * @see https://selfclaw.ai — API: costType (infra|compute|ai_credits|bandwidth|storage|other), amount, currency, description?
  */
 export async function logCost(
   signedPayload: SignedPayload,
   amount: string,
   currency: string = "USD",
-  category: string,
+  costType: string,
   description?: string
 ): Promise<{ success?: boolean }> {
   return authenticatedFetch("/log-cost", "POST", signedPayload, {
     amount,
     currency,
-    category,
+    costType,
     description,
   }) as Promise<{ success?: boolean }>;
 }
 
 /**
  * Request SELFCLAW liquidity sponsorship (one per human).
- * Requires tokenAddress and tokenAmount (agent token amount in wei, e.g. 1e24 for 1M tokens).
- * On failure, returns full error body so caller can parse sponsorWallet, has, needs.
+ * Requires tokenAddress, tokenSymbol, tokenAmount (agent token amount in wei).
+ * @see https://selfclaw.ai — API: tokenAddress, tokenSymbol, tokenAmount
  */
 export async function requestSelfClawSponsorship(
   signedPayload: SignedPayload,
   tokenAddress: string,
-  tokenAmount: string
+  tokenAmount: string,
+  tokenSymbol?: string
 ): Promise<{ success?: boolean; error?: string; sponsorWallet?: string; has?: string; needs?: string }> {
-  const body = { ...signedPayload, tokenAddress, tokenAmount };
+  const body = { ...signedPayload, tokenAddress, tokenAmount, ...(tokenSymbol && { tokenSymbol }) };
   const res = await fetch(`${SELFCLAW_BASE_URL}/request-selfclaw-sponsorship`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(SELFCLAW_FETCH_TIMEOUT_MS),
   });
-  const data = (await res.json()) as Record<string, unknown>;
+  const data = (await safeParseJson(res, "/request-selfclaw-sponsorship")) as Record<string, unknown>;
   if (!res.ok) {
     const errMsg = String(data.error ?? data.message ?? `SelfClaw API error: ${res.status}`);
     return {
@@ -425,9 +448,9 @@ export async function getAgentEconomics(
   const res = await fetch(
     `${SELFCLAW_BASE_URL}/agent/${encodeURIComponent(identifier)}/economics`
   );
-  const data = await res.json();
+  const data = (await safeParseJson(res, "/agent/.../economics")) as Record<string, unknown>;
   if (!res.ok) {
-    throw new Error(data.error || `SelfClaw API error: ${res.status}`);
+    throw new Error(String(data.error ?? data.message ?? `SelfClaw API error: ${res.status}`));
   }
   return data;
 }
@@ -445,11 +468,32 @@ export async function getPools(): Promise<{
   }>;
 }> {
   const res = await fetch(`${SELFCLAW_BASE_URL}/pools`);
-  const data = await res.json();
+  const data = (await safeParseJson(res, "/pools")) as Record<string, unknown>;
   if (!res.ok) {
-    throw new Error(data.error || `SelfClaw API error: ${res.status}`);
+    throw new Error(String(data.error ?? data.message ?? `SelfClaw API error: ${res.status}`));
   }
   return data;
+}
+
+/**
+ * Get sponsor wallet and SELFCLAW availability (public, no auth).
+ * Used to check sponsor balance when agent has already sent tokens.
+ */
+export async function getSponsorshipInfo(): Promise<{
+  sponsorWallet?: string;
+  available?: string;
+  sponsorableAmount?: string;
+}> {
+  const res = await fetch(`${SELFCLAW_BASE_URL}/selfclaw-sponsorship`);
+  const data = (await safeParseJson(res, "/selfclaw-sponsorship")) as Record<string, unknown>;
+  if (!res.ok) {
+    return {};
+  }
+  return {
+    sponsorWallet: data.sponsorWallet as string | undefined,
+    available: data.available as string | undefined,
+    sponsorableAmount: data.sponsorableAmount as string | undefined,
+  };
 }
 
 /**
@@ -464,9 +508,9 @@ export async function getSelfClawSponsorship(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(signedPayload),
   });
-  const data = await res.json();
+  const data = (await safeParseJson(res, "/selfclaw-sponsorship")) as Record<string, unknown>;
   if (!res.ok) {
-    throw new Error(data.error || `SelfClaw API error: ${res.status}`);
+    throw new Error(String(data.error ?? data.message ?? `SelfClaw API error: ${res.status}`));
   }
   return data;
 }
@@ -487,7 +531,7 @@ export async function confirmErc8004(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = (await res.json()) as Record<string, unknown>;
+  const data = (await safeParseJson(res, "/confirm-erc8004")) as Record<string, unknown>;
   if (!res.ok) {
     return {
       success: false,

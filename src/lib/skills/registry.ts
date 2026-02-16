@@ -46,12 +46,14 @@ import {
   executeGetGasFeeData,
   executeGetGovernanceProposals,
   executeGetProposalDetails,
+  executeAgentIdentity,
   executeAgentTokens,
   executeRequestSelfClawSponsorship,
   executeSelfClawRegisterWallet,
   executeSelfClawDeployToken,
   executeSelfClawLogRevenue,
   executeSelfClawLogCost,
+  executeSaveSelfClawApiKey,
   executeGenerateQR,
   executeListQRHistory,
   executeRequestFeedback,
@@ -92,12 +94,14 @@ for (const def of SKILL_DEFINITIONS) {
     case "get_gas_fee_data": registerHandler(def, executeGetGasFeeData); break;
     case "get_governance_proposals": registerHandler(def, executeGetGovernanceProposals); break;
     case "get_proposal_details": registerHandler(def, executeGetProposalDetails); break;
+    case "agent_identity": registerHandler(def, executeAgentIdentity); break;
     case "agent_tokens": registerHandler(def, executeAgentTokens); break;
     case "request_selfclaw_sponsorship": registerHandler(def, executeRequestSelfClawSponsorship); break;
     case "selfclaw_register_wallet": registerHandler(def, executeSelfClawRegisterWallet); break;
     case "selfclaw_deploy_token": registerHandler(def, executeSelfClawDeployToken); break;
     case "selfclaw_log_revenue": registerHandler(def, executeSelfClawLogRevenue); break;
     case "selfclaw_log_cost": registerHandler(def, executeSelfClawLogCost); break;
+    case "save_selfclaw_api_key": registerHandler(def, executeSaveSelfClawApiKey); break;
     case "generate_qr": registerHandler(def, executeGenerateQR); break;
     case "list_qr_history": registerHandler(def, executeListQRHistory); break;
     case "request_feedback": registerHandler(def, executeRequestFeedback); break;
@@ -126,12 +130,14 @@ export function getSkillsByCategory(category: SkillCategory): SkillDefinition[] 
  */
 export function getSkillsForTemplate(templateId: string): SkillDefinition[] {
   const SELFCLAW_SKILLS = [
+    "agent_identity",
     "agent_tokens",
     "request_selfclaw_sponsorship",
     "selfclaw_register_wallet",
     "selfclaw_deploy_token",
     "selfclaw_log_revenue",
     "selfclaw_log_cost",
+    "save_selfclaw_api_key",
   ];
 
   const FEEDBACK_SKILLS = ["request_feedback"];
@@ -282,6 +288,12 @@ export function generateSkillPrompt(templateId: string, walletAddress: string | 
   lines.push("- The system will execute the skill and replace the tag with real data.");
   lines.push("- DO NOT fabricate data — always use the command tags to get real information.");
   lines.push("- You can use multiple skill tags in one response.");
+  lines.push("");
+  lines.push("**RESPONSE FORMAT (Markdown):** Your chat is rendered with markdown. Format responses for readability:");
+  lines.push("- Use **bold** for important values (amounts, addresses, status).");
+  lines.push("- Use bullet lists (-) for multiple items.");
+  lines.push("- Use `backticks` for addresses, hashes, and command tags.");
+  lines.push("- Skill outputs are already markdown-formatted — keep that formatting when you summarize or quote them.");
   lines.push("");
   lines.push("**FEEDBACK:** After completing a task the user asked for (payment sent, swap done, question answered, etc.), include [[REQUEST_FEEDBACK]] at the end of your response. This shows an inline rating widget so the user can rate you on-chain (ERC-8004). Do NOT ask verbally — just include the tag.");
 

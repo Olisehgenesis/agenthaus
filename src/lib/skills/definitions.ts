@@ -227,6 +227,21 @@ const SKILL_DEFINITIONS: SkillDefinition[] = [
   },
   // ── SelfClaw / Agent Token Skills ─────────────────────────────────────
   {
+    id: "agent_identity",
+    name: "Agent Identity & Pipeline",
+    description: "Show agent identity briefing: pipeline status (Identity → Wallet → Gas → ERC-8004 → Token → Liquidity) and next steps. Aligns with SelfClaw.",
+    category: "defi",
+    commandTag: "AGENT_IDENTITY",
+    params: [],
+    examples: [
+      { input: "who are you? show your identity", output: "[[AGENT_IDENTITY]]" },
+      { input: "what's your pipeline status?", output: "[[AGENT_IDENTITY]]" },
+      { input: "what can I do next? show briefing", output: "[[AGENT_IDENTITY]]" },
+    ],
+    requiresWallet: false,
+    mutatesState: false,
+  },
+  {
     id: "agent_tokens",
     name: "Agent Token Info",
     description: "Show token, revenue, pools. PUBLIC — no auth. GET /agent, /economics, /pools",
@@ -274,17 +289,18 @@ const SKILL_DEFINITIONS: SkillDefinition[] = [
   {
     id: "selfclaw_deploy_token",
     name: "Deploy Agent Token",
-    description: "Deploy ERC20 and register. AUTH: Ed25519 signed payload",
+    description: "Deploy ERC20 and register with SelfClaw. Use 1B+ supply (billions) for sponsorship + wallet buffer.",
     category: "defi",
     commandTag: "SELFCLAW_DEPLOY_TOKEN",
     params: [
       { name: "name", description: "Token name", required: true, example: "MyAgent" },
       { name: "symbol", description: "Token symbol", required: true, example: "MAT" },
-      { name: "supply", description: "Initial supply (default 1100000 for SelfClaw 10% buffer)", required: false, example: "1100000" },
+      { name: "supply", description: "Initial supply (default 10000000000 = 10B for sponsorship buffer)", required: false, example: "10000000000" },
     ],
     examples: [
-      { input: "deploy a token named MyAgent symbol MAT", output: "[[SELFCLAW_DEPLOY_TOKEN|MyAgent|MAT|1000000]]" },
-      { input: "create a token for me", output: "[[SELFCLAW_DEPLOY_TOKEN|AgentToken|ATK]]" },
+      { input: "deploy a token named MyAgent symbol MAT", output: "[[SELFCLAW_DEPLOY_TOKEN|MyAgent|MAT|10000000000]]" },
+      { input: "create a token for me", output: "[[SELFCLAW_DEPLOY_TOKEN|AgentToken|ATK|10000000000]]" },
+      { input: "deploy FiRe and get it sponsored", output: "[[SELFCLAW_DEPLOY_TOKEN|FiRe|FIRE|10000000000]] then [[REQUEST_SELFCLAW_SPONSORSHIP]]" },
     ],
     requiresWallet: true,
     mutatesState: true,
@@ -321,6 +337,22 @@ const SKILL_DEFINITIONS: SkillDefinition[] = [
     examples: [
       { input: "log $25 compute cost", output: "[[SELFCLAW_LOG_COST|25|compute|GPU usage]]" },
       { input: "record $10 infra cost", output: "[[SELFCLAW_LOG_COST|10|infra]]" },
+    ],
+    requiresWallet: false,
+    mutatesState: true,
+  },
+  {
+    id: "save_selfclaw_api_key",
+    name: "Save SelfClaw API Key",
+    description: "Save the SelfClaw API key (sclaw_...) when the user provides it in chat. Use for agent-api (feed, skills, briefing).",
+    category: "defi",
+    commandTag: "SAVE_SELFCLAW_API_KEY",
+    params: [
+      { name: "apiKey", description: "Full SelfClaw API key (sclaw_...) from user", required: true, example: "sclaw_abc123..." },
+    ],
+    examples: [
+      { input: "here's my SelfClaw API key: sclaw_abc123...", output: "[[SAVE_SELFCLAW_API_KEY|sclaw_abc123...]]" },
+      { input: "save this key sclaw_xyz789", output: "[[SAVE_SELFCLAW_API_KEY|sclaw_xyz789]]" },
     ],
     requiresWallet: false,
     mutatesState: true,

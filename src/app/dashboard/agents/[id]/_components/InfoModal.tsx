@@ -1,11 +1,13 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Wallet, Zap } from "lucide-react";
+import { Shield, Wallet, Zap, Send } from "lucide-react";
 import { getTemplateIcon } from "@/lib/utils";
-import type { AgentData, VerificationStatus } from "../_types";
+import { ipfsToPublicGatewayUrl } from "@/lib/ipfs-url";
+import type { AgentData, VerificationStatus, ChannelData } from "../_types";
 
 const TEMPLATE_SKILLS: Record<string, string[]> = {
   payment: ["Send CELO", "Send Tokens", "Check Balance", "Query Rate", "Gas Price"],
@@ -20,17 +22,34 @@ interface InfoModalProps {
   onClose: () => void;
   agent: AgentData;
   verificationStatus: VerificationStatus | null;
+  channelData?: ChannelData | null;
 }
 
-export function InfoModal({ open, onClose, agent, verificationStatus }: InfoModalProps) {
+export function InfoModal({ open, onClose, agent, verificationStatus, channelData }: InfoModalProps) {
   const skills = TEMPLATE_SKILLS[agent.templateType] || TEMPLATE_SKILLS.custom;
+  const telegramChannel = channelData?.channels?.find((c) => c.type === "telegram" && c.enabled);
+  const botUsername = telegramChannel?.botUsername?.replace(/^@/, "");
+  const avatarSrc = agent.imageUrl
+    ? ipfsToPublicGatewayUrl(agent.imageUrl)
+    : null;
 
   return (
     <Modal open={open} onClose={onClose} className="max-w-md max-h-[90vh] overflow-auto">
       <div className="p-6 space-y-5">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gypsum border border-forest/15 flex items-center justify-center text-2xl">
-            {getTemplateIcon(agent.templateType)}
+          <div className="w-12 h-12 rounded-xl overflow-hidden bg-gypsum border border-forest/15 flex items-center justify-center shrink-0">
+            {avatarSrc ? (
+              <Image
+                src={avatarSrc}
+                alt={agent.name}
+                width={48}
+                height={48}
+                className="object-cover w-full h-full"
+                unoptimized={agent.imageUrl?.startsWith("ipfs://") || !agent.imageUrl}
+              />
+            ) : (
+              <span className="text-2xl">{getTemplateIcon(agent.templateType)}</span>
+            )}
           </div>
           <div>
             <h2 className="text-lg font-semibold text-forest">{agent.name}</h2>
@@ -67,6 +86,35 @@ export function InfoModal({ open, onClose, agent, verificationStatus }: InfoModa
             </code>
           </div>
         )}
+
+        <div>
+          <h3 className="text-sm font-medium text-forest mb-2 flex items-center gap-2">
+            <Send className="w-4 h-4" />
+            Connect
+          </h3>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between p-2 rounded-lg bg-gypsum/80">
+              <span className="text-xs text-forest/80">💬 Web Chat</span>
+              <Badge variant="default" className="text-[10px] bg-forest/20 text-forest-light border-forest/30">Active</Badge>
+            </div>
+            {botUsername ? (
+              <a
+                href={`https://t.me/${botUsername}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between p-2 rounded-lg bg-gypsum/80 hover:bg-gypsum transition-colors"
+              >
+                <span className="text-xs text-forest/80">📱 Telegram</span>
+                <span className="text-[10px] text-blue-400">@{botUsername} →</span>
+              </a>
+            ) : (
+              <div className="flex items-center justify-between p-2 rounded-lg bg-gypsum/80">
+                <span className="text-xs text-forest-muted">📱 Telegram</span>
+                <span className="text-[10px] text-forest-muted">Not connected</span>
+              </div>
+            )}
+          </div>
+        </div>
 
         <div>
           <h3 className="text-sm font-medium text-forest mb-2 flex items-center gap-2">

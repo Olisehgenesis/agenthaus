@@ -282,7 +282,7 @@ export async function deployToken(
   agentIdOrName: string,
   tokenName: string,
   tokenSymbol: string,
-  initialSupply: string = "1000000"
+  initialSupply: string = "10000000000"
 ): Promise<{ success: boolean; agentName?: string; tokenAddress?: string; txHash?: string; error?: string }> {
   const result = await resolveAgentByIdOrName(ownerAddress, agentIdOrName);
   if ("ambiguous" in result) {

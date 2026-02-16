@@ -15,6 +15,7 @@ import { InfoModal } from "./_components/InfoModal";
 import { AdminModal } from "./_components/AdminModal";
 import { InlineFeedbackWidget } from "./_components/InlineFeedbackWidget";
 import { InlineRegisterWidget } from "./_components/InlineRegisterWidget";
+import { ChatMessageContent } from "@/components/chat/ChatMessageContent";
 import { FEEDBACK_INLINE_MARKER, REGISTER_ERC8004_INLINE_MARKER } from "@/lib/skills/feedback-marker";
 import type { ChatMessage } from "./_types";
 
@@ -226,9 +227,7 @@ export default function AgentDetailPage() {
                           : "bg-white border border-forest/10 shadow-sm rounded-bl-md"
                       }`}
                     >
-                      <p className={`text-sm whitespace-pre-wrap ${msg.role === "user" ? "text-white/95" : "text-forest/90"}`}>
-                        {displayText}
-                      </p>
+                      <ChatMessageContent content={displayText} variant={msg.role === "user" ? "user" : "assistant"} />
                       {hasFeedbackMarker && (
                         <InlineFeedbackWidget
                           erc8004AgentId={agent.erc8004AgentId}
@@ -328,6 +327,7 @@ export default function AgentDetailPage() {
         onClose={() => setInfoOpen(false)}
         agent={agent}
         verificationStatus={vf.verificationStatus}
+        channelData={ad.channelData}
       />
 
       {/* ── Admin Modal ── */}
@@ -336,6 +336,8 @@ export default function AgentDetailPage() {
         onClose={() => setAdminOpen(false)}
         agent={agent}
         verificationStatus={vf.verificationStatus}
+        channelData={ad.channelData}
+        fetchChannels={ad.fetchChannels}
         onOpenVerifyModal={() => { setAdminOpen(false); vf.openVerifyModal(); }}
         onRegisterOnChain={ad.handleRegisterOnChain}
         isRegistering={ad.isRegistering}

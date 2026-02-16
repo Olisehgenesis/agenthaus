@@ -14,6 +14,7 @@ import {
   logCost as logCostSelfClaw,
   getAgentEconomics,
   getPools,
+  getSponsorshipInfo,
   requestSelfClawSponsorship,
   signAuthenticatedPayload,
 } from "./client";
@@ -23,19 +24,106 @@ import {
   getPublicClient,
   deriveAccount,
   getActiveChain,
+  getWalletBalance,
 } from "@/lib/blockchain/wallet";
 import { getTokenBalanceWei } from "@/lib/blockchain/celoData";
 import { parseUnits } from "viem";
 
 const COST_CATEGORIES = ["infra", "compute", "ai_credits", "bandwidth", "storage", "other"] as const;
 
-/** Sanitize supply string: remove commas, validate decimal, default to 1000000. */
+/** Sanitize supply string: remove commas, validate decimal, default to 1B for SelfClaw sponsorship + wallet buffer. */
 function sanitizeSupply(s: string): string {
   const cleaned = String(s).replace(/,/g, "").trim();
-  if (!cleaned) return "1000000";
+  if (!cleaned) return "10000000000";
   const num = parseFloat(cleaned);
-  if (Number.isNaN(num) || num <= 0 || !Number.isFinite(num)) return "1000000";
+  if (Number.isNaN(num) || num <= 0 || !Number.isFinite(num)) return "10000000000";
   return String(Math.floor(num));
+}
+
+export interface AgentIdentityBriefing {
+  name: string;
+  pipeline: {
+    identity: boolean;
+    wallet: boolean;
+    gas: boolean;
+    erc8004: boolean;
+    token: boolean;
+    liquidity: boolean;
+  };
+  walletAddress?: string;
+  chainId: number;
+  nextSteps: string[];
+}
+
+/**
+ * Get agent identity briefing — pipeline status and next steps.
+ * Aligns with SelfClaw: Identity → Wallet → Gas → ERC-8004 → Token → Liquidity.
+ */
+export async function getAgentIdentity(agentId: string): Promise<AgentIdentityBriefing> {
+  const agent = await prisma.agent.findUnique({
+    where: { id: agentId },
+    select: {
+      name: true,
+      agentWalletAddress: true,
+      walletDerivationIndex: true,
+      erc8004AgentId: true,
+      erc8004ChainId: true,
+      verification: { select: { publicKey: true, selfxyzVerified: true } },
+      agentDeployedTokens: true,
+    },
+  });
+
+  if (!agent) {
+    return {
+      name: "Unknown",
+      pipeline: { identity: false, wallet: false, gas: false, erc8004: false, token: false, liquidity: false },
+      chainId: 42220,
+      nextSteps: ["Agent not found."],
+    };
+  }
+
+  const identity = !!(agent.verification?.publicKey && agent.verification.selfxyzVerified);
+  const wallet = !!agent.agentWalletAddress;
+  let gas = false;
+  if (wallet) {
+    try {
+      const bal = await getWalletBalance(agent.agentWalletAddress as `0x${string}`);
+      gas = parseFloat(bal.nativeBalance) > 0 || bal.tokens.some((t) => parseFloat(t.balance) > 0.01);
+    } catch {
+      gas = false;
+    }
+  }
+  const erc8004 = !!agent.erc8004AgentId;
+  const chainId = agent.erc8004ChainId ?? 42220;
+
+  let deployedTokens: Array<{ address: string; name: string; symbol: string }> = [];
+  try {
+    if (agent.agentDeployedTokens) {
+      deployedTokens = JSON.parse(agent.agentDeployedTokens) as typeof deployedTokens;
+    }
+  } catch {
+    deployedTokens = [];
+  }
+  const token = deployedTokens.length > 0;
+
+  const tokenInfo = await getAgentTokenInfo(agentId).catch(() => null);
+  const liquidity = !!(tokenInfo?.pools && tokenInfo.pools.length > 0);
+
+  const nextSteps: string[] = [];
+  if (!identity) nextSteps.push("Verify with SelfClaw (Verify → Scan QR).");
+  if (!wallet) nextSteps.push("Initialize wallet (Settings or ask me to register with SelfClaw).");
+  if (wallet && !gas) nextSteps.push("Fund the agent wallet with CELO or stablecoins for gas.");
+  if (!erc8004 && identity) nextSteps.push("Register on-chain (ERC-8004) — required for sponsorship.");
+  if (!token && identity && wallet) nextSteps.push("Deploy token via [[SELFCLAW_DEPLOY_TOKEN|name|symbol|10000000000]].");
+  if (token && !liquidity) nextSteps.push("Request sponsorship via [[REQUEST_SELFCLAW_SPONSORSHIP]].");
+
+  return {
+    name: agent.name,
+    pipeline: { identity, wallet, gas, erc8004, token, liquidity },
+    walletAddress: agent.agentWalletAddress ?? undefined,
+    chainId,
+    nextSteps: nextSteps.length > 0 ? nextSteps : ["All set. You can deploy more tokens, log revenue, or trade."],
+  };
 }
 
 export interface AgentTokenInfo {
@@ -207,18 +295,54 @@ export async function requestSponsorshipForAgent(
 
   let tokenAddress = tokenAddressOverride?.trim();
   let storedSupply: string | undefined;
-  if (!tokenAddress && agent.agentDeployedTokens) {
+  let tokenSymbol: string | undefined;
+
+  // Resolve token: when no override, pick the one where sponsor has most (or agent if sponsor empty).
+  // This fixes: user deploys A, sends tokens to sponsor, deploys B — "latest" was B but sponsor has A.
+  const sponsorshipInfo = await getSponsorshipInfo();
+  const sponsorWalletAddr = sponsorshipInfo.sponsorWallet as `0x${string}` | undefined;
+
+  if (agent.agentDeployedTokens) {
     try {
-      const tokens = JSON.parse(agent.agentDeployedTokens) as Array<{ address: string; supply?: string }>;
+      const tokens = JSON.parse(agent.agentDeployedTokens) as Array<{
+        address: string;
+        symbol?: string;
+        supply?: string;
+      }>;
       if (tokens.length > 0) {
-        const latest = tokens[tokens.length - 1];
-        tokenAddress = latest.address;
-        storedSupply = latest.supply;
+        if (tokenAddress) {
+          const match = tokens.find((t) => t.address?.toLowerCase() === tokenAddress?.toLowerCase());
+          tokenSymbol = match?.symbol;
+          storedSupply = match?.supply;
+        } else {
+          // No override: pick token where sponsor has most (ready for pool), else agent has most
+          let bestAddr = tokens[tokens.length - 1].address;
+          let bestPoolWei = BigInt(0);
+          for (const t of tokens) {
+            const agentBal = await getTokenBalanceWei(t.address as `0x${string}`, agentWallet);
+            const agentPool = (BigInt(agentBal) * BigInt(10)) / BigInt(11);
+            let sponsorPool = BigInt(0);
+            if (sponsorWalletAddr) {
+              const sponsorBal = await getTokenBalanceWei(t.address as `0x${string}`, sponsorWalletAddr);
+              sponsorPool = (BigInt(sponsorBal) * BigInt(10)) / BigInt(11);
+            }
+            const poolWei = sponsorPool > agentPool ? sponsorPool : agentPool;
+            if (poolWei > bestPoolWei) {
+              bestPoolWei = poolWei;
+              bestAddr = t.address;
+            }
+          }
+          tokenAddress = bestAddr;
+          const match = tokens.find((t) => t.address?.toLowerCase() === tokenAddress?.toLowerCase());
+          storedSupply = match?.supply;
+          tokenSymbol = match?.symbol;
+        }
       }
     } catch {
       /* ignore */
     }
   }
+  if (!tokenSymbol) tokenSymbol = agent.name?.replace(/\s+/g, "").slice(0, 8).toUpperCase() || "AGENT";
   if (!tokenAddress) {
     const agentStatus = await checkAgentStatus(verification.publicKey);
     tokenAddress = agentStatus.tokenAddress ?? undefined;
@@ -232,20 +356,33 @@ export async function requestSponsorshipForAgent(
 
   // Use agent's actual balance so we never request more than they hold.
   // SelfClaw checks: "Sponsor wallet does not hold enough of your agent token."
-  const balanceWei = await getTokenBalanceWei(tokenAddress as `0x${string}`, agentWallet);
+  const agentBalanceWei = await getTokenBalanceWei(tokenAddress as `0x${string}`, agentWallet);
+  const sponsorBalanceWei = sponsorWalletAddr
+    ? await getTokenBalanceWei(tokenAddress as `0x${string}`, sponsorWalletAddr)
+    : "0";
 
-  if (balanceWei === "0") {
+  if (agentBalanceWei === "0" && sponsorBalanceWei === "0") {
     return {
       success: false,
       error:
-        "Your wallet holds 0 of this token. Ensure (1) the token was deployed with your agent wallet, and (2) your wallet is registered with SelfClaw before deploying. Re-register wallet and redeploy if needed.",
+        "Neither your wallet nor the sponsor holds this token. Ensure (1) the token was deployed with your agent wallet, (2) your wallet is registered with SelfClaw before deploying, and (3) you've sent tokens to the sponsor if you already transferred them.",
     };
   }
 
   // SelfClaw requires 10% slippage buffer: we must SEND poolAmount * 1.1 to sponsor.
   // Cap pool amount to balance/1.1 so we can send our full balance and meet the buffer.
-  const balanceBig = BigInt(balanceWei);
-  const maxPoolWei = (balanceBig * BigInt(10)) / BigInt(11); // floor(balance / 1.1)
+  const agentBalanceBig = BigInt(agentBalanceWei);
+  let maxPoolWei = (agentBalanceBig * BigInt(10)) / BigInt(11); // floor(agentBalance / 1.1)
+
+  // If agent already sent tokens to sponsor, sponsor may have more — use the larger.
+  if (sponsorWalletAddr) {
+    const sponsorBalanceWei = await getTokenBalanceWei(tokenAddress as `0x${string}`, sponsorWalletAddr);
+    const sponsorBalanceBig = BigInt(sponsorBalanceWei);
+    const sponsorPoolWei = (sponsorBalanceBig * BigInt(10)) / BigInt(11);
+    if (sponsorPoolWei > maxPoolWei) {
+      maxPoolWei = sponsorPoolWei;
+    }
+  }
 
   let amountWei: string;
   if (tokenAmountOverride?.trim()) {
@@ -270,7 +407,7 @@ export async function requestSponsorshipForAgent(
   try {
     const privateKeyHex = decryptPrivateKey(verification.encryptedPrivateKey);
     const signed = await signAuthenticatedPayload(verification.publicKey, privateKeyHex);
-    const result = await requestSelfClawSponsorship(signed, tokenAddress, amountWei);
+    const result = await requestSelfClawSponsorship(signed, tokenAddress, amountWei, tokenSymbol);
 
     if (result.success) {
       return { success: true };
@@ -295,7 +432,7 @@ export async function requestSponsorshipForAgent(
       const hasBig = BigInt(sponsorBalanceWei);
       if (hasBig >= neededBig) {
         const signedRetry = await signAuthenticatedPayload(verification.publicKey, privateKeyHex);
-        const retry = await requestSelfClawSponsorship(signedRetry, tokenAddress, amountWei);
+        const retry = await requestSelfClawSponsorship(signedRetry, tokenAddress, amountWei, tokenSymbol);
         if (retry.success) {
           return { success: true };
         }
@@ -308,7 +445,7 @@ export async function requestSponsorshipForAgent(
       tokenAddress,
       sponsorWallet: sponsorWallet ?? undefined,
       amountNeeded,
-      agentBalanceWei: balanceWei,
+      agentBalanceWei: agentBalanceWei,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed to request sponsorship";
@@ -364,6 +501,40 @@ export async function syncErc8004ToSelfClaw(
   }
 }
 
+/** Save the SelfClaw API key (sclaw_...) when user provides it in chat. Used for agent-api (feed, skills, briefing). */
+export async function saveSelfClawApiKeyForAgent(
+  agentId: string,
+  apiKey: string
+): Promise<{ success: boolean; error?: string }> {
+  const trimmed = apiKey?.trim();
+  if (!trimmed || !trimmed.startsWith("sclaw_")) {
+    return { success: false, error: "Invalid key. Must start with sclaw_." };
+  }
+
+  const verification = await prisma.agentVerification.findUnique({
+    where: { agentId },
+    select: { id: true },
+  });
+  if (!verification) {
+    return { success: false, error: "Agent must be SelfClaw verified first." };
+  }
+
+  try {
+    const { encrypt } = await import("@/lib/crypto");
+    const encrypted = encrypt(trimmed);
+    await prisma.agentVerification.update({
+      where: { agentId },
+      data: { encryptedSelfclawApiKey: encrypted },
+    });
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to save key",
+    };
+  }
+}
+
 /** Register the agent's EVM wallet with SelfClaw (create-wallet). */
 export async function registerWalletForAgent(
   agentId: string
@@ -403,7 +574,7 @@ export async function deployTokenForAgent(
   agentId: string,
   name: string,
   symbol: string,
-  initialSupply: string = "1100000" // 1.1M default for SelfClaw 10% slippage buffer
+  initialSupply: string = "10000000000" // 10B default — plenty for SelfClaw sponsorship + wallet buffer
 ): Promise<{ success: boolean; tokenAddress?: string; txHash?: string; error?: string }> {
   const agent = await prisma.agent.findUnique({
     where: { id: agentId },
@@ -432,7 +603,10 @@ export async function deployTokenForAgent(
     const unsignedTx = result.unsignedTx as Record<string, unknown> | undefined;
 
     if (!unsignedTx) {
-      return { success: false, error: "SelfClaw did not return deployment transaction." };
+      return {
+        success: false,
+        error: "SelfClaw API did not return a deployment transaction. Check SELFCLAW_API_URL and that the agent is verified.",
+      };
     }
 
     const walletClient = getAgentWalletClient(agent.walletDerivationIndex);

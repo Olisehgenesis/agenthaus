@@ -312,7 +312,7 @@ Rules:
 - Never reveal private keys or sensitive wallet information
 - After including the command tag, the system will execute the transaction and replace the tag with a receipt
 
-**SelfClaw (Agent Economy):** You can do all SelfClaw actions via chat — no dashboard needed. Register wallet [[SELFCLAW_REGISTER_WALLET]], deploy token [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]], log revenue [[SELFCLAW_LOG_REVENUE|amount|source]], log cost [[SELFCLAW_LOG_COST|amount|category]], show token info [[AGENT_TOKENS]], request sponsorship [[REQUEST_SELFCLAW_SPONSORSHIP]]. Mention these when describing what you can do.`,
+**SelfClaw (Agent Economy):** You can do all SelfClaw actions via chat — no dashboard needed. Show pipeline [[AGENT_IDENTITY]], register wallet [[SELFCLAW_REGISTER_WALLET]], deploy token [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]], log revenue [[SELFCLAW_LOG_REVENUE|amount|source]], log cost [[SELFCLAW_LOG_COST|amount|category]], show token info [[AGENT_TOKENS]], request sponsorship [[REQUEST_SELFCLAW_SPONSORSHIP]]. Token deploy uses SelfClaw API: get unsigned tx → sign → register. Mention these when describing what you can do.`,
     defaultConfig: {
       supportedCurrencies: ["cUSD", "cEUR"],
       maxTransactionAmount: 1000,
@@ -353,7 +353,7 @@ Safety rules:
 - The recipient MUST be a valid 0x address (42 characters)
 - Never reveal private keys or sensitive wallet information
 
-**SelfClaw (Agent Economy):** You can do all SelfClaw actions via chat — no dashboard needed. Register wallet [[SELFCLAW_REGISTER_WALLET]], deploy token [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]], log revenue [[SELFCLAW_LOG_REVENUE|amount|source]], log cost [[SELFCLAW_LOG_COST|amount|category]], show token info [[AGENT_TOKENS]], request sponsorship [[REQUEST_SELFCLAW_SPONSORSHIP]]. Mention these when describing what you can do.`,
+**SelfClaw (Agent Economy):** You can do all SelfClaw actions via chat — no dashboard needed. Show pipeline [[AGENT_IDENTITY]], register wallet [[SELFCLAW_REGISTER_WALLET]], deploy token [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]], log revenue [[SELFCLAW_LOG_REVENUE|amount|source]], log cost [[SELFCLAW_LOG_COST|amount|category]], show token info [[AGENT_TOKENS]], request sponsorship [[REQUEST_SELFCLAW_SPONSORSHIP]]. Token deploy uses SelfClaw API: get unsigned tx → sign → register. Mention these when describing what you can do.`,
     defaultConfig: {
       tradingPairs: ["CELO/cUSD"],
       maxSlippage: 1.0,
@@ -422,7 +422,7 @@ When users want to swap, always:
 
 Supported pairs: CELO/cUSD, CELO/cEUR, CELO/cREAL, cUSD/cEUR (cross-stable via CELO)
 
-**SelfClaw (Agent Economy):** You can do all SelfClaw actions via chat — no dashboard needed. Register wallet [[SELFCLAW_REGISTER_WALLET]], deploy token [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]], log revenue [[SELFCLAW_LOG_REVENUE|amount|source]], log cost [[SELFCLAW_LOG_COST|amount|category]], show token info [[AGENT_TOKENS]], request sponsorship [[REQUEST_SELFCLAW_SPONSORSHIP]]. Mention these when describing what you can do.`,
+**SelfClaw (Agent Economy):** You can do all SelfClaw actions via chat — no dashboard needed. Show pipeline [[AGENT_IDENTITY]], register wallet [[SELFCLAW_REGISTER_WALLET]], deploy token [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]], log revenue [[SELFCLAW_LOG_REVENUE|amount|source]], log cost [[SELFCLAW_LOG_COST|amount|category]], show token info [[AGENT_TOKENS]], request sponsorship [[REQUEST_SELFCLAW_SPONSORSHIP]]. Token deploy uses SelfClaw API: get unsigned tx → sign → register. Mention these when describing what you can do.`,
     defaultConfig: {
       forexPairs: ["CELO/cUSD", "CELO/cEUR", "CELO/cREAL"],
       autoTrade: false,
@@ -465,7 +465,7 @@ Tip distribution rules:
 - Track tip recipients to prevent abuse
 - The recipient MUST be a valid 0x address (42 characters)
 
-**SelfClaw (Agent Economy):** You can do all SelfClaw actions via chat — no dashboard needed. Register wallet [[SELFCLAW_REGISTER_WALLET]], deploy token [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]], log revenue [[SELFCLAW_LOG_REVENUE|amount|source]], log cost [[SELFCLAW_LOG_COST|amount|category]], show token info [[AGENT_TOKENS]], request sponsorship [[REQUEST_SELFCLAW_SPONSORSHIP]]. Mention these when describing what you can do.`,
+**SelfClaw (Agent Economy):** You can do all SelfClaw actions via chat — no dashboard needed. Show pipeline [[AGENT_IDENTITY]], register wallet [[SELFCLAW_REGISTER_WALLET]], deploy token [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]], log revenue [[SELFCLAW_LOG_REVENUE|amount|source]], log cost [[SELFCLAW_LOG_COST|amount|category]], show token info [[AGENT_TOKENS]], request sponsorship [[REQUEST_SELFCLAW_SPONSORSHIP]]. Token deploy uses SelfClaw API: get unsigned tx → sign → register. Mention these when describing what you can do.`,
     defaultConfig: {
       platforms: ["telegram"],
       autoReply: true,
@@ -502,7 +502,7 @@ Rules:
 - The recipient MUST be a valid 0x address (42 characters)
 - Never reveal private keys or sensitive wallet information
 
-**SelfClaw (Agent Economy):** You can do all SelfClaw actions via chat — no dashboard needed. Register wallet [[SELFCLAW_REGISTER_WALLET]], deploy token [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]], log revenue [[SELFCLAW_LOG_REVENUE|amount|source]], log cost [[SELFCLAW_LOG_COST|amount|category]], show token info [[AGENT_TOKENS]], request sponsorship [[REQUEST_SELFCLAW_SPONSORSHIP]]. Mention these when describing what you can do.
+**SelfClaw (Agent Economy):** You can do all SelfClaw actions via chat — no dashboard needed. Show pipeline [[AGENT_IDENTITY]], register wallet [[SELFCLAW_REGISTER_WALLET]], deploy token [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]], log revenue [[SELFCLAW_LOG_REVENUE|amount|source]], log cost [[SELFCLAW_LOG_COST|amount|category]], show token info [[AGENT_TOKENS]], request sponsorship [[REQUEST_SELFCLAW_SPONSORSHIP]]. Token deploy uses SelfClaw API: get unsigned tx → sign → register. Mention these when describing what you can do.
 
 Customize this prompt to define your agent's specific role and behavior.`,
     defaultConfig: {

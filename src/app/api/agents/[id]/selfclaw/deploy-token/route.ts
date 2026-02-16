@@ -21,11 +21,11 @@ export async function POST(
 
   try {
     const body = await request.json();
-    let { name, symbol, initialSupply = "1000000" } = body;
+    let { name, symbol, initialSupply = "10000000000" } = body;
     const cleaned = String(initialSupply).replace(/,/g, "").trim();
     const num = parseFloat(cleaned);
     initialSupply =
-      !cleaned || Number.isNaN(num) || num <= 0 ? "1000000" : String(Math.floor(num));
+      !cleaned || Number.isNaN(num) || num <= 0 ? "10000000000" : String(Math.floor(num));
 
     if (!name || !symbol) {
       return NextResponse.json(

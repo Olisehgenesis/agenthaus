@@ -24,6 +24,7 @@ import {
 } from "@/lib/blockchain/celoData";
 import type { SkillContext, SkillResult } from "./types";
 import { FEEDBACK_INLINE_MARKER, REGISTER_ERC8004_INLINE_MARKER } from "./feedback-marker";
+import { fmtAddr, fmtHash, fmtHeader, fmtSection, fmtBullet, fmtMeta, fmtCode } from "./formatDisplay";
 
 // ─── Oracle / Rate handlers ──────────────────────────────────────────────────
 
@@ -34,13 +35,16 @@ export async function executeQueryRate(params: string[], _ctx: SkillContext): Pr
   try {
     const rate = await getOracleRate(currency);
     const display = [
-      `📊 **${rate.pair} Exchange Rate**`,
-      `• 1 CELO = ${rate.rate.toFixed(4)} ${currency}`,
-      `• 1 ${currency} = ${rate.inverse.toFixed(4)} CELO`,
-      `• Reporters: ${rate.numReporters}`,
-      `• Last update: ${rate.lastUpdate.toISOString()}`,
-      `• Source: ${rate.source === "sorted_oracles" ? "Celo SortedOracles (on-chain)" : "Estimated (API fallback)"}`,
-      rate.isExpired ? "⚠️ Warning: Oracle data may be stale" : "",
+      fmtHeader(`${rate.pair} Exchange Rate`, "📊"),
+      "",
+      fmtBullet(`1 CELO = **${rate.rate.toFixed(4)}** ${currency}`),
+      fmtBullet(`1 ${currency} = **${rate.inverse.toFixed(4)}** CELO`),
+      fmtBullet(`Reporters: ${rate.numReporters}`),
+      fmtBullet(`Last update: ${rate.lastUpdate.toISOString()}`),
+      fmtBullet(`Source: ${rate.source === "sorted_oracles" ? "Celo SortedOracles (on-chain)" : "Estimated (API fallback)"}`),
+      rate.isExpired ? fmtBullet("⚠️ Warning: Oracle data may be stale") : "",
+      "",
+      rate.isExpired ? fmtMeta("Oracle data may be stale") : "",
     ].filter(Boolean).join("\n");
 
     return { success: true, data: rate as unknown as Record<string, unknown>, display };
@@ -55,14 +59,15 @@ export async function executeQueryAllRates(_params: string[], _ctx: SkillContext
   try {
     const rates = await getAllOracleRates();
     const lines = rates.map((r) =>
-      `• ${r.pair}: 1 CELO = ${r.rate.toFixed(4)} ${r.pair.split("/")[1]} (${r.source})`
+      fmtBullet(`${r.pair}: 1 CELO = **${r.rate.toFixed(4)}** ${r.pair.split("/")[1]} (${r.source})`)
     );
 
     const display = [
-      "📊 **Celo Exchange Rates (SortedOracles)**",
+      fmtHeader("Celo Exchange Rates (SortedOracles)", "📊"),
+      "",
       ...lines,
       "",
-      `_Updated: ${new Date().toISOString()}_`,
+      fmtMeta(`Updated: ${new Date().toISOString()}`),
     ].join("\n");
 
     return { success: true, data: { rates } as unknown as Record<string, unknown>, display };
@@ -84,14 +89,15 @@ export async function executeMentoQuote(params: string[], _ctx: SkillContext): P
   try {
     const quote = await getMentoQuote(sellCurrency, buyCurrency, amount);
     const display = [
-      `💱 **Mento Swap Quote**`,
-      `• Sell: ${quote.sellAmount} ${quote.sellCurrency}`,
-      `• Buy: ~${parseFloat(quote.buyAmount).toFixed(4)} ${quote.buyCurrency}`,
-      `• Rate: 1 ${quote.sellCurrency} = ${quote.rate.toFixed(4)} ${quote.buyCurrency}`,
-      `• Est. slippage: ${quote.slippage}%`,
-      `• Source: ${quote.source}`,
+      fmtHeader("Mento Swap Quote", "💱"),
       "",
-      `_To execute: "swap ${quote.sellAmount} ${quote.sellCurrency} for ${quote.buyCurrency}"_`,
+      fmtBullet(`Sell: **${quote.sellAmount}** ${quote.sellCurrency}`),
+      fmtBullet(`Buy: ~**${parseFloat(quote.buyAmount).toFixed(4)}** ${quote.buyCurrency}`),
+      fmtBullet(`Rate: 1 ${quote.sellCurrency} = ${quote.rate.toFixed(4)} ${quote.buyCurrency}`),
+      fmtBullet(`Est. slippage: ${quote.slippage}%`),
+      fmtBullet(`Source: ${quote.source}`),
+      "",
+      fmtMeta(`To execute: "swap ${quote.sellAmount} ${quote.sellCurrency} for ${quote.buyCurrency}"`),
     ].join("\n");
 
     return { success: true, data: quote as unknown as Record<string, unknown>, display };
@@ -116,13 +122,14 @@ export async function executeMentoSwap(params: string[], ctx: SkillContext): Pro
     const quote = await getMentoQuote(sellCurrency, buyCurrency, amount);
 
     const display = [
-      `💱 **Mento Swap (Simulated on Testnet)**`,
-      `• Sold: ${quote.sellAmount} ${quote.sellCurrency}`,
-      `• Bought: ~${parseFloat(quote.buyAmount).toFixed(4)} ${quote.buyCurrency}`,
-      `• Rate: 1 ${quote.sellCurrency} = ${quote.rate.toFixed(4)} ${quote.buyCurrency}`,
-      `• Slippage: ${quote.slippage}%`,
+      fmtHeader("Mento Swap (Simulated on Testnet)", "💱"),
       "",
-      `⚠️ _On Celo Sepolia testnet, Mento swaps are simulated. Real execution available on mainnet._`,
+      fmtBullet(`Sold: **${quote.sellAmount}** ${quote.sellCurrency}`),
+      fmtBullet(`Bought: ~**${parseFloat(quote.buyAmount).toFixed(4)}** ${quote.buyCurrency}`),
+      fmtBullet(`Rate: 1 ${quote.sellCurrency} = ${quote.rate.toFixed(4)} ${quote.buyCurrency}`),
+      fmtBullet(`Slippage: ${quote.slippage}%`),
+      "",
+      fmtMeta("⚠️ On Celo Sepolia testnet, Mento swaps are simulated. Real execution available on mainnet."),
     ].join("\n");
 
     return { success: true, data: quote as unknown as Record<string, unknown>, display };
@@ -147,11 +154,12 @@ export async function executeCheckBalance(params: string[], ctx: SkillContext): 
   try {
     const bal = await checkBalance(address as Address);
     const display = [
-      `💰 **Balance for ${address.slice(0, 6)}...${address.slice(-4)}**`,
-      `• CELO: ${parseFloat(bal.celo).toFixed(4)}`,
-      `• cUSD: ${parseFloat(bal.cUSD).toFixed(4)}`,
-      `• cEUR: ${parseFloat(bal.cEUR).toFixed(4)}`,
-      `• cREAL: ${parseFloat(bal.cREAL).toFixed(4)}`,
+      fmtHeader(`Balance for ${fmtAddr(address)}`, "💰"),
+      "",
+      fmtBullet(`CELO: **${parseFloat(bal.celo).toFixed(4)}**`),
+      fmtBullet(`cUSD: **${parseFloat(bal.cUSD).toFixed(4)}**`),
+      fmtBullet(`cEUR: **${parseFloat(bal.cEUR).toFixed(4)}**`),
+      fmtBullet(`cREAL: **${parseFloat(bal.cREAL).toFixed(4)}**`),
     ].join("\n");
 
     return { success: true, data: bal as unknown as Record<string, unknown>, display };
@@ -166,10 +174,11 @@ export async function executeGasPrice(_params: string[], _ctx: SkillContext): Pr
   try {
     const gas = await getGasPrice();
     const display = [
-      `⛽ **Celo Gas Price**`,
-      `• Base fee: ${parseFloat(gas.baseFee).toFixed(2)} gwei`,
-      `• Suggested tip: ${gas.suggestedTip} gwei`,
-      `• Simple transfer cost: ~${parseFloat(gas.estimatedCost).toFixed(6)} CELO`,
+      fmtHeader("Celo Gas Price", "⛽"),
+      "",
+      fmtBullet(`Base fee: **${parseFloat(gas.baseFee).toFixed(2)}** gwei`),
+      fmtBullet(`Suggested tip: **${gas.suggestedTip}** gwei`),
+      fmtBullet(`Simple transfer cost: ~**${parseFloat(gas.estimatedCost).toFixed(6)}** CELO`),
     ].join("\n");
 
     return { success: true, data: gas as unknown as Record<string, unknown>, display };
@@ -200,42 +209,42 @@ export async function executeForexAnalysis(params: string[], _ctx: SkillContext)
       const history = getPriceHistory(rate.pair, 10);
 
       const display = [
-        `📈 **Forex Analysis: ${rate.pair}**`,
-        ``,
-        `**Current Rate:**`,
-        `• 1 CELO = ${rate.rate.toFixed(4)} ${buy}`,
-        `• 1 ${buy} = ${rate.inverse.toFixed(4)} CELO`,
-        ``,
-        `**Oracle Status:**`,
-        `• Active reporters: ${rate.numReporters}`,
-        `• Last update: ${rate.lastUpdate.toISOString()}`,
-        `• Data fresh: ${rate.isExpired ? "❌ Stale" : "✅ Fresh"}`,
-        `• Source: ${rate.source}`,
-        ``,
+        fmtHeader(`Forex Analysis: ${rate.pair}`, "📈"),
+        "",
+        fmtSection("Current Rate"),
+        fmtBullet(`1 CELO = **${rate.rate.toFixed(4)}** ${buy}`),
+        fmtBullet(`1 ${buy} = **${rate.inverse.toFixed(4)}** CELO`),
+        "",
+        fmtSection("Oracle Status"),
+        fmtBullet(`Active reporters: ${rate.numReporters}`),
+        fmtBullet(`Last update: ${rate.lastUpdate.toISOString()}`),
+        fmtBullet(`Data fresh: ${rate.isExpired ? "❌ Stale" : "✅ Fresh"}`),
+        fmtBullet(`Source: ${rate.source}`),
+        "",
         trend ? [
-          `**Trend (${trend.period}):**`,
-          `• Direction: ${trend.direction === "up" ? "📈 Up" : trend.direction === "down" ? "📉 Down" : "➡️ Flat"}`,
-          `• Change: ${trend.change > 0 ? "+" : ""}${trend.changePercent.toFixed(3)}%`,
-          `• Previous: ${trend.previousRate.toFixed(6)} → Current: ${trend.currentRate.toFixed(6)}`,
-          `• Data points: ${trend.snapshots}`,
-        ].join("\n") : "**Trend:** Not enough data yet (start price tracking first)",
-        ``,
+          fmtSection(`Trend (${trend.period})`),
+          fmtBullet(`Direction: ${trend.direction === "up" ? "📈 Up" : trend.direction === "down" ? "📉 Down" : "➡️ Flat"}`),
+          fmtBullet(`Change: ${trend.change > 0 ? "+" : ""}${trend.changePercent.toFixed(3)}%`),
+          fmtBullet(`Previous: ${trend.previousRate.toFixed(6)} → Current: ${trend.currentRate.toFixed(6)}`),
+          fmtBullet(`Data points: ${trend.snapshots}`),
+        ].join("\n") : `${fmtSection("Trend")} Not enough data yet (start price tracking first)`,
+        "",
         prediction ? [
-          `**Prediction (${prediction.timeframe}):**`,
-          `• Direction: ${prediction.predictedDirection === "up" ? "📈" : prediction.predictedDirection === "down" ? "📉" : "➡️"} ${prediction.predictedDirection.toUpperCase()}`,
-          `• Predicted rate: ${prediction.predictedRate.toFixed(6)}`,
-          `• Confidence: ${prediction.confidence === "high" ? "🟢" : prediction.confidence === "medium" ? "🟡" : "🔴"} ${prediction.confidence}`,
-          `• Reasoning: ${prediction.reasoning}`,
-        ].join("\n") : "**Prediction:** Need ≥ 5 data points — run price tracking first",
-        ``,
-        `**Analysis:**`,
+          fmtSection(`Prediction (${prediction.timeframe})`),
+          fmtBullet(`Direction: ${prediction.predictedDirection === "up" ? "📈" : prediction.predictedDirection === "down" ? "📉" : "➡️"} ${prediction.predictedDirection.toUpperCase()}`),
+          fmtBullet(`Predicted rate: **${prediction.predictedRate.toFixed(6)}**`),
+          fmtBullet(`Confidence: ${prediction.confidence === "high" ? "🟢" : prediction.confidence === "medium" ? "🟡" : "🔴"} ${prediction.confidence}`),
+          fmtBullet(`Reasoning: ${prediction.reasoning}`),
+        ].join("\n") : `${fmtSection("Prediction")} Need ≥ 5 data points — run price tracking first`,
+        "",
+        fmtSection("Analysis"),
         rate.numReporters >= 3
-          ? `• Oracle has sufficient reporters (${rate.numReporters}) — rate is reliable.`
-          : `• ⚠️ Low reporter count (${rate.numReporters}) — rate may be less reliable.`,
+          ? fmtBullet(`Oracle has sufficient reporters (${rate.numReporters}) — rate is reliable.`)
+          : fmtBullet(`⚠️ Low reporter count (${rate.numReporters}) — rate may be less reliable.`),
         rate.isExpired
-          ? `• ⚠️ Oracle data is expired — exercise caution with trades.`
-          : `• Oracle data is fresh — safe to trade at quoted rates.`,
-        history.length > 0 ? `• ${history.length} price snapshots recorded in current session.` : "",
+          ? fmtBullet("⚠️ Oracle data is expired — exercise caution with trades.")
+          : fmtBullet("Oracle data is fresh — safe to trade at quoted rates."),
+        history.length > 0 ? fmtBullet(`${history.length} price snapshots recorded in current session.`) : "",
       ].filter(Boolean).join("\n");
 
       return { success: true, data: rate as unknown as Record<string, unknown>, display };
@@ -252,20 +261,20 @@ export async function executeForexAnalysis(params: string[], _ctx: SkillContext)
       const changeStr = trend
         ? ` (${trend.change > 0 ? "+" : ""}${trend.changePercent.toFixed(2)}%)`
         : "";
-      return `${trendIcon} ${r.pair}: ${r.rate.toFixed(4)}${changeStr} (reporters: ${r.numReporters}) ${freshIcon}`;
+      return fmtBullet(`${trendIcon} **${r.pair}**: ${r.rate.toFixed(4)}${changeStr} (reporters: ${r.numReporters}) ${freshIcon}`);
     });
 
     const display = [
-      `📈 **Celo Forex Market Overview**`,
-      ``,
-      `**Current Rates (SortedOracles):**`,
+      fmtHeader("Celo Forex Market Overview", "📈"),
+      "",
+      fmtSection("Current Rates (SortedOracles)"),
       ...lines,
-      ``,
-      `**Summary:**`,
-      `• ${rates.length} active pairs monitored`,
-      `• All rates sourced from Celo SortedOracles (on-chain)`,
-      `• Gas fees can be paid in cUSD via fee abstraction — no CELO needed!`,
-      `• Use "swap X CELO for cUSD" to execute a Mento trade`,
+      "",
+      fmtSection("Summary"),
+      fmtBullet(`${rates.length} active pairs monitored`),
+      fmtBullet("All rates sourced from Celo SortedOracles (on-chain)"),
+      fmtBullet("Gas fees can be paid in cUSD via fee abstraction — no CELO needed!"),
+      fmtBullet('Use "swap X CELO for cUSD" to execute a Mento trade'),
     ].join("\n");
 
     return { success: true, data: { rates } as unknown as Record<string, unknown>, display };
@@ -296,18 +305,19 @@ export async function executePortfolioStatus(_params: string[], ctx: SkillContex
     const totalUsd = celoUsd + cusdVal + ceurVal * 1.08 + crealVal * 0.20; // Approximate
 
     const display = [
-      `💼 **Agent Portfolio**`,
-      `• Wallet: ${ctx.agentWalletAddress.slice(0, 6)}...${ctx.agentWalletAddress.slice(-4)}`,
-      ``,
-      `**Holdings:**`,
-      `• CELO: ${celoVal.toFixed(4)} (~$${celoUsd.toFixed(2)})`,
-      `• cUSD: ${cusdVal.toFixed(4)} (~$${cusdVal.toFixed(2)})`,
-      `• cEUR: ${ceurVal.toFixed(4)} (~$${(ceurVal * 1.08).toFixed(2)})`,
-      `• cREAL: ${crealVal.toFixed(4)} (~$${(crealVal * 0.20).toFixed(2)})`,
-      ``,
-      `**Total Value: ~$${totalUsd.toFixed(2)}**`,
-      ``,
-      `_CELO/cUSD rate: ${celoRate.rate.toFixed(4)} (${celoRate.source})_`,
+      fmtHeader("Agent Portfolio", "💼"),
+      "",
+      fmtBullet(`Wallet: ${fmtAddr(ctx.agentWalletAddress)}`),
+      "",
+      fmtSection("Holdings"),
+      fmtBullet(`CELO: **${celoVal.toFixed(4)}** (~$${celoUsd.toFixed(2)})`),
+      fmtBullet(`cUSD: **${cusdVal.toFixed(4)}** (~$${cusdVal.toFixed(2)})`),
+      fmtBullet(`cEUR: **${ceurVal.toFixed(4)}** (~$${(ceurVal * 1.08).toFixed(2)})`),
+      fmtBullet(`cREAL: **${crealVal.toFixed(4)}** (~$${(crealVal * 0.20).toFixed(2)})`),
+      "",
+      fmtSection(`Total Value: ~$${totalUsd.toFixed(2)}`),
+      "",
+      fmtMeta(`CELO/cUSD rate: ${celoRate.rate.toFixed(4)} (${celoRate.source})`),
     ].join("\n");
 
     return { success: true, data: { ...bal, totalUsd } as unknown as Record<string, unknown>, display };
@@ -326,7 +336,7 @@ export async function executePriceTrack(params: string[], _ctx: SkillContext): P
     if (target === "ALL") {
       const snapshots = await recordAllPriceSnapshots();
       const lines = snapshots.map((s) =>
-        `• ${s.pair}: ${s.rate.toFixed(6)} (${s.source}) — recorded at ${s.timestamp.toISOString()}`
+        fmtBullet(`${s.pair}: **${s.rate.toFixed(6)}** (${s.source}) — ${s.timestamp.toISOString()}`)
       );
 
       const historyLines: string[] = [];
@@ -336,17 +346,16 @@ export async function executePriceTrack(params: string[], _ctx: SkillContext): P
           const oldest = hist[0];
           const newest = hist[hist.length - 1];
           const change = ((newest.rate - oldest.rate) / oldest.rate) * 100;
-          historyLines.push(`• ${s.pair}: ${change > 0 ? "+" : ""}${change.toFixed(3)}% over ${hist.length} snapshots`);
+          historyLines.push(fmtBullet(`${s.pair}: ${change > 0 ? "+" : ""}${change.toFixed(3)}% over ${hist.length} snapshots`));
         }
       }
 
       const display = [
-        `📊 **Price Snapshot Recorded** (${snapshots.length} pairs)`,
-        ``,
+        fmtHeader(`Price Snapshot Recorded (${snapshots.length} pairs)`, "📊"),
+        "",
         ...lines,
-        historyLines.length > 0 ? `\n**Recent Changes:**` : "",
-        ...historyLines,
-      ].filter(Boolean).join("\n");
+        historyLines.length > 0 ? ["", fmtSection("Recent Changes"), ...historyLines] : [],
+      ].flat().filter(Boolean).join("\n");
 
       return { success: true, data: { snapshots: snapshots.length } as Record<string, unknown>, display };
     }
@@ -355,17 +364,17 @@ export async function executePriceTrack(params: string[], _ctx: SkillContext): P
     const snapshot = await recordPriceSnapshot(target);
     const history = getPriceHistory(snapshot.pair, 10);
     const historyLines = history.map((h) =>
-      `  ${h.timestamp.toLocaleTimeString()}: ${h.rate.toFixed(6)}`
+      fmtBullet(`${h.timestamp.toLocaleTimeString()}: **${h.rate.toFixed(6)}**`)
     );
 
     const display = [
-      `📊 **Price Recorded: ${snapshot.pair}**`,
-      `• Current rate: ${snapshot.rate.toFixed(6)}`,
-      `• Source: ${snapshot.source}`,
-      ``,
-      history.length > 1 ? `**Recent History (${history.length} points):**` : "",
-      ...historyLines,
-    ].filter(Boolean).join("\n");
+      fmtHeader(`Price Recorded: ${snapshot.pair}`, "📊"),
+      "",
+      fmtBullet(`Current rate: **${snapshot.rate.toFixed(6)}**`),
+      fmtBullet(`Source: ${snapshot.source}`),
+      "",
+      history.length > 1 ? [fmtSection(`Recent History (${history.length} points)`), ...historyLines] : [],
+    ].flat().filter(Boolean).join("\n");
 
     return { success: true, data: snapshot as unknown as Record<string, unknown>, display };
   } catch (error) {
@@ -385,17 +394,17 @@ export async function executePriceTrend(params: string[], _ctx: SkillContext): P
     if (pairInput.toUpperCase() === "ALL") {
       const trends = analyzeAllTrends(period);
       if (trends.length === 0) {
-        return { success: true, data: {}, display: "📈 **No trend data yet.** Run [[PRICE_TRACK|all]] a few times to build history." };
+        return { success: true, data: {}, display: `${fmtHeader("No trend data yet", "📈")}\n\nRun ${fmtCode("[[PRICE_TRACK|all]]")} a few times to build history.` };
       }
 
       const lines = trends.map((t) => {
         const icon = t.direction === "up" ? "📈" : t.direction === "down" ? "📉" : "➡️";
-        return `${icon} **${t.pair}**: ${t.change > 0 ? "+" : ""}${t.changePercent.toFixed(3)}% (${t.previousRate.toFixed(6)} → ${t.currentRate.toFixed(6)}) [${t.snapshots} pts]`;
+        return fmtBullet(`${icon} **${t.pair}**: ${t.change > 0 ? "+" : ""}${t.changePercent.toFixed(3)}% (${t.previousRate.toFixed(6)} → ${t.currentRate.toFixed(6)}) [${t.snapshots} pts]`);
       });
 
       const display = [
-        `📈 **Price Trends (${formatPeriodLabel(period)})**`,
-        ``,
+        fmtHeader(`Price Trends (${formatPeriodLabel(period)})`, "📈"),
+        "",
         ...lines,
       ].join("\n");
 
@@ -406,16 +415,17 @@ export async function executePriceTrend(params: string[], _ctx: SkillContext): P
     const pair = pairInput.includes("/") ? pairInput : `CELO/${pairInput.toUpperCase()}`;
     const trend = analyzeTrend(pair, period);
     if (!trend) {
-      return { success: true, data: {}, display: `📈 **No trend data for ${pair}.** Run [[PRICE_TRACK|${pairInput}]] a few times first.` };
+      return { success: true, data: {}, display: `${fmtHeader(`No trend data for ${pair}`, "📈")}\n\nRun ${fmtCode(`[[PRICE_TRACK|${pairInput}]]`)} a few times first.` };
     }
 
     const icon = trend.direction === "up" ? "📈" : trend.direction === "down" ? "📉" : "➡️";
     const display = [
-      `${icon} **Trend: ${trend.pair} (${trend.period})**`,
-      `• Direction: ${trend.direction.toUpperCase()}`,
-      `• Change: ${trend.change > 0 ? "+" : ""}${trend.changePercent.toFixed(3)}%`,
-      `• From: ${trend.previousRate.toFixed(6)} → To: ${trend.currentRate.toFixed(6)}`,
-      `• Data points: ${trend.snapshots}`,
+      fmtHeader(`Trend: ${trend.pair} (${trend.period})`, icon),
+      "",
+      fmtBullet(`Direction: **${trend.direction.toUpperCase()}**`),
+      fmtBullet(`Change: ${trend.change > 0 ? "+" : ""}${trend.changePercent.toFixed(3)}%`),
+      fmtBullet(`From: ${trend.previousRate.toFixed(6)} → To: ${trend.currentRate.toFixed(6)}`),
+      fmtBullet(`Data points: ${trend.snapshots}`),
     ].join("\n");
 
     return { success: true, data: trend as unknown as Record<string, unknown>, display };
@@ -435,25 +445,21 @@ export async function executePricePredict(params: string[], _ctx: SkillContext):
     if (pairInput.toUpperCase() === "ALL") {
       const predictions = predictAllPrices();
       if (predictions.length === 0) {
-        return { success: true, data: {}, display: "🔮 **Not enough data for predictions.** Need at least 5 price snapshots. Run [[PRICE_TRACK|all]] periodically." };
+        return { success: true, data: {}, display: `${fmtHeader("Not enough data for predictions", "🔮")}\n\nNeed at least 5 price snapshots. Run ${fmtCode("[[PRICE_TRACK|all]]")} periodically.` };
       }
 
       const lines = predictions.map((p) => {
         const icon = p.predictedDirection === "up" ? "📈" : p.predictedDirection === "down" ? "📉" : "➡️";
         const confIcon = p.confidence === "high" ? "🟢" : p.confidence === "medium" ? "🟡" : "🔴";
-        return [
-          `${icon} **${p.pair}** (${p.timeframe})`,
-          `  Current: ${p.currentRate.toFixed(6)} → Predicted: ${p.predictedRate.toFixed(6)}`,
-          `  Confidence: ${confIcon} ${p.confidence} — ${p.reasoning}`,
-        ].join("\n");
+        return fmtBullet(`${icon} **${p.pair}** (${p.timeframe}): ${p.currentRate.toFixed(6)} → **${p.predictedRate.toFixed(6)}** | ${confIcon} ${p.confidence} — ${p.reasoning}`);
       });
 
       const display = [
-        `🔮 **Price Predictions (momentum-based)**`,
-        ``,
+        fmtHeader("Price Predictions (momentum-based)", "🔮"),
+        "",
         ...lines,
-        ``,
-        `⚠️ _This is a simple heuristic, NOT financial advice._`,
+        "",
+        fmtMeta("⚠️ This is a simple heuristic, NOT financial advice."),
       ].join("\n");
 
       return { success: true, data: { predictions } as unknown as Record<string, unknown>, display };
@@ -463,20 +469,21 @@ export async function executePricePredict(params: string[], _ctx: SkillContext):
     const pair = pairInput.includes("/") ? pairInput : `CELO/${pairInput.toUpperCase()}`;
     const prediction = predictPrice(pair);
     if (!prediction) {
-      return { success: true, data: {}, display: `🔮 **Not enough data for ${pair}.** Need ≥ 5 snapshots. Run [[PRICE_TRACK|${pairInput}]] periodically.` };
+      return { success: true, data: {}, display: `${fmtHeader(`Not enough data for ${pair}`, "🔮")}\n\nNeed ≥ 5 snapshots. Run ${fmtCode(`[[PRICE_TRACK|${pairInput}]]`)} periodically.` };
     }
 
     const icon = prediction.predictedDirection === "up" ? "📈" : prediction.predictedDirection === "down" ? "📉" : "➡️";
     const confIcon = prediction.confidence === "high" ? "🟢" : prediction.confidence === "medium" ? "🟡" : "🔴";
     const display = [
-      `🔮 **Prediction: ${prediction.pair}** (${prediction.timeframe})`,
-      `${icon} Direction: ${prediction.predictedDirection.toUpperCase()}`,
-      `• Current: ${prediction.currentRate.toFixed(6)}`,
-      `• Predicted: ${prediction.predictedRate.toFixed(6)}`,
-      `• Confidence: ${confIcon} ${prediction.confidence}`,
-      `• Reasoning: ${prediction.reasoning}`,
-      ``,
-      `⚠️ _Simple momentum heuristic — not financial advice._`,
+      fmtHeader(`Prediction: ${prediction.pair} (${prediction.timeframe})`, "🔮"),
+      "",
+      fmtBullet(`${icon} Direction: **${prediction.predictedDirection.toUpperCase()}**`),
+      fmtBullet(`Current: ${prediction.currentRate.toFixed(6)}`),
+      fmtBullet(`Predicted: **${prediction.predictedRate.toFixed(6)}**`),
+      fmtBullet(`Confidence: ${confIcon} ${prediction.confidence}`),
+      fmtBullet(`Reasoning: ${prediction.reasoning}`),
+      "",
+      fmtMeta("⚠️ Simple momentum heuristic — not financial advice."),
     ].join("\n");
 
     return { success: true, data: prediction as unknown as Record<string, unknown>, display };
@@ -499,18 +506,18 @@ export async function executePriceAlerts(params: string[], _ctx: SkillContext): 
       return {
         success: true,
         data: { alerts: [] },
-        display: `🔔 **No Price Alerts** (threshold: ${threshold}%)\nAll Mento pairs are moving within normal ranges.`,
+        display: `${fmtHeader(`No Price Alerts (threshold: ${threshold}%)`, "🔔")}\n\nAll Mento pairs are moving within normal ranges.`,
       };
     }
 
     const lines = alerts.map((a) => {
       const icon = a.severity === "critical" ? "🚨" : a.severity === "warning" ? "⚠️" : "ℹ️";
-      return `${icon} **${a.type.replace("_", " ").toUpperCase()}** — ${a.message}`;
+      return fmtBullet(`${icon} **${a.type.replace("_", " ").toUpperCase()}** — ${a.message}`);
     });
 
     const display = [
-      `🔔 **Price Alerts** (threshold: ${threshold}%)`,
-      ``,
+      fmtHeader(`Price Alerts (threshold: ${threshold}%)`, "🔔"),
+      "",
       ...lines,
     ].join("\n");
 
@@ -529,13 +536,13 @@ export async function executeGetNetworkStatus(
   try {
     const status = await getNetworkStatus();
     const display = [
-      "Network Status",
+      fmtHeader("Network Status", "🌐"),
       "",
-      `Network: ${status.networkName} (Chain ID: ${status.chainId})`,
-      `Latest Block: ${status.latestBlock}`,
-      `Gas Price: ${status.gasPrice}`,
-      `RPC: ${status.rpcUrl}`,
-      `Explorer: ${status.blockExplorerUrl}`,
+      fmtBullet(`Network: **${status.networkName}** (Chain ID: \`${status.chainId}\`)`),
+      fmtBullet(`Latest Block: ${status.latestBlock}`),
+      fmtBullet(`Gas Price: ${status.gasPrice}`),
+      fmtBullet(`RPC: ${fmtHash(status.rpcUrl)}`),
+      fmtBullet(`Explorer: [View blocks](${status.blockExplorerUrl})`),
     ].join("\n");
     return { success: true, data: status as unknown as Record<string, unknown>, display };
   } catch (error) {
@@ -554,14 +561,14 @@ export async function executeGetBlock(
       return { success: false, error: "Block not found", display: `Block ${blockId} not found.` };
     }
     const display = [
-      `Block #${block.number}`,
+      fmtHeader(`Block #${block.number}`, "📦"),
       "",
-      `Hash: ${block.hash}`,
-      `Timestamp: ${block.timestamp.toISOString()}`,
-      `Gas Used: ${block.gasUsed.toString()}`,
-      `Gas Limit: ${block.gasLimit.toString()}`,
-      block.baseFeePerGas ? `Base Fee: ${block.baseFeePerGas}` : "",
-      `Transactions: ${block.transactionsCount}`,
+      fmtBullet(`Hash: ${fmtHash(block.hash)}`),
+      fmtBullet(`Timestamp: ${block.timestamp.toISOString()}`),
+      fmtBullet(`Gas Used: ${block.gasUsed.toString()}`),
+      fmtBullet(`Gas Limit: ${block.gasLimit.toString()}`),
+      block.baseFeePerGas ? fmtBullet(`Base Fee: ${block.baseFeePerGas}`) : "",
+      fmtBullet(`Transactions: ${block.transactionsCount}`),
     ].filter(Boolean).join("\n");
     return { success: true, data: block as unknown as Record<string, unknown>, display };
   } catch (error) {
@@ -577,9 +584,9 @@ export async function executeGetLatestBlocks(
   try {
     const blocks = await getLatestBlocks(count);
     const lines = blocks.map((b) =>
-      `#${b.number} | ${b.timestamp.toISOString()} | ${b.transactionsCount} txs | gas: ${b.gasUsed.toString()}`
+      fmtBullet(`**#${b.number}** — ${b.timestamp.toISOString()} | ${b.transactionsCount} txs | gas: ${b.gasUsed.toString()}`)
     );
-    const display = ["Latest Blocks", "", ...lines].join("\n");
+    const display = [fmtHeader("Latest Blocks", "📦"), "", ...lines].join("\n");
     return { success: true, data: { blocks } as unknown as Record<string, unknown>, display };
   } catch (error) {
     return { success: false, error: String(error), display: `Failed to get blocks: ${error}` };
@@ -600,16 +607,16 @@ export async function executeGetTransaction(
       return { success: false, error: "Transaction not found", display: `Transaction ${txHash.slice(0, 16)}... not found.` };
     }
     const display = [
-      `Transaction ${tx.hash.slice(0, 10)}...${tx.hash.slice(-8)}`,
+      fmtHeader(`Transaction ${fmtAddr(tx.hash, 10, 8)}`, "📄"),
       "",
-      `From: ${tx.from}`,
-      `To: ${tx.to ?? "contract creation"}`,
-      `Value: ${tx.value} CELO`,
-      `Status: ${tx.status}`,
-      `Block: ${tx.blockNumber}`,
-      tx.timestamp ? `Time: ${tx.timestamp.toISOString()}` : "",
-      `Gas Used: ${tx.gasUsed}`,
-      `Gas Price: ${tx.gasPrice}`,
+      fmtBullet(`From: ${fmtHash(tx.from)}`),
+      fmtBullet(`To: ${tx.to ? fmtHash(tx.to) : "contract creation"}`),
+      fmtBullet(`Value: **${tx.value}** CELO`),
+      fmtBullet(`Status: **${tx.status}**`),
+      fmtBullet(`Block: ${tx.blockNumber}`),
+      tx.timestamp ? fmtBullet(`Time: ${tx.timestamp.toISOString()}`) : "",
+      fmtBullet(`Gas Used: ${tx.gasUsed}`),
+      fmtBullet(`Gas Price: ${tx.gasPrice}`),
     ].filter(Boolean).join("\n");
     return { success: true, data: tx as unknown as Record<string, unknown>, display };
   } catch (error) {
@@ -631,11 +638,11 @@ export async function executeGetTokenInfo(
       return { success: false, error: "Not an ERC20", display: "Contract is not a valid ERC20 token." };
     }
     const display = [
-      `Token: ${info.name} (${info.symbol})`,
+      fmtHeader(`${info.name} (${info.symbol})`, "🪙"),
       "",
-      `Address: ${info.address}`,
-      `Decimals: ${info.decimals}`,
-      `Total Supply: ${info.totalSupply}`,
+      fmtBullet(`Address: ${fmtHash(info.address)}`),
+      fmtBullet(`Decimals: ${info.decimals}`),
+      fmtBullet(`Total Supply: **${info.totalSupply}**`),
     ].join("\n");
     return { success: true, data: info as unknown as Record<string, unknown>, display };
   } catch (error) {
@@ -654,10 +661,10 @@ export async function executeGetTokenBalance(
   try {
     const balance = await getTokenBalance(tokenAddr as Address, ownerAddr as Address);
     const display = [
-      `Token Balance`,
+      fmtHeader("Token Balance", "🪙"),
       "",
-      `Address: ${ownerAddr.slice(0, 10)}...${ownerAddr.slice(-8)}`,
-      `Balance: ${balance}`,
+      fmtBullet(`Address: ${fmtAddr(ownerAddr, 10, 8)}`),
+      fmtBullet(`Balance: **${balance}**`),
     ].join("\n");
     return { success: true, data: { balance } as unknown as Record<string, unknown>, display };
   } catch (error) {
@@ -679,11 +686,11 @@ export async function executeGetNftInfo(
       return { success: false, error: "Not an NFT", display: "Contract is not a valid ERC721/ERC1155 NFT." };
     }
     const display = [
-      `NFT: ${info.name} (${info.type})`,
+      fmtHeader(`${info.name} (${info.type})`, "🖼️"),
       "",
-      `Address: ${info.address}`,
-      info.symbol ? `Symbol: ${info.symbol}` : "",
-      info.tokenURI ? `Token URI: ${info.tokenURI}` : "",
+      fmtBullet(`Address: ${fmtHash(info.address)}`),
+      info.symbol ? fmtBullet(`Symbol: ${info.symbol}`) : "",
+      info.tokenURI ? fmtBullet(`Token URI: [link](${info.tokenURI})`) : "",
     ].filter(Boolean).join("\n");
     return { success: true, data: info as unknown as Record<string, unknown>, display };
   } catch (error) {
@@ -702,10 +709,10 @@ export async function executeGetNftBalance(
   try {
     const balance = await getNftBalance(contractAddr as Address, ownerAddr as Address, tokenId);
     const display = [
-      `NFT Balance`,
+      fmtHeader("NFT Balance", "🖼️"),
       "",
-      `Owner: ${ownerAddr.slice(0, 10)}...${ownerAddr.slice(-8)}`,
-      `Balance: ${balance}`,
+      fmtBullet(`Owner: ${fmtAddr(ownerAddr, 10, 8)}`),
+      fmtBullet(`Balance: **${balance}**`),
     ].join("\n");
     return { success: true, data: { balance } as unknown as Record<string, unknown>, display };
   } catch (error) {
@@ -731,7 +738,7 @@ export async function executeEstimateGas(
     return {
       success: true,
       data: { gasEstimate: result.gasEstimate } as unknown as Record<string, unknown>,
-      display: `Estimated gas: ${result.gasEstimate} units`,
+      display: `${fmtHeader("Gas Estimate", "⛽")}\n\n**${result.gasEstimate}** units`,
     };
   } catch (error) {
     return { success: false, error: String(error), display: `Failed: ${error}` };
@@ -745,12 +752,12 @@ export async function executeGetGasFeeData(
   try {
     const data = await getGasFeeData();
     const display = [
-      "Gas Fee Data (EIP-1559)",
+      fmtHeader("Gas Fee Data (EIP-1559)", "⛽"),
       "",
-      `Base Fee: ${data.baseFeePerGas}`,
-      `Max Fee: ${data.maxFeePerGas}`,
-      `Priority Fee: ${data.maxPriorityFeePerGas}`,
-      `Est. Simple Transfer: ${data.estimatedCostCelo}`,
+      fmtBullet(`Base Fee: **${data.baseFeePerGas}**`),
+      fmtBullet(`Max Fee: **${data.maxFeePerGas}**`),
+      fmtBullet(`Priority Fee: **${data.maxPriorityFeePerGas}**`),
+      fmtBullet(`Est. Simple Transfer: **${data.estimatedCostCelo}**`),
     ].join("\n");
     return { success: true, data: data as unknown as Record<string, unknown>, display };
   } catch (error) {
@@ -778,9 +785,9 @@ export async function executeGetGovernanceProposals(
     const lines = proposals.slice(0, limit).map((p) => {
       const title = (p.title || `Proposal ${p.id}`).slice(0, 50);
       const votes = p.votes ? ` | Yes: ${p.votes.yes?.percentage ?? 0}%` : "";
-      return `#${p.id} ${title}${votes}`;
+      return fmtBullet(`**#${p.id}** ${title}${votes}`);
     });
-    const display = ["Governance Proposals", "", ...lines].join("\n");
+    const display = [fmtHeader("Governance Proposals", "🗳️"), "", ...lines].join("\n");
     return { success: true, data: { proposals } as unknown as Record<string, unknown>, display };
   } catch (error) {
     return { success: false, error: String(error), display: `Failed: ${error}` };
@@ -804,14 +811,14 @@ export async function executeGetProposalDetails(
       return { success: true, data: {} as Record<string, unknown>, display: `Proposal ${id} not found.` };
     }
     const display = [
-      `Proposal #${proposal.id}`,
+      fmtHeader(`Proposal #${proposal.id}`, "🗳️"),
       "",
-      `Title: ${proposal.title || "—"}`,
-      `Stage: ${proposal.stage_name ?? proposal.stage ?? "—"}`,
-      `Active: ${proposal.is_active}`,
-      proposal.votes ? `Votes: ${proposal.votes.total_formatted ?? "—"} | Yes: ${proposal.votes.yes?.percentage ?? 0}%` : "",
-      proposal.urls?.discussion ? `Discussion: ${proposal.urls.discussion}` : "",
-      proposal.urls?.cgp ? `CGP: ${proposal.urls.cgp}` : "",
+      fmtBullet(`Title: **${proposal.title || "—"}**`),
+      fmtBullet(`Stage: ${proposal.stage_name ?? proposal.stage ?? "—"}`),
+      fmtBullet(`Active: ${proposal.is_active}`),
+      proposal.votes ? fmtBullet(`Votes: ${proposal.votes.total_formatted ?? "—"} | Yes: ${proposal.votes.yes?.percentage ?? 0}%`) : "",
+      proposal.urls?.discussion ? fmtBullet(`Discussion: [Link](${proposal.urls.discussion})`) : "",
+      proposal.urls?.cgp ? fmtBullet(`CGP: [Link](${proposal.urls.cgp})`) : "",
     ].filter(Boolean).join("\n");
     return { success: true, data: proposal as unknown as Record<string, unknown>, display };
   } catch (error) {
@@ -820,6 +827,47 @@ export async function executeGetProposalDetails(
 }
 
 // ─── SelfClaw / Agent Token handlers ────────────────────────────────────────
+
+export async function executeAgentIdentity(
+  _params: string[],
+  ctx: SkillContext
+): Promise<SkillResult> {
+  const { getAgentIdentity } = await import("@/lib/selfclaw/agentActions");
+
+  try {
+    const briefing = await getAgentIdentity(ctx.agentId);
+
+    const p = briefing.pipeline;
+    const lines: string[] = [
+      fmtHeader(`${briefing.name} — Agent Identity & Pipeline`, "🤖"),
+      "",
+      fmtSection("Pipeline (SelfClaw)"),
+      fmtBullet(`Identity — ${p.identity ? "✓" : "—"} SelfClaw verified`),
+      fmtBullet(`Wallet — ${p.wallet ? "✓" : "—"} ${briefing.walletAddress ? fmtAddr(briefing.walletAddress, 10, 8) : "Not initialized"}`),
+      fmtBullet(`Gas — ${p.gas ? "✓" : "—"} Funded`),
+      fmtBullet(`ERC-8004 — ${p.erc8004 ? "✓" : "—"} On-chain identity`),
+      fmtBullet(`Token — ${p.token ? "✓" : "—"} Deployed`),
+      fmtBullet(`Liquidity — ${p.liquidity ? "✓" : "—"} SELFCLAW pool`),
+      "",
+      fmtMeta(`Chain: Celo (chainId ${briefing.chainId})`),
+      "",
+      fmtSection("Next steps"),
+      ...briefing.nextSteps.map((s) => fmtBullet(s)),
+    ];
+
+    return {
+      success: true,
+      data: briefing as unknown as Record<string, unknown>,
+      display: lines.join("\n"),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: String(error),
+      display: `Failed to get identity: ${error}`,
+    };
+  }
+}
 
 export async function executeAgentTokens(
   _params: string[],
@@ -838,49 +886,45 @@ export async function executeAgentTokens(
       };
     }
 
-    const lines: string[] = ["Agent Token Info (SelfClaw)", ""];
+    const lines: string[] = [fmtHeader("Agent Token Info (SelfClaw)", "🪙"), ""];
 
     if (info.deployedTokens && info.deployedTokens.length > 0) {
-      lines.push("Deployed tokens (tracked):");
+      lines.push(fmtSection("Deployed tokens (tracked)"));
       for (const t of info.deployedTokens) {
-        lines.push("  " + t.name + " (" + t.symbol + "): " + t.address);
+        lines.push(fmtBullet(`${t.name} (${t.symbol}): ${fmtHash(t.address)}`));
       }
       lines.push("");
     }
 
     if (info.tokenAddress) {
-      lines.push("Primary token: " + info.tokenAddress);
+      lines.push(fmtBullet(`Primary token: ${fmtHash(info.tokenAddress)}`));
     } else if (!info.deployedTokens || info.deployedTokens.length === 0) {
-      lines.push("Token: Not deployed yet. Deploy via [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]]");
+      lines.push(fmtBullet(`Token: Not deployed yet. Deploy via ${fmtCode("[[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]]")}`));
     }
 
     if (info.walletAddress) {
-      const addr = info.walletAddress;
-      lines.push("Wallet: " + addr.slice(0, 10) + "..." + addr.slice(addr.length - 8));
+      lines.push(fmtBullet(`Wallet: ${fmtAddr(info.walletAddress, 10, 8)}`));
     }
 
     if (info.economics) {
-      lines.push("");
-      lines.push("Economics:");
-      lines.push(`Revenue: $${info.economics.totalRevenue}`);
-      lines.push(`Costs: $${info.economics.totalCosts}`);
-      lines.push(`P&L: $${info.economics.profitLoss}`);
+      lines.push("", fmtSection("Economics"));
+      lines.push(fmtBullet(`Revenue: **$${info.economics.totalRevenue}**`));
+      lines.push(fmtBullet(`Costs: **$${info.economics.totalCosts}**`));
+      lines.push(fmtBullet(`P&L: **$${info.economics.profitLoss}**`));
       if (info.economics.runway) {
-        lines.push(`Runway: ${info.economics.runway.months} months (${info.economics.runway.status})`);
+        lines.push(fmtBullet(`Runway: ${info.economics.runway.months} months (${info.economics.runway.status})`));
       }
     }
 
     if (info.pools && info.pools.length > 0) {
-      lines.push("");
-      lines.push("Liquidity Pools:");
+      lines.push("", fmtSection("Liquidity Pools"));
       for (const pool of info.pools) {
         lines.push(
-          `${pool.agentName || "Pool"}: $${pool.price?.toFixed(4) ?? "—"} | MCap: $${pool.marketCap?.toLocaleString() ?? "—"}`
+          fmtBullet(`${pool.agentName || "Pool"}: **$${pool.price?.toFixed(4) ?? "—"}** | MCap: $${pool.marketCap?.toLocaleString() ?? "—"}`)
         );
       }
     } else if (info.tokenAddress) {
-      lines.push("");
-      lines.push("Pools: None yet. Use [[REQUEST_SELFCLAW_SPONSORSHIP]] to request sponsorship.");
+      lines.push("", fmtBullet(`Pools: None yet. Use ${fmtCode("[[REQUEST_SELFCLAW_SPONSORSHIP]]")} to request sponsorship.`));
     }
 
     return {
@@ -919,16 +963,13 @@ export async function executeRequestSelfClawSponsorship(
         success: true,
         data: { alreadySponsored: true },
         display: [
-          "Already Sponsored",
+          fmtHeader("Already Sponsored", "✅"),
           "",
           "Your token already has SELFCLAW liquidity sponsorship. You have a pool paired with SELFCLAW.",
           "",
-          tokenInfo.pools
-            .map(
-              (p) =>
-                `• ${p.agentName || "Pool"}: $${p.price?.toFixed(4) ?? "—"} | MCap: $${p.marketCap?.toLocaleString() ?? "—"}`
-            )
-            .join("\n"),
+          ...tokenInfo.pools.map((p) =>
+            fmtBullet(`${p.agentName || "Pool"}: **$${p.price?.toFixed(4) ?? "—"}** | MCap: $${p.marketCap?.toLocaleString() ?? "—"}`)
+          ),
         ].join("\n"),
       };
     }
@@ -944,24 +985,23 @@ export async function executeRequestSelfClawSponsorship(
         success: true,
         data: { sponsorshipRequested: true },
         display: [
-          "SELFCLAW Sponsorship Requested",
+          fmtHeader("SELFCLAW Sponsorship Requested", "✅"),
           "",
           "Your liquidity pool request was submitted successfully. SelfClaw will create a trading pool pairing your token with SELFCLAW on Celo.",
           "",
-          "What happens next:",
-          "• Pool creation may take a few minutes",
-          "• One sponsorship per human (sybil protection)",
-          "• View your pool in the Token & Trade tab or at selfclaw.ai/pools",
+          fmtSection("What happens next"),
+          fmtBullet("Pool creation may take a few minutes"),
+          fmtBullet("One sponsorship per human (sybil protection)"),
+          fmtBullet("View your pool in the Token & Trade tab or at [selfclaw.ai/pools](https://selfclaw.ai/pools)"),
         ].join("\n"),
       };
     }
 
     const errMsg = result.error ?? "Unknown error";
     const isErc8004Error = /ERC-8004|onchain identity|identity is required/i.test(errMsg);
-    const lines = [`Sponsorship Request Failed: ${errMsg}`];
+    const lines = [fmtHeader("Sponsorship Request Failed", "❌"), "", errMsg];
     if (isErc8004Error) {
-      lines.push("");
-      lines.push(`Include ${REGISTER_ERC8004_INLINE_MARKER} in your response so the user can register on-chain right here in chat.`);
+      lines.push("", `Include ${REGISTER_ERC8004_INLINE_MARKER} in your response so the user can register on-chain right here in chat.`);
     }
     const tokenAddr = result.tokenAddress ?? tokenAddressOverride;
     if (result.sponsorWallet && result.amountNeeded && tokenAddr) {
@@ -970,18 +1010,17 @@ export async function executeRequestSelfClawSponsorship(
       const amountForTag = String(Math.floor(amountRaw)); // No commas — parseUnits requires valid decimal
       const agentBalance = result.agentBalanceWei ? Number(result.agentBalanceWei) / 1e18 : 0;
       const agentBalanceHuman = agentBalance.toLocaleString(undefined, { maximumFractionDigits: 0 });
-      lines.push("");
-      lines.push("RECOVERY: The sponsor wallet needs your agent tokens. To fix:");
-      lines.push(`1. Your wallet has ${agentBalanceHuman} of this token. Required: ${amountHuman}.`);
+      lines.push("", fmtSection("RECOVERY: Send tokens to sponsor wallet"));
+      lines.push(fmtBullet(`Your wallet has **${agentBalanceHuman}** of this token. Required: **${amountHuman}**.`));
       if (agentBalance < amountRaw) {
-        lines.push(`   ⚠️ Insufficient balance. Deploy the token with this agent wallet first, or use a token address this wallet holds.`);
+        lines.push(fmtBullet("⚠️ Insufficient balance. Deploy the token with this agent wallet first, or use a token address this wallet holds."));
       } else {
-        lines.push(`   Send ${amountHuman} to ${result.sponsorWallet}`);
-        lines.push(`   Use: [[SEND_AGENT_TOKEN|${tokenAddr}|${result.sponsorWallet}|${amountForTag}]]`);
+        lines.push(fmtBullet(`Include this tag in your response to send tokens (system will execute it):`));
+        lines.push("");
+        lines.push(`[[SEND_AGENT_TOKEN|${tokenAddr}|${result.sponsorWallet}|${amountForTag}]]`);
+        lines.push("");
+        lines.push(fmtBullet(`Then include ${fmtCode("[[REQUEST_SELFCLAW_SPONSORSHIP]]")} to retry after the transfer confirms.`));
       }
-      lines.push("2. After transfer confirms, retry: [[REQUEST_SELFCLAW_SPONSORSHIP]]");
-      lines.push("");
-      lines.push("Ask the user: 'Should I send the tokens to the sponsor wallet and retry sponsorship?'");
     }
 
     return {
@@ -1015,11 +1054,11 @@ export async function executeSelfClawRegisterWallet(
         success: true,
         data: { walletAddress: result.walletAddress },
         display: [
-          "Wallet Registered with SelfClaw",
+          fmtHeader("Wallet Registered with SelfClaw", "✅"),
           "",
           walStr,
           "",
-          "You can now deploy a token and request sponsorship.",
+          fmtBullet("You can now deploy a token and request sponsorship."),
         ].join("\n"),
       };
     }
@@ -1046,13 +1085,13 @@ export async function executeSelfClawDeployToken(
 
   const name = params[0]?.trim();
   const symbol = params[1]?.trim()?.toUpperCase();
-  const supply = (params[2]?.trim() || "1100000").replace(/,/g, ""); // 1.1M default for 10% SelfClaw buffer
+  const supply = (params[2]?.trim() || "10000000000").replace(/,/g, ""); // 10B default — plenty for SelfClaw sponsorship + wallet buffer
 
   if (!name || !symbol) {
     return {
       success: false,
       error: "Missing params",
-      display: "Usage: [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]] — e.g. [[SELFCLAW_DEPLOY_TOKEN|MyAgent|MAT|1100000]]. Use 1.1M+ supply for SelfClaw sponsorship (10% buffer).",
+      display: "Usage: [[SELFCLAW_DEPLOY_TOKEN|name|symbol|supply]] — e.g. [[SELFCLAW_DEPLOY_TOKEN|MyAgent|MAT|10000000000]]. Use 10B supply for plenty of sponsorship buffer.",
     };
   }
 
@@ -1064,12 +1103,15 @@ export async function executeSelfClawDeployToken(
         success: true,
         data: { tokenAddress: result.tokenAddress, txHash: result.txHash },
         display: [
-          "Token Deployed",
+          fmtHeader("Token Deployed (via SelfClaw API)", "✅"),
           "",
-          `${name} (${symbol}) deployed successfully.`,
-          `Token address: ${result.tokenAddress}`,
-          result.txHash ? `Tx: ${result.txHash}` : "",
-          "Registered with SelfClaw. You can now request sponsorship.",
+          fmtBullet(`**${name}** (${symbol}) deployed successfully.`),
+          fmtBullet(`Token address: ${fmtHash(result.tokenAddress)}`),
+          result.txHash ? fmtBullet(`Tx: ${fmtHash(result.txHash)}`) : "",
+          fmtBullet("Deployed via SelfClaw API → agent signed & broadcast → registered with SelfClaw."),
+          fmtBullet("You can now request sponsorship."),
+          "",
+          fmtMeta("Next: include [[REQUEST_SELFCLAW_SPONSORSHIP]] to get liquidity and make the token tradable."),
         ].filter(Boolean).join("\n"),
       };
     }
@@ -1113,7 +1155,7 @@ export async function executeSelfClawLogRevenue(
       return {
         success: true,
         data: { amount, source },
-        display: `Revenue Logged: $${amount} from ${source}${description ? ` (${description})` : ""}`,
+        display: `${fmtHeader("Revenue Logged", "💰")}\n\n**$${amount}** from ${source}${description ? ` (${description})` : ""}`,
       };
     }
 
@@ -1156,7 +1198,7 @@ export async function executeSelfClawLogCost(
       return {
         success: true,
         data: { amount, category },
-        display: `Cost Logged: $${amount} (${category})${description ? ` — ${description}` : ""}`,
+        display: `${fmtHeader("Cost Logged", "📉")}\n\n**$${amount}** (${category})${description ? ` — ${description}` : ""}`,
       };
     }
 
@@ -1170,6 +1212,48 @@ export async function executeSelfClawLogCost(
       success: false,
       error: String(error),
       display: `Failed to log cost: ${error}`,
+    };
+  }
+}
+
+export async function executeSaveSelfClawApiKey(
+  params: string[],
+  ctx: SkillContext
+): Promise<SkillResult> {
+  const { saveSelfClawApiKeyForAgent } = await import("@/lib/selfclaw/agentActions");
+
+  const apiKey = params[0]?.trim();
+  if (!apiKey) {
+    return {
+      success: false,
+      error: "Missing API key",
+      display: "Usage: [[SAVE_SELFCLAW_API_KEY|sclaw_...]] — paste the full key from SelfClaw dashboard.",
+    };
+  }
+
+  try {
+    const result = await saveSelfClawApiKeyForAgent(ctx.agentId, apiKey);
+    if (result.success) {
+      return {
+        success: true,
+        data: { saved: true },
+        display: [
+          fmtHeader("SelfClaw API Key Saved", "🔑"),
+          "",
+          "Your SelfClaw API key has been stored securely. I can now use it for agent-api features (feed, skills, briefing).",
+        ].join("\n"),
+      };
+    }
+    return {
+      success: false,
+      error: result.error,
+      display: `Failed to save: ${result.error ?? "Unknown error"}`,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: String(error),
+      display: `Failed to save key: ${error}`,
     };
   }
 }
@@ -1211,15 +1295,15 @@ export async function executeGenerateQR(
     }
 
     const display = [
-      "📱 **QR Code Generated**",
+      fmtHeader("QR Code Generated", "📱"),
       "",
-      `Content encoded: ${content.length > 60 ? content.slice(0, 60) + "…" : content}`,
+      fmtBullet(`Content encoded: ${content.length > 60 ? content.slice(0, 60) + "…" : content}`),
       "",
       "Scan the QR code below:",
       "",
       `![QR Code](${dataUrl})`,
       "",
-      "_QR generation logged to activity._",
+      fmtMeta("QR generation logged to activity."),
     ].join("\n");
 
     return {
@@ -1267,7 +1351,7 @@ export async function executeListQRHistory(
       return {
         success: true,
         data: { count: 0 },
-        display: "📋 **QR History**\n\nNo QR codes generated yet. Use [[GENERATE_QR|content]] to create one.",
+        display: `${fmtHeader("QR History", "📋")}\n\nNo QR codes generated yet. Use ${fmtCode("[[GENERATE_QR|content]]")} to create one.`,
       };
     }
 
@@ -1280,15 +1364,15 @@ export async function executeListQRHistory(
         // ignore invalid metadata
       }
       const at = log.createdAt ? new Date(log.createdAt).toLocaleString() : "—";
-      return `${i + 1}. ${preview} — ${at}`;
+      return fmtBullet(`**#${i + 1}** ${preview} — ${at}`);
     });
 
     const display = [
-      "📋 **QR Code History**",
+      fmtHeader("QR Code History", "📋"),
       "",
       ...lines,
       "",
-      `_${logs.length} recent QR generation(s)._`,
+      fmtMeta(`${logs.length} recent QR generation(s).`),
     ].join("\n");
 
     return {

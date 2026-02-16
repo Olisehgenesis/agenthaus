@@ -2,6 +2,11 @@
 
 Integrate [SelfClaw](https://selfclaw.ai) into AgentHaus so every AI agent can prove it's backed by a real human via [Self.xyz](https://self.xyz) zero-knowledge passport proofs.
 
+**Official SelfClaw resources:**
+- [Verify](https://selfclaw.ai) · [Feed](https://selfclaw.ai) · [Docs](https://selfclaw.ai) · [Whitepaper](https://selfclaw.ai)
+- API base: `https://selfclaw.ai/api/selfclaw/v1`
+- Deploy flow: `POST /deploy-token` → sign unsigned tx → `POST /register-token` with txHash
+
 ---
 
 ## Table of Contents

@@ -94,8 +94,8 @@ export async function POST(
       agent.owner.walletAddress?.toLowerCase() === String(walletAddress).toLowerCase();
 
     if (welcome) {
-      const introPrompt =
-        "Introduce yourself to the user in one short, cool paragraph. Say who you are (use your name), what you can help with. Be friendly, welcoming, and a bit charismatic. Keep it concise—no bullet points or markdown.";
+      const agentName = agent.name || "Agent";
+      const introPrompt = `Your name is **${agentName}**. Introduce yourself to the user in one short, cool paragraph. Say who you are (use your name: ${agentName}), what you can help with. Be friendly, welcoming, and a bit charismatic. Keep it concise. You may use **bold** for emphasis if it helps.`;
       response = await processMessage(id, introPrompt, [], { canUseAgentWallet: false });
     } else if (walletAddress && isAdmin) {
       // Persist session: verify wallet is owner, get/create web binding, use processChannelMessage

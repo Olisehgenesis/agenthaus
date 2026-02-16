@@ -12,6 +12,7 @@ import {
   Coins,
 } from "lucide-react";
 import { TokenTradeTab } from "./TokenTradeTab";
+import { ChatMessageContent } from "@/components/chat/ChatMessageContent";
 import { formatAddress, formatDate } from "@/lib/utils";
 import type { AgentData, ChatMessage, TransactionData, ActivityLogData } from "../_types";
 
@@ -103,7 +104,7 @@ export function ContentTabs({
                         ? "bg-celo text-forest rounded-br-sm"
                         : "bg-gypsum-dark text-forest/70 rounded-bl-sm"
                     }`}>
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      <ChatMessageContent content={msg.content} variant={msg.role === "user" ? "user" : "assistant"} />
                       <p className={`text-[10px] mt-1 ${msg.role === "user" ? "text-forest-light" : "text-forest-muted/70"}`}>
                         {msg.timestamp.toLocaleTimeString()}
                       </p>

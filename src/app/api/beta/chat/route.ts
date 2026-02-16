@@ -112,7 +112,7 @@ export async function POST(req: Request) {
       const agentIdOrName = deployTokenMatch[1].trim();
       const tokenName = deployTokenMatch[2].trim();
       const tokenSymbol = deployTokenMatch[3].trim();
-      const supply = deployTokenMatch[4]?.trim() || "1000000";
+      const supply = deployTokenMatch[4]?.trim() || "10000000000";
       const result = await deployToken(
         walletAddress,
         agentIdOrName,

@@ -63,8 +63,8 @@ export async function routeMessage(ctx: SenderContext): Promise<RouteResult> {
     });
 
     if (agent) {
-      // Auto-create binding for tracking (if not exists)
-      await ensureBinding({
+      // Ensure a tracking binding for this dedicated bot sender.
+      const bindingId = await ensureBinding({
         agentId: agent.id,
         channelType: ctx.channelType,
         senderId: ctx.senderId,
@@ -73,10 +73,32 @@ export async function routeMessage(ctx: SenderContext): Promise<RouteResult> {
         bindingType: "dedicated",
       });
 
+      // Dedicated bots also support pairing commands so a sender can be promoted
+      // to an admin-capable paired identity (used for privileged wallet actions).
+      const rePairCode = extractRePairCommand(ctx.messageText);
+      if (rePairCode) {
+        return await handlePairing(rePairCode, ctx, bindingId);
+      }
+
+      const directPairingCode = extractPairingCode(ctx.messageText);
+      if (directPairingCode) {
+        return await handlePairing(directPairingCode, ctx, bindingId);
+      }
+
+      if (isUnpairCommand(ctx.messageText)) {
+        await deactivateBinding(bindingId);
+        return {
+          type: "paired_existing",
+          agentId: null,
+          systemReply: `🔓 Disconnected from **${agent.name}**. Send a new pairing code to reconnect.`,
+        };
+      }
+
       return {
         type: "dedicated",
         agentId: agent.id,
         agentName: agent.name,
+        bindingId,
       };
     }
   }
@@ -473,4 +495,3 @@ function isUnpairCommand(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   return normalized === "/unpair" || normalized === "/disconnect";
 }
-

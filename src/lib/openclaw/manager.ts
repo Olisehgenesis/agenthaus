@@ -382,8 +382,10 @@ export async function processChannelMessage(
   agentId: string,
   bindingId: string | null,
   userMessage: string,
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown>,
+  options: ProcessMessageOptions = {}
 ): Promise<string> {
+  const { canUseAgentWallet = true } = options;
   // Load session history (empty if no binding)
   let history: { role: "user" | "assistant"; content: string }[] = [];
 
@@ -393,7 +395,7 @@ export async function processChannelMessage(
 
   // Run the main pipeline — processChannelMessage is only used for owner sessions
   const response = await processMessage(agentId, userMessage, history, {
-    canUseAgentWallet: true,
+    canUseAgentWallet,
   });
 
   // Persist the exchange
@@ -403,4 +405,3 @@ export async function processChannelMessage(
 
   return response;
 }
-

@@ -140,12 +140,23 @@ export async function POST(
         // Generate webhook secret
         const webhookSecret = uuid().replace(/-/g, "");
 
-        // Get the app URL for webhook
-        const baseUrl =
-          process.env.NEXT_PUBLIC_APP_URL ||
-          process.env.VERCEL_URL
-            ? `https://${process.env.VERCEL_URL}`
-            : "http://localhost:3000";
+        // Get the app URL for webhook. Preference order:
+        // 1) NEXT_PUBLIC_APP_URL (explicit public URL)
+        // 2) current request origin (works for local ports and custom domains)
+        // 3) VERCEL_URL (deployed on Vercel)
+        // 4) localhost fallback
+        let baseUrl = "http://localhost:3000";
+        if (process.env.NEXT_PUBLIC_APP_URL) {
+          baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+        } else {
+          try {
+            baseUrl = new URL(request.url).origin;
+          } catch {
+            if (process.env.VERCEL_URL) {
+              baseUrl = `https://${process.env.VERCEL_URL}`;
+            }
+          }
+        }
 
         // Set webhook with Telegram
         const hookResult = await setWebhook(botToken, id, baseUrl, webhookSecret);
@@ -293,4 +304,3 @@ function parseChannels(raw: string | null): ChannelConfig[] {
     return [];
   }
 }
-

@@ -26,6 +26,21 @@ import {
 } from "@/lib/channels/telegram";
 import { decrypt } from "@/lib/crypto";
 
+function isLikelyWalletCommand(text: string): boolean {
+  const normalized = text.toLowerCase();
+  const patterns = [
+    /\bsend\b/,
+    /\btransfer\b/,
+    /\bswap\b/,
+    /\bdeploy\b.+\btoken\b/,
+    /\brequest\b.+\bsponsorship\b/,
+    /\bregister\b.+\berc-?8004\b/,
+    /\btip\b/,
+    /\bpay\b/,
+  ];
+  return patterns.some((p) => p.test(normalized));
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ agentId: string }> }
@@ -69,20 +84,26 @@ export async function POST(
       return NextResponse.json({ ok: true });
     }
 
-    // Check chat ID allowlist (if configured)
+    // Decrypt bot token
+    const botToken = decrypt(agent.telegramBotToken);
+
+    // Check chat ID allowlist (if configured).
+    // If blocked, send guidance instead of failing silently.
     if (agent.telegramChatIds) {
       try {
         const allowedIds = JSON.parse(agent.telegramChatIds) as string[];
         if (allowedIds.length > 0 && !allowedIds.includes(incoming.chatId)) {
+          await sendMessage(
+            botToken,
+            incoming.chatId,
+            "This chat is not authorized for admin actions yet. Open the Admin modal, generate a pairing code, and send it here."
+          );
           return NextResponse.json({ ok: true });
         }
       } catch {
         // Malformed JSON — allow all
       }
     }
-
-    // Decrypt bot token
-    const botToken = decrypt(agent.telegramBotToken);
 
     // Send typing indicator (non-blocking)
     sendTypingAction(botToken, incoming.chatId);
@@ -99,9 +120,60 @@ export async function POST(
 
     const route = await routeMessage(senderCtx);
 
+    if (route.systemReply) {
+      await sendMessage(
+        botToken,
+        incoming.chatId,
+        route.systemReply,
+        incoming.messageId as number | undefined
+      );
+      return NextResponse.json({ ok: true });
+    }
+
+    if (!route.agentId) {
+      await sendMessage(
+        botToken,
+        incoming.chatId,
+        "Please send a valid pairing code from your admin dashboard to continue.",
+        incoming.messageId as number | undefined
+      );
+      return NextResponse.json({ ok: true });
+    }
+
+    let canUseAgentWallet = false;
+    if (route.bindingId) {
+      const binding = await prisma.channelBinding.findUnique({
+        where: { id: route.bindingId },
+        select: { bindingType: true },
+      });
+      canUseAgentWallet =
+        binding?.bindingType === "pairing" || binding?.bindingType === "direct";
+    }
+
+    if (!canUseAgentWallet && isLikelyWalletCommand(incoming.text)) {
+      const pairingMessage = [
+        "This is a privileged command.",
+        "",
+        "To enable wallet/admin actions:",
+        "1. Open the agent Admin modal",
+        "2. Generate a pairing code",
+        "3. Send that code here (example: `AF7X2K`)",
+        "",
+        "After pairing, retry your command.",
+      ].join("\n");
+
+      await sendMessage(
+        botToken,
+        incoming.chatId,
+        pairingMessage,
+        incoming.messageId as number | undefined
+      );
+      return NextResponse.json({ ok: true });
+    }
+
     // Process through full pipeline with session history
     const response = await processChannelMessage(
-        agentId,
+      route.agentId,
       route.bindingId || null,
       incoming.text,
       {
@@ -110,13 +182,14 @@ export async function POST(
         senderName: incoming.senderName,
         chatId: incoming.chatId,
         dedicated: true,
-      }
+      },
+      { canUseAgentWallet }
     );
 
     // Send reply back to Telegram
     await sendMessage(
       botToken,
-      Number(incoming.chatId),
+      incoming.chatId,
       response,
       incoming.messageId as number | undefined
     );

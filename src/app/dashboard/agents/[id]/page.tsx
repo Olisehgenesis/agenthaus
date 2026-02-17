@@ -346,6 +346,10 @@ export default function AgentDetailPage() {
         hasUserAddress={!!ad.userAddress}
         onSyncToSelfClaw={handleSyncToSelfClaw}
         isSyncingToSelfClaw={syncingToSelfClaw}
+        onUpdateMetadata={ad.handleUpdateMetadata}
+        isUpdatingMetadata={ad.isUpdatingMetadata}
+        updateMetadataError={ad.updateMetadataError}
+        connectedChainId={ad.connectedChainId}
       />
 
       {/* ── Verify Modal ── */}

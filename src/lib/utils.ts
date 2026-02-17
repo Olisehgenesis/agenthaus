@@ -54,3 +54,28 @@ export function getTemplateIcon(type: string): string {
   return icons[type] || "🤖";
 }
 
+export function formatCompactNumber(n: number, digits = 1): string {
+  const num = Number(n || 0);
+  const abs = Math.abs(num);
+  if (abs >= 1_000_000) {
+    return `${(num / 1_000_000).toFixed(digits).replace(/\.0+$/g, "")}M+`;
+  }
+  if (abs >= 1_000) {
+    return `${(num / 1_000).toFixed(digits).replace(/\.0+$/g, "")}K+`;
+  }
+  return `${num}`;
+}
+
+export function formatCompactCurrency(amount: number, currencySymbol = "$", digits = 1): string {
+  const num = Number(amount || 0);
+  const abs = Math.abs(num);
+  const sign = num < 0 ? "-" : "";
+  if (abs >= 1_000_000) {
+    return `${sign}${currencySymbol}${(abs / 1_000_000).toFixed(digits).replace(/\.0+$/g, "")}M+`;
+  }
+  if (abs >= 1_000) {
+    return `${sign}${currencySymbol}${(abs / 1_000).toFixed(digits).replace(/\.0+$/g, "")}K+`;
+  }
+  return `${sign}${currencySymbol}${abs.toFixed(2)}`;
+}
+

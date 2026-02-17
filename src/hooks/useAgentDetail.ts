@@ -311,6 +311,7 @@ export function useAgentDetail(agentId: string | undefined) {
   const { switchChain } = useSwitchChain();
   const {
     register: registerOnChain,
+    updateMetadata: updateMetadataOnChain,
     checkDeployed,
     isRegistering,
     error: erc8004Error,
@@ -346,6 +347,42 @@ export function useAgentDetail(agentId: string | undefined) {
       console.error("On-chain registration failed:", err);
     }
   }, [agent, userAddress, registerOnChain, clearERC8004Error, refreshAgent]);
+
+  const [isUpdatingMetadata, setIsUpdatingMetadata] = React.useState(false);
+  const [updateMetadataError, setUpdateMetadataError] = React.useState<string | null>(null);
+  const handleUpdateMetadata = React.useCallback(async () => {
+    if (!agent || !userAddress || !agent.erc8004AgentId) return;
+    clearERC8004Error();
+    setUpdateMetadataError(null);
+    setIsUpdatingMetadata(true);
+    try {
+      const prepRes = await fetch(`/api/agents/${agent.id}/erc8004/update-metadata`);
+      if (!prepRes.ok) {
+        const err = await prepRes.json();
+        throw new Error(err.error || "Failed to prepare metadata update");
+      }
+      const { agentURI } = await prepRes.json();
+      const result = await updateMetadataOnChain(
+        userAddress as Address,
+        BigInt(agent.erc8004AgentId!),
+        agentURI
+      );
+      await fetch(`/api/agents/${agent.id}/erc8004/update-metadata`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          erc8004URI: agentURI,
+          erc8004TxHash: result.txHash,
+        }),
+      });
+      await refreshAgent();
+    } catch (err) {
+      console.error("Metadata update failed:", err);
+      setUpdateMetadataError(err instanceof Error ? err.message : "Metadata update failed");
+    } finally {
+      setIsUpdatingMetadata(false);
+    }
+  }, [agent, userAddress, updateMetadataOnChain, clearERC8004Error, refreshAgent]);
 
   /* ── Computed values ─────────────────────────────────────────────── */
   const transactions = agent?.transactions || [];
@@ -423,6 +460,9 @@ export function useAgentDetail(agentId: string | undefined) {
     erc8004Deployed,
     registrationResult,
     handleRegisterOnChain,
+    isUpdatingMetadata,
+    updateMetadataError,
+    handleUpdateMetadata,
 
     // Computed
     transactions,

@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { Shield, Coins, Wallet, ExternalLink, AlertCircle, Loader2, Send, CheckCircle, XCircle, Key } from "lucide-react";
+import { Shield, Coins, Wallet, ExternalLink, AlertCircle, Loader2, Send, CheckCircle, XCircle, Key, RefreshCw } from "lucide-react";
 import { get8004ScanAgentUrl } from "@/lib/constants";
 import type { AgentData, VerificationStatus, ChannelData } from "../_types";
 import { PublicKeyDisplay } from "./InfoModal";
@@ -26,6 +26,12 @@ interface AdminModalProps {
   /** Sync existing ERC-8004 to SelfClaw (for agents registered before auto-sync). */
   onSyncToSelfClaw?: () => void;
   isSyncingToSelfClaw?: boolean;
+  /** Update agent metadata on-chain (re-pin to IPFS + setAgentURI). */
+  onUpdateMetadata?: () => void;
+  isUpdatingMetadata?: boolean;
+  updateMetadataError?: string | null;
+  /** User must be on agent's chain to update metadata */
+  connectedChainId?: number;
 }
 
 export function AdminModal({
@@ -43,14 +49,75 @@ export function AdminModal({
   hasUserAddress = false,
   onSyncToSelfClaw,
   isSyncingToSelfClaw = false,
+  onUpdateMetadata,
+  isUpdatingMetadata = false,
+  updateMetadataError = null,
+  connectedChainId,
 }: AdminModalProps) {
   const [showTelegramForm, setShowTelegramForm] = React.useState(false);
   const [telegramToken, setTelegramToken] = React.useState("");
   const [telegramConnecting, setTelegramConnecting] = React.useState(false);
+  const [pairingCode, setPairingCode] = React.useState<string | null>(null);
+  const [pairingCodeExpiresAt, setPairingCodeExpiresAt] = React.useState<string | null>(null);
+  const [pairingCodeLoading, setPairingCodeLoading] = React.useState(false);
+  const [pairingCodeError, setPairingCodeError] = React.useState<string | null>(null);
+  const [adminPairingLoading, setAdminPairingLoading] = React.useState(false);
+  const [adminPairedCount, setAdminPairedCount] = React.useState(0);
 
   const telegramChannel = channelData?.channels?.find((c) => c.type === "telegram" && c.enabled);
   const botUsername = telegramChannel?.botUsername?.replace(/^@/, "");
   const hasTelegramBot = !!botUsername;
+
+  const fetchAdminPairingStatus = React.useCallback(async () => {
+    if (!agent.id) return;
+    setAdminPairingLoading(true);
+    try {
+      const res = await fetch(`/api/openclaw/channels?agent=${encodeURIComponent(agent.id)}`);
+      const data = await res.json();
+      if (!res.ok || !Array.isArray(data.bindings)) {
+        setAdminPairedCount(0);
+        return;
+      }
+      const pairedBindings = data.bindings.filter(
+        (b: { channel?: string; type?: string }) =>
+          b.channel === "telegram" && (b.type === "pairing" || b.type === "direct")
+      );
+      setAdminPairedCount(pairedBindings.length);
+    } catch {
+      setAdminPairedCount(0);
+    } finally {
+      setAdminPairingLoading(false);
+    }
+  }, [agent.id]);
+
+  React.useEffect(() => {
+    if (open && hasTelegramBot) {
+      fetchAdminPairingStatus();
+    }
+  }, [open, hasTelegramBot, fetchAdminPairingStatus]);
+
+  const handleGeneratePairingCode = async () => {
+    setPairingCodeLoading(true);
+    setPairingCodeError(null);
+    try {
+      const res = await fetch("/api/openclaw/channels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "generate_code", agentId: agent.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPairingCodeError(data.error || "Failed to generate pairing code");
+        return;
+      }
+      setPairingCode(data.code || null);
+      setPairingCodeExpiresAt(data.expiresAt || null);
+    } catch {
+      setPairingCodeError("Network error while generating pairing code");
+    } finally {
+      setPairingCodeLoading(false);
+    }
+  };
 
   const handleConnectTelegram = async () => {
     if (!telegramToken || !agent.id) return;
@@ -110,42 +177,111 @@ export function AdminModal({
             )}
           </h3>
           {hasTelegramBot ? (
-            <div className="flex items-center justify-between p-3 rounded-lg bg-gypsum/80">
-              <div>
-                <span className="text-xs text-forest/80">@{botUsername}</span>
-                <a
-                  href={`https://t.me/${botUsername}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block text-[10px] text-blue-400 hover:underline mt-0.5"
-                >
-                  Open in Telegram →
-                </a>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-gypsum/80">
+                <div>
+                  <span className="text-xs text-forest/80">@{botUsername}</span>
+                  <a
+                    href={`https://t.me/${botUsername}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-[10px] text-blue-400 hover:underline mt-0.5"
+                  >
+                    Open in Telegram →
+                  </a>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => setShowTelegramForm(true)}
+                  >
+                    Change
+                  </Button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm("Disconnect Telegram bot?")) return;
+                      await fetch(`/api/agents/${agent.id}/channels`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "disconnect_telegram" }),
+                      });
+                      fetchChannels?.();
+                    }}
+                    className="p-1.5 text-red-400 hover:text-red-300 rounded"
+                    title="Disconnect"
+                  >
+                    <XCircle className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
+
+              <div className="p-3 rounded-lg bg-gypsum/80 border border-forest/10 space-y-2">
+                <div className="flex items-center justify-between rounded-md bg-white/70 border border-forest/10 px-2 py-1.5">
+                  <span className="text-[10px] text-forest-muted">Admin pairing status</span>
+                  {adminPairingLoading ? (
+                    <span className="text-[10px] text-forest-muted">Checking...</span>
+                  ) : adminPairedCount > 0 ? (
+                    <span className="text-[10px] text-green-700 bg-green-100 border border-green-200 rounded-full px-2 py-0.5">
+                      Admin Paired ({adminPairedCount})
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-amber-700 bg-amber-100 border border-amber-200 rounded-full px-2 py-0.5">
+                      Not Paired
+                    </span>
+                  )}
+                </div>
+
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-xs h-7"
-                  onClick={() => setShowTelegramForm(true)}
+                  className="text-xs h-7 w-full"
+                  disabled={pairingCodeLoading}
+                  onClick={handleGeneratePairingCode}
                 >
-                  Change
+                  {pairingCodeLoading ? (
+                    <><Loader2 className="w-3 h-3 animate-spin mr-1" /> Generating...</>
+                  ) : (
+                    "Generate Pairing Code"
+                  )}
                 </Button>
-                <button
-                  onClick={async () => {
-                    if (!confirm("Disconnect Telegram bot?")) return;
-                    await fetch(`/api/agents/${agent.id}/channels`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ action: "disconnect_telegram" }),
-                    });
-                    fetchChannels?.();
-                  }}
-                  className="p-1.5 text-red-400 hover:text-red-300 rounded"
-                  title="Disconnect"
+
+                {pairingCodeError && (
+                  <p className="text-[10px] text-red-400">{pairingCodeError}</p>
+                )}
+
+                {pairingCode && (
+                  <div className="rounded-lg bg-white border border-forest/10 px-3 py-2">
+                    <p className="text-[10px] text-forest-muted mb-1">Send this code to the bot to get admin wallet access</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <code className="text-sm font-mono text-forest font-semibold">{pairingCode}</code>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-[10px] h-6 px-2"
+                        onClick={() => navigator.clipboard.writeText(pairingCode)}
+                      >
+                        Copy
+                      </Button>
+                    </div>
+                    {pairingCodeExpiresAt && (
+                      <p className="text-[10px] text-forest-muted mt-1">
+                        Expires: {new Date(pairingCodeExpiresAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-[10px] h-6 w-full"
+                  disabled={adminPairingLoading}
+                  onClick={fetchAdminPairingStatus}
                 >
-                  <XCircle className="w-4 h-4" />
-                </button>
+                  Refresh Status
+                </Button>
               </div>
             </div>
           ) : showTelegramForm ? (
@@ -257,6 +393,39 @@ export function AdminModal({
                 <ExternalLink className="w-4 h-4" />
                 View on 8004scan
               </a>
+              {onUpdateMetadata && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-xs h-8"
+                    disabled={
+                      isUpdatingMetadata ||
+                      !hasUserAddress ||
+                      (connectedChainId != null &&
+                        agent.erc8004ChainId != null &&
+                        connectedChainId !== agent.erc8004ChainId)
+                    }
+                    onClick={onUpdateMetadata}
+                    title={
+                      connectedChainId != null &&
+                      agent.erc8004ChainId != null &&
+                      connectedChainId !== agent.erc8004ChainId
+                        ? `Switch to chain ${agent.erc8004ChainId} (agent was registered there)`
+                        : undefined
+                    }
+                  >
+                    {isUpdatingMetadata ? (
+                      <><Loader2 className="w-3 h-3 animate-spin mr-1" /> Updating...</>
+                    ) : (
+                      <><RefreshCw className="w-3 h-3 mr-1" /> Update metadata on-chain</>
+                    )}
+                  </Button>
+                  {updateMetadataError && (
+                    <p className="text-xs text-red-400">{updateMetadataError}</p>
+                  )}
+                </>
+              )}
               {verificationStatus?.verified && onSyncToSelfClaw && (
                 <Button
                   size="sm"

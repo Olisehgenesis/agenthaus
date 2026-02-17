@@ -19,7 +19,7 @@ import {
   Loader2,
   Wallet,
 } from "lucide-react";
-import { formatAddress, formatCurrency, getTemplateIcon, formatDate } from "@/lib/utils";
+import { formatAddress, formatCurrency, getTemplateIcon, formatDate, formatCompactNumber, formatCompactCurrency } from "@/lib/utils";
 import { DEPLOYMENT_ATTRIBUTION } from "@/lib/constants";
 
 interface DashboardStats {
@@ -127,10 +127,10 @@ export default function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
-          { label: "Total Agents", value: stats?.totalAgents ?? 0, icon: Bot, color: "text-forest" },
+          { label: "Total Agents", value: formatCompactNumber(stats?.totalAgents ?? 0), icon: Bot, color: "text-forest" },
           { label: "Active", value: stats?.activeAgents ?? 0, icon: Activity, color: "text-forest-light" },
           { label: "Transactions", value: stats?.totalTransactions ?? 0, icon: TrendingUp, color: "text-blue-600" },
-          { label: "Value Moved", value: formatCurrency(stats?.totalValueTransferred ?? 0), icon: DollarSign, color: "text-accent" },
+          { label: "Value Moved", value: formatCompactCurrency(stats?.totalValueTransferred ?? 0), icon: DollarSign, color: "text-accent" },
           { label: "Avg Reputation", value: stats?.averageReputation ? `${stats.averageReputation}/5` : "—", icon: Star, color: "text-amber-600" },
           { label: "Gas Spent", value: stats?.totalGasSpent ? `${stats.totalGasSpent} CELO` : "0 CELO", icon: Fuel, color: "text-orange-600" },
         ].map((stat) => (

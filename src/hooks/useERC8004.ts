@@ -12,6 +12,7 @@ import {
   getAgentOwner,
   getERC8004Addresses,
   giveFeedback,
+  updateAgentURI,
 } from "@/lib/blockchain/erc8004";
 import { BLOCK_EXPLORERS } from "@/lib/constants";
 
@@ -23,6 +24,11 @@ interface RegistrationResult {
   explorerUrl: string;
 }
 
+interface UpdateMetadataResult {
+  txHash: string;
+  explorerUrl: string;
+}
+
 interface UseERC8004Return {
   // Registration
   register: (
@@ -30,6 +36,13 @@ interface UseERC8004Return {
     internalAgentId: string, // Our DB agent ID
     agentName?: string // Optional — stored on-chain as "name" metadata
   ) => Promise<RegistrationResult>;
+
+  // Update metadata (setAgentURI)
+  updateMetadata: (
+    ownerAddress: Address,
+    agentId: bigint,
+    newURI: string
+  ) => Promise<UpdateMetadataResult>;
 
   // Reputation
   giveFeedback: (
@@ -203,6 +216,37 @@ export function useERC8004(): UseERC8004Return {
   );
 
   /**
+   * Update agent URI on-chain (setAgentURI).
+   * Call after preparing new metadata via GET /api/agents/[id]/erc8004/update-metadata.
+   */
+  const updateMetadata = useCallback(
+    async (
+      ownerAddress: Address,
+      agentId: bigint,
+      newURI: string
+    ): Promise<UpdateMetadataResult> => {
+      if (!walletClient) throw new Error("Wallet not connected");
+      if (!contractAddresses) {
+        throw new Error(
+          `ERC-8004 contracts not deployed on chain ${chainId}. Switch to Celo Mainnet or Sepolia.`
+        );
+      }
+
+      const txHash = await updateAgentURI(
+        walletClient,
+        contractAddresses.identityRegistry,
+        agentId,
+        newURI,
+        ownerAddress
+      );
+
+      const explorerUrl = `${blockExplorerUrl}/tx/${txHash}`;
+      return { txHash, explorerUrl };
+    },
+    [walletClient, contractAddresses, chainId, blockExplorerUrl]
+  );
+
+  /**
    * Submit feedback for an agent on the Reputation Registry.
    * User signs tx; caller must not be the agent owner (self-feedback blocked on-chain).
    * @param value — raw value (e.g. 45 for 4.5 stars with valueDecimals=1)
@@ -265,6 +309,7 @@ export function useERC8004(): UseERC8004Return {
 
   return {
     register,
+    updateMetadata,
     giveFeedback: submitFeedback,
     getAgent,
     checkDeployed,

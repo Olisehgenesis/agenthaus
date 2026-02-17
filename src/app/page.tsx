@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ReactTyped } from "react-typed";
 import { useAccount, useDisconnect } from "wagmi";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, formatCompactNumber, formatCompactCurrency } from "@/lib/utils";
 import { Zap, Bot, Sparkles, Send, LogOut } from "lucide-react";
 /** Hackathon ideas – one flowing paragraph each, related phrases (random) */
 const DEMO_PROMPTS = [
@@ -37,12 +37,20 @@ export default function HomePage() {
   const { isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const [demoState, setDemoState] = useState<DemoState>("idle");
-
-  // Shuffle prompts so each load gets a random order
-  const shuffledPrompts = useMemo(
-    () => [...DEMO_PROMPTS].sort(() => Math.random() - 0.5),
-    []
-  );
+  const [stats, setStats] = useState<{
+    uniqueUsers: number;
+    agentsTotal: number;
+    agentsDeployed: number;
+    activeAgents: number;
+    verifiedAgents: number;
+    tokensDeployed: number;
+    transactionsCount: number;
+    totalVolume: number;
+    deploymentRate: number;
+    activeRate: number;
+    averageAgentsPerUser: number;
+    transactionsPerAgent: number;
+  } | null>(null);
 
   const handleTryClick = () => {
     if (demoState !== "idle") return;
@@ -51,6 +59,39 @@ export default function HomePage() {
       router.push("/beta/create");
     }, 300);
   };
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/analytics/stats");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!mounted) return;
+        setStats(data);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Show only 4 simple stats on the homepage: total agents, unique users, active agents, and volume
+  const statsCards = stats
+    ? [
+        { label: "Total agents", value: formatCompactNumber(stats.agentsTotal) },
+        { label: "Unique users", value: formatCompactNumber(stats.uniqueUsers) },
+        { label: "Active agents", value: formatCompactNumber(stats.activeAgents) },
+        { label: "Volume", value: formatCompactCurrency(Math.round(stats.totalVolume)) },
+      ]
+    : [
+        { label: "Total agents", value: "—" },
+        { label: "Unique users", value: "—" },
+        { label: "Active agents", value: "—" },
+        { label: "Volume", value: "—" },
+      ];
 
   return (
     <div className="min-h-screen bg-gypsum">
@@ -116,14 +157,10 @@ export default function HomePage() {
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto lg:mx-0 mt-10 text-center lg:text-left">
-                {[
-                  { label: "Templates", value: "4+" },
-                  { label: "Chains", value: "Celo" },
-                  { label: "Registration", value: "ERC-8004" },
-                ].map((stat) => (
-                  <div key={stat.label}>
-                    <div className="text-2xl font-bold text-forest">{stat.value}</div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-w-4xl mx-auto lg:mx-0 mt-10 text-center lg:text-left">
+                {statsCards.map((stat) => (
+                  <div key={stat.label} className="px-3 py-3">
+                    <div className="text-xl font-bold text-forest">{stat.value}</div>
                     <div className="text-sm text-forest-muted">{stat.label}</div>
                   </div>
                 ))}
@@ -134,7 +171,7 @@ export default function HomePage() {
                 <div className="flex-1 min-h-[5.5rem] flex items-center text-forest text-sm sm:text-base border border-forest/20 rounded-xl px-4 py-3 bg-white/80 leading-relaxed">
                   {demoState === "idle" ? (
                     <ReactTyped
-                      strings={shuffledPrompts}
+                      strings={DEMO_PROMPTS}
                       typeSpeed={35}
                       backSpeed={20}
                       backDelay={1500}

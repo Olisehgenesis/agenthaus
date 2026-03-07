@@ -123,8 +123,8 @@ export default function DocsPage() {
                             <Link href="https://github.com/aicelo" target="_blank" className="text-xs font-bold uppercase text-forest hover:opacity-70 transition-opacity">
                                 GitHub
                             </Link>
-                            <Link href="https://twitter.com/aicelo" target="_blank" className="text-xs font-bold uppercase text-forest hover:opacity-70 transition-opacity">
-                                Twitter
+                            <Link href="https://x.com/agenthaus8004" target="_blank" className="text-xs font-bold uppercase text-forest hover:opacity-70 transition-opacity">
+                                X
                             </Link>
                         </div>
                     </div>

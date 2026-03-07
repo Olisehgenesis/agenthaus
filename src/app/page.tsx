@@ -129,7 +129,7 @@ export default function HomePage() {
           {/* Badge - Neobrutalist style */}
           <div className="inline-flex items-center gap-2 px-3 py-1 mb-6 border-2 border-forest bg-celo-yellow text-forest text-[10px] font-bold uppercase tracking-widest neobrutal-shadow">
             <Sparkles className="w-3 h-3" />
-            Built on Celo / ERC-8004
+            ERC-8004 Agents actually doind stuff
           </div>
 
           {/* Heading - Anton Font, Large, Uppercase */}
@@ -139,7 +139,7 @@ export default function HomePage() {
 
           {/* Subtitle */}
           <p className="text-xs md:text-sm text-forest/80 max-w-2xl mx-auto mb-6 leading-relaxed font-bold uppercase tracking-wide">
-            Deploy ERC8004 AI agents on the Celo blockchain.
+            On Click Deploy ERC8004 AI agents.
             Automated registration, secure management, and real-time monitoring.
           </p>
 

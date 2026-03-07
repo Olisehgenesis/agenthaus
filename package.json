@@ -20,6 +20,7 @@
     "@noble/ed25519": "^3.0.0",
     "@prisma/adapter-pg": "^7.4.0",
     "@prisma/client": "^7.3.0",
+    "@radix-ui/react-switch": "^1.2.6",
     "@reown/appkit": "^1.8.18",
     "@reown/appkit-adapter-wagmi": "^1.8.18",
     "@selfxyz/core": "1.2.0-beta.1",

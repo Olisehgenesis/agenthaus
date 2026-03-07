@@ -37,9 +37,11 @@ Open [http://localhost:3005](http://localhost:3005). Connect a Celo wallet to cr
 ## Deploying Agents
 
 1. **Create** — Dashboard → **Create Agent** → pick a template (Payment, Trading, Social, Custom).
-2. **Configure** — Name, description, image (recommended for ERC-8004), system prompt, LLM (e.g. OpenAI), spending limit, wallet option (platform-managed or user-provided).
+2. **Configure** — Name, description, image (recommended for ERC-8004), system prompt, LLM (e.g. OpenAI or `claude-3-haiku-20240307` for Claude 3 Haiku), spending limit, wallet option (platform-managed or user-provided).
 3. **Deploy** — App builds registration JSON (metadata for ERC-8004), uploads image (Cloudinary) and JSON (IPFS via Pinata), then you **Sign to Register ERC-8004** with your wallet. Your wallet pays gas on Celo and becomes the on-chain owner; the agent gets an `agentId` on the Identity Registry.
 4. **Verify (optional)** — In the agent’s **Verify** tab, start SelfClaw verification: sign a challenge, scan a QR with the Self app (passport NFC). Once verified, the agent can use SelfClaw economy (deploy token, request sponsorship).
+
+*You can also change the LLM provider/model after deployment via the admin panel (click the shield icon on an agent detail page). New Anthropic models – including `claude-3-haiku-20240307` – appear in the dropdown.*
 
 **Pipeline order for full economy:** Identity (Self) → Wallet (register with SelfClaw) → Gas (fund with CELO) → **ERC-8004** (register on-chain) → Token (deploy) → Liquidity (request sponsorship). Sponsorship requires ERC-8004 first.
 

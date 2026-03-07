@@ -27,6 +27,9 @@ export interface AgentData {
   transactions: TransactionData[];
   activityLogs: ActivityLogData[];
   verification?: { publicKey: string } | null;
+  disabledSkills?: string | null;
+  externalSocials?: string | null;
+  configuration?: any;
 }
 
 export interface TransactionData {
@@ -95,6 +98,11 @@ export interface ChannelData {
     lastResult?: string;
   }>;
   hasTelegramBot: boolean;
+  externalSocials?: {
+    telegram?: string;
+    twitter?: string;
+    website?: string;
+  } | null;
 }
 
 export interface SendResult {

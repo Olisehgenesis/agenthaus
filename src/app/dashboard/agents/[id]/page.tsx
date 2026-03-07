@@ -154,171 +154,170 @@ export default function AgentDetailPage() {
       {/* ── Content (chat only) ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 flex flex-col overflow-hidden max-w-2xl mx-auto w-full">
-            <div className="flex-1 overflow-auto p-4 space-y-3 mb-4">
-              {ad.chatMessages.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="w-16 h-16 rounded-full overflow-hidden bg-gypsum border-2 border-forest/15 mb-4 shrink-0">
-                    <Image
-                      src={avatarSrc}
-                      alt={agent.name}
-                      width={64}
-                      height={64}
-                      className="object-cover w-full h-full"
-                      unoptimized={agent.imageUrl?.startsWith("ipfs://") || !agent.imageUrl}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-forest font-medium">Chat with {agent.name}</h3>
-                    {vf.verificationStatus?.verified && (
-                      <span
-                        title="Verified and backed by human"
-                        className="inline-flex items-center gap-1 rounded-full bg-forest-light/20 px-2 py-0.5 text-xs font-medium text-forest-light cursor-help"
-                      >
-                        <BadgeCheck className="w-3.5 h-3.5" />
-                        Verified
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-forest-muted max-w-xs mb-6">
-                    {agent.agentWalletAddress
-                      ? isOwner
-                        ? "You're the owner — the agent can execute transactions from its wallet."
-                        : "Chat to get help. Only the agent owner can execute transactions."
-                      : "Chat only — no on-chain transactions."}
-                  </p>
-                  {agent.status !== "active" && (
-                    <Badge variant="warning" className="mb-6">Deploy first to chat</Badge>
-                  )}
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {QUICK_ACTIONS.map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <Button
-                          key={item.label}
-                          variant="outline"
-                          size="sm"
-                          className="rounded-lg border-forest/20 text-forest hover:bg-forest/5"
-                          onClick={() => handleQuickAction(item)}
-                          disabled={ad.isSending || agent.status !== "active"}
-                        >
-                          <Icon className="w-3.5 h-3.5 mr-1.5" />
-                          {item.label}
-                        </Button>
-                      );
-                    })}
-                  </div>
+          <div className="flex-1 overflow-auto p-4 space-y-3 mb-4">
+            {ad.chatMessages.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-16 h-16 rounded-full overflow-hidden bg-gypsum border-2 border-forest/15 mb-4 shrink-0">
+                  <Image
+                    src={avatarSrc}
+                    alt={agent.name}
+                    width={64}
+                    height={64}
+                    className="object-cover w-full h-full"
+                    unoptimized={agent.imageUrl?.startsWith("ipfs://") || !agent.imageUrl}
+                  />
                 </div>
-              )}
-              {ad.chatMessages.map((msg: ChatMessage, i: number) => {
-                const hasFeedbackMarker = msg.role === "assistant" && msg.content.includes(FEEDBACK_INLINE_MARKER);
-                const hasRegisterMarker = msg.role === "assistant" && msg.content.includes(REGISTER_ERC8004_INLINE_MARKER);
-                const displayText = msg.content
-                  .replace(FEEDBACK_INLINE_MARKER, "")
-                  .replace(REGISTER_ERC8004_INLINE_MARKER, "")
-                  .replace(/\n\n+/g, "\n\n")
-                  .trim();
-
-                return (
-                  <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div
-                      className={`max-w-[90%] rounded-2xl px-4 py-3 ${
-                        msg.role === "user"
-                          ? "bg-forest text-white rounded-br-md"
-                          : "bg-white border border-forest/10 shadow-sm rounded-bl-md"
-                      }`}
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-forest font-medium">Chat with {agent.name}</h3>
+                  {vf.verificationStatus?.verified && (
+                    <span
+                      title="Verified and backed by human"
+                      className="inline-flex items-center gap-1 rounded-full bg-forest-light/20 px-2 py-0.5 text-xs font-medium text-forest-light cursor-help"
                     >
-                      <ChatMessageContent content={displayText} variant={msg.role === "user" ? "user" : "assistant"} />
-                      {hasFeedbackMarker && (
-                        <InlineFeedbackWidget
-                          erc8004AgentId={agent.erc8004AgentId}
-                          erc8004ChainId={agent.erc8004ChainId}
-                          isOwner={!!isOwner}
-                          agentName={agent.name}
-                        />
-                      )}
-                      {hasRegisterMarker && isOwner && (
-                        <InlineRegisterWidget
-                          onRegister={ad.handleRegisterOnChain}
-                          isRegistering={ad.isRegistering}
-                          erc8004Error={ad.erc8004Error}
-                          erc8004Deployed={ad.erc8004Deployed}
-                          hasUserAddress={!!ad.userAddress}
-                          isOwner={!!isOwner}
-                        />
-                      )}
-                      <p className={`text-[10px] mt-1 ${msg.role === "user" ? "text-white/80" : "text-forest-muted/70"}`}>
-                        {msg.timestamp.toLocaleTimeString()}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-              {ad.isSending && (
-                <div className="flex justify-start">
-                  <div className="bg-white border border-forest/10 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
-                    <div className="flex items-center gap-2 text-forest-muted">
-                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                      <span className="text-sm">
-                        <span className="typing-dots">...</span>
-                      </span>
-                    </div>
-                  </div>
+                      <BadgeCheck className="w-3.5 h-3.5" />
+                      Verified
+                    </span>
+                  )}
                 </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-            {/* Input bar — beta/create style */}
-            <div className="flex flex-col gap-2 px-4 pb-4">
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={ad.chatInput}
-                  onChange={(e) => ad.setChatInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && ad.handleSendMessage()}
-                  placeholder={`Message ${agent.name}...`}
-                  className="flex-1 h-12 px-4 bg-white border border-forest/20 rounded-xl text-sm text-forest placeholder:text-forest-muted/70 focus:outline-none focus:ring-2 focus:ring-forest/20"
-                  disabled={ad.isSending || agent.status !== "active"}
-                />
-                <Button
-                  size="icon"
-                  variant="glow"
-                  onClick={() => ad.handleSendMessage()}
-                  disabled={!ad.chatInput.trim() || ad.isSending || agent.status !== "active"}
-                  className="rounded-xl h-12 w-12 shrink-0"
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
-              </div>
-              {ad.chatMessages.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-1 items-center">
+                <p className="text-sm text-forest-muted max-w-xs mb-6">
+                  {agent.agentWalletAddress
+                    ? isOwner
+                      ? "You're the owner — the agent can execute transactions from its wallet."
+                      : "Chat to get help. Only the agent owner can execute transactions."
+                    : "Chat only — no on-chain transactions."}
+                </p>
+                {agent.status !== "active" && (
+                  <Badge variant="warning" className="mb-6">Deploy first to chat</Badge>
+                )}
+                <div className="flex flex-wrap gap-2 justify-center">
                   {QUICK_ACTIONS.map((item) => {
                     const Icon = item.icon;
                     return (
-                      <button
+                      <Button
                         key={item.label}
-                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-lg border-forest/20 text-forest hover:bg-forest/5"
                         onClick={() => handleQuickAction(item)}
                         disabled={ad.isSending || agent.status !== "active"}
-                        className="text-xs px-2 py-1 rounded-md text-forest-muted hover:text-forest hover:bg-forest/5 transition-colors"
                       >
-                        <Icon className="w-3 h-3 inline mr-1 align-middle" />
+                        <Icon className="w-3.5 h-3.5 mr-1.5" />
                         {item.label}
-                      </button>
+                      </Button>
                     );
                   })}
-                  <button
-                    type="button"
-                    onClick={() => ad.handleClearChat()}
-                    disabled={ad.isSending}
-                    className="text-xs px-2 py-1 rounded-md text-forest-muted hover:text-red-600 hover:bg-red-500/10 transition-colors"
-                  >
-                    <Trash2 className="w-3 h-3 inline mr-1 align-middle" />
-                    Clear chat
-                  </button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+            {ad.chatMessages.map((msg: ChatMessage, i: number) => {
+              const hasFeedbackMarker = msg.role === "assistant" && msg.content.includes(FEEDBACK_INLINE_MARKER);
+              const hasRegisterMarker = msg.role === "assistant" && msg.content.includes(REGISTER_ERC8004_INLINE_MARKER);
+              const displayText = msg.content
+                .replace(FEEDBACK_INLINE_MARKER, "")
+                .replace(REGISTER_ERC8004_INLINE_MARKER, "")
+                .replace(/\n\n+/g, "\n\n")
+                .trim();
+
+              return (
+                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`max-w-[90%] rounded-2xl px-4 py-3 ${msg.role === "user"
+                        ? "bg-forest text-white rounded-br-md"
+                        : "bg-white border border-forest/10 shadow-sm rounded-bl-md"
+                      }`}
+                  >
+                    <ChatMessageContent content={displayText} variant={msg.role === "user" ? "user" : "assistant"} />
+                    {hasFeedbackMarker && (
+                      <InlineFeedbackWidget
+                        erc8004AgentId={agent.erc8004AgentId}
+                        erc8004ChainId={agent.erc8004ChainId}
+                        isOwner={!!isOwner}
+                        agentName={agent.name}
+                      />
+                    )}
+                    {hasRegisterMarker && isOwner && (
+                      <InlineRegisterWidget
+                        onRegister={ad.handleRegisterOnChain}
+                        isRegistering={ad.isRegistering}
+                        erc8004Error={ad.erc8004Error}
+                        erc8004Deployed={ad.erc8004Deployed}
+                        hasUserAddress={!!ad.userAddress}
+                        isOwner={!!isOwner}
+                      />
+                    )}
+                    <p className={`text-[10px] mt-1 ${msg.role === "user" ? "text-white/80" : "text-forest-muted/70"}`}>
+                      {msg.timestamp.toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+            {ad.isSending && (
+              <div className="flex justify-start">
+                <div className="bg-white border border-forest/10 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
+                  <div className="flex items-center gap-2 text-forest-muted">
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                    <span className="text-sm">
+                      <span className="typing-dots">...</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
           </div>
+          {/* Input bar — beta/create style */}
+          <div className="flex flex-col gap-2 px-4 pb-4">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={ad.chatInput}
+                onChange={(e) => ad.setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && ad.handleSendMessage()}
+                placeholder={`Message ${agent.name}...`}
+                className="flex-1 h-12 px-4 bg-white border border-forest/20 rounded-xl text-sm text-forest placeholder:text-forest-muted/70 focus:outline-none focus:ring-2 focus:ring-forest/20"
+                disabled={ad.isSending || agent.status !== "active"}
+              />
+              <Button
+                size="icon"
+                variant="glow"
+                onClick={() => ad.handleSendMessage()}
+                disabled={!ad.chatInput.trim() || ad.isSending || agent.status !== "active"}
+                className="rounded-xl h-12 w-12 shrink-0"
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+            {ad.chatMessages.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1 items-center">
+                {QUICK_ACTIONS.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => handleQuickAction(item)}
+                      disabled={ad.isSending || agent.status !== "active"}
+                      className="text-xs px-2 py-1 rounded-md text-forest-muted hover:text-forest hover:bg-forest/5 transition-colors"
+                    >
+                      <Icon className="w-3 h-3 inline mr-1 align-middle" />
+                      {item.label}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => ad.handleClearChat()}
+                  disabled={ad.isSending}
+                  className="text-xs px-2 py-1 rounded-md text-forest-muted hover:text-red-600 hover:bg-red-500/10 transition-colors"
+                >
+                  <Trash2 className="w-3 h-3 inline mr-1 align-middle" />
+                  Clear chat
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── Info Modal ── */}
@@ -338,6 +337,7 @@ export default function AgentDetailPage() {
         verificationStatus={vf.verificationStatus}
         channelData={ad.channelData}
         fetchChannels={ad.fetchChannels}
+        onSocialsUpdated={ad.fetchChannels}
         onOpenVerifyModal={() => { setAdminOpen(false); vf.openVerifyModal(); }}
         onRegisterOnChain={ad.handleRegisterOnChain}
         isRegistering={ad.isRegistering}

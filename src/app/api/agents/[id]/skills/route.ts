@@ -17,14 +17,15 @@ export async function GET(
 
     const agent = await prisma.agent.findUnique({
       where: { id },
-      select: { templateType: true, cronJobs: true },
+      select: { templateType: true, cronJobs: true, disabledSkills: true },
     });
 
     if (!agent) {
       return NextResponse.json({ error: "Agent not found" }, { status: 404 });
     }
 
-    const skills = getSkillsForTemplate(agent.templateType);
+    const disabledSkills = (agent as any).disabledSkills ? JSON.parse((agent as any).disabledSkills) as string[] : [];
+    const skills = getSkillsForTemplate((agent as any).templateType);
     const cronJobs = await getCronJobs(id);
     const defaultCrons = getDefaultCronJobs(agent.templateType);
 
@@ -37,6 +38,7 @@ export async function GET(
         commandTag: s.commandTag,
         requiresWallet: s.requiresWallet,
         mutatesState: s.mutatesState,
+        enabled: !disabledSkills.includes(s.id),
       })),
       cronJobs,
       defaultCronJobs: defaultCrons,
@@ -64,7 +66,7 @@ export async function POST(
 
     const agent = await prisma.agent.findUnique({
       where: { id },
-      select: { templateType: true },
+      select: { templateType: true, disabledSkills: true },
     });
 
     if (!agent) {
@@ -112,6 +114,27 @@ export async function POST(
         const filtered = jobs.filter((j) => j.id !== body.jobId);
         await saveCronJobs(id, filtered);
         return NextResponse.json({ cronJobs: filtered });
+      }
+
+      case "toggle_skill": {
+        const { skillId } = body;
+        if (!skillId) {
+          return NextResponse.json({ error: "skillId required" }, { status: 400 });
+        }
+
+        let disabledSkills = (agent as any).disabledSkills ? JSON.parse((agent as any).disabledSkills) as string[] : [];
+        if (disabledSkills.includes(skillId)) {
+          disabledSkills = disabledSkills.filter((s) => s !== skillId);
+        } else {
+          disabledSkills.push(skillId);
+        }
+
+        await prisma.agent.update({
+          where: { id },
+          data: { disabledSkills: JSON.stringify(disabledSkills) },
+        });
+
+        return NextResponse.json({ success: true, disabledSkills });
       }
 
       default:

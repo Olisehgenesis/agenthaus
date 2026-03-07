@@ -14,6 +14,7 @@ import {
   Shield,
   Zap,
   Rocket,
+  Loader2,
 } from "lucide-react";
 import { AGENT_TEMPLATES, LLM_MODELS } from "@/lib/constants";
 import type { AgentTemplate, LLMProvider, AgentConfig } from "@/lib/types";
@@ -27,17 +28,10 @@ import {
   type WalletOption,
 } from "./_components";
 
-const steps = [
-  { id: "template", label: "Choose Template", icon: <Sparkles className="w-4 h-4" /> },
-  { id: "configure", label: "Configure", icon: <Zap className="w-4 h-4" /> },
-  { id: "security", label: "Security", icon: <Shield className="w-4 h-4" /> },
-  { id: "review", label: "Review & Deploy", icon: <Rocket className="w-4 h-4" /> },
-];
 
 export default function NewAgentPage() {
   const router = useRouter();
   const { address, chainId, isConnected } = useAccount();
-  const [currentStep, setCurrentStep] = React.useState("template");
   const [isDeploying, setIsDeploying] = React.useState(false);
   const [deployStatus, setDeployStatus] = React.useState<
     "idle" | "creating" | "uploading" | "signing" | "confirming" | "activating" | "done" | "error"
@@ -105,7 +99,7 @@ export default function NewAgentPage() {
           zai: data.hasZaiKey ?? false,
         });
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [address]);
 
   const hasKeyForProvider = keyStatus[llmProvider] || false;
@@ -171,17 +165,6 @@ export default function NewAgentPage() {
     setDeployStatus("creating");
 
     try {
-      // Save unsaved API key
-      if (apiKey && address) {
-        const body: Record<string, string> = { walletAddress: address };
-        body[providerKeyField[llmProvider]] = apiKey;
-        await fetch("/api/settings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-      }
-
       // Create agent in DB
       const agentName = name.trim() || generateRandomName();
       const createRes = await fetch("/api/agents", {
@@ -255,158 +238,130 @@ export default function NewAgentPage() {
   };
 
   // ── Derived ─────────────────────────────────────────────────────────
-  const stepIndex = steps.findIndex((s) => s.id === currentStep);
-  const canProceed =
-    (currentStep === "template" && selectedTemplate) ||
-    (currentStep === "configure" && systemPrompt) ||
-    (currentStep === "security" && spendingLimit > 0) ||
-    currentStep === "review";
+  const canProceed = selectedTemplate && name && spendingLimit > 0;
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header + Illustration */}
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-        <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold text-forest">Create New Agent</h1>
-          <p className="text-forest-muted text-sm">
-            Deploy an AI agent on Celo with ERC-8004 identity
-            {isConnected && (
-              <span className="ml-2 text-xs">
-                — connected to {chainId === 42220 ? "Celo Mainnet" : chainId === 11142220 ? "Celo Sepolia" : `chain ${chainId}`}
-              </span>
-            )}
-          </p>
-        </div>
-        </div>
-        <div className="hidden lg:block w-48 flex-shrink-0">
-          <Image
-            src="/images/06-Dashboard_New_Agent-Option_A-Bot_Choosing_Template.png"
-            alt="AgentHaus bot choosing template"
-            width={192}
-            height={108}
-            className="w-full h-auto rounded-xl object-contain"
-          />
+    <div className="max-w-5xl mx-auto space-y-12">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-8 border-b-4 border-forest">
+        <div className="flex items-center gap-6">
+          <button
+            onClick={() => router.back()}
+            className="w-16 h-16 border-4 border-forest bg-white flex items-center justify-center hover:bg-celo transition-colors shadow-hard active:translate-y-px active:shadow-hard-active cursor-pointer"
+          >
+            <ArrowLeft className="w-8 h-8 stroke-[3px]" />
+          </button>
+          <div>
+            <h1 className="text-6xl font-black uppercase tracking-tighter text-forest leading-none">
+              Create
+            </h1>
+            <p className="text-forest font-bold uppercase tracking-widest mt-4">
+              Initialize New Autonomous Node
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Progress Steps */}
-      <Tabs tabs={steps} activeTab={currentStep} onChange={setCurrentStep} />
-
-      {/* Step Content */}
-      {currentStep === "template" && (
-        <TemplateStep
-          selectedTemplate={selectedTemplate}
-          onSelect={handleTemplateSelect}
-        />
-      )}
-
-      {currentStep === "configure" && (
-        <ConfigureStep
-          selectedTemplate={selectedTemplate}
-          name={name}
-          setName={setName}
-          description={description}
-          setDescription={setDescription}
-          systemPrompt={systemPrompt}
-          setSystemPrompt={setSystemPrompt}
-          llmProvider={llmProvider}
-          setLlmProvider={(p) => {
-            setLlmProvider(p);
-            setLlmModel(LLM_MODELS[p][0].id);
-                    setApiKey("");
-                    setApiKeySaved(false);
-                  }}
-          llmModel={llmModel}
-          setLlmModel={setLlmModel}
-          config={config}
-          setConfig={setConfig}
-          imageFile={imageFile}
-          setImageFile={setImageFile}
-          apiKey={apiKey}
-          setApiKey={setApiKey}
-          apiKeySaving={apiKeySaving}
-          apiKeySaved={apiKeySaved}
-          hasKeyForProvider={hasKeyForProvider}
-          onSaveApiKey={handleSaveApiKey}
-          onResetKey={() => setKeyStatus((prev) => ({ ...prev, [llmProvider]: false }))}
-        />
-      )}
-
-      {currentStep === "security" && (
-        <SecurityStep
-          spendingLimit={spendingLimit}
-          setSpendingLimit={setSpendingLimit}
-          walletOption={walletOption}
-          setWalletOption={setWalletOption}
-        />
-      )}
-
-      {currentStep === "review" && (
-        <>
-          <ReviewStep
-            name={name}
-            selectedTemplate={selectedTemplate}
-            walletOption={walletOption}
-            hasImage={!!imageFile}
-            webUrl={config.webUrl}
-            contactEmail={config.contactEmail}
+      {deployStatus === "done" && createdAgentId ? (
+        <div className="bg-white border-4 border-forest shadow-hard p-12">
+          <DeploySuccessFeedback
+            chainId={currentChainId}
+            giveFeedback={giveFeedback}
+            onDone={() => router.push(`/dashboard/agents/${createdAgentId}`)}
+            hasApiKey={hasKeyForProvider}
             llmProvider={llmProvider}
-            llmModel={llmModel}
-            spendingLimit={spendingLimit}
-            systemPrompt={systemPrompt}
-            address={address}
-            deployStatus={deployStatus}
-            isDeploying={isDeploying}
-            deployError={deployError}
-            erc8004Error={erc8004Error}
-            erc8004Deployed={erc8004Deployed}
-            erc8004Contracts={erc8004Contracts}
-            currentChainId={currentChainId}
-            onDeploy={handleDeploy}
+            onSaveApiKey={handleSaveApiKey}
+            apiKey={apiKey}
+            setApiKey={setApiKey}
+            apiKeySaving={apiKeySaving}
+            apiKeySaved={apiKeySaved}
           />
-          {deployStatus === "done" && createdAgentId && (
-            <DeploySuccessFeedback
-              chainId={currentChainId}
-              giveFeedback={giveFeedback}
-              onDone={() => router.push(`/dashboard/agents/${createdAgentId}`)}
-            />
-          )}
+        </div>
+      ) : (
+        <>
+          <div className="space-y-12">
+            <section className="space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-forest text-white flex items-center justify-center font-black">01</div>
+                <h2 className="text-2xl font-black uppercase tracking-tighter">Choose Purpose</h2>
+              </div>
+              <TemplateStep
+                selectedTemplate={selectedTemplate}
+                onSelect={handleTemplateSelect}
+              />
+            </section>
+
+            <section className="space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-forest text-white flex items-center justify-center font-black">02</div>
+                <h2 className="text-2xl font-black uppercase tracking-tighter">Identity</h2>
+              </div>
+              <ConfigureStep
+                selectedTemplate={selectedTemplate}
+                name={name}
+                setName={setName}
+                description={description}
+                setDescription={setDescription}
+                systemPrompt={systemPrompt}
+                setSystemPrompt={setSystemPrompt}
+                llmProvider={llmProvider}
+                setLlmProvider={setLlmProvider}
+                llmModel={llmModel}
+                setLlmModel={setLlmModel}
+                config={config}
+                setConfig={setConfig}
+                imageFile={imageFile}
+                setImageFile={setImageFile}
+                apiKey={apiKey}
+                setApiKey={setApiKey}
+                apiKeySaving={apiKeySaving}
+                apiKeySaved={apiKeySaved}
+                hasKeyForProvider={hasKeyForProvider}
+                onSaveApiKey={handleSaveApiKey}
+                onResetKey={() => setKeyStatus((prev) => ({ ...prev, [llmProvider]: false }))}
+                isSimplified
+              />
+            </section>
+
+            <section className="space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-forest text-white flex items-center justify-center font-black">03</div>
+                <h2 className="text-2xl font-black uppercase tracking-tighter">Guardrails</h2>
+              </div>
+              <SecurityStep
+                spendingLimit={spendingLimit}
+                setSpendingLimit={setSpendingLimit}
+                walletOption={walletOption}
+                setWalletOption={setWalletOption}
+              />
+            </section>
+          </div>
+
+          <div className="pt-12 pb-24 border-t-4 border-forest flex flex-col items-center gap-6">
+            {deployError && (
+              <div className="w-full p-4 border-2 border-red-600 bg-red-50 text-red-600 font-bold uppercase text-sm">
+                Error: {deployError}
+              </div>
+            )}
+            <Button
+              size="lg"
+              onClick={handleDeploy}
+              disabled={!canProceed || isDeploying}
+              className="h-20 px-24 text-2xl w-full md:w-auto"
+            >
+              {isDeploying ? (
+                <><Loader2 className="w-8 h-8 animate-spin mr-3" /> {deployStatus.toUpperCase()}...</>
+              ) : (
+                <>CREATE & DEPLOY AGENT <Rocket className="ml-3 w-8 h-8" /></>
+              )}
+            </Button>
+            <p className="text-[10px] font-bold text-forest/40 uppercase tracking-[0.2em]">
+              On-chain registration requires wallet signature
+            </p>
+          </div>
         </>
       )}
-
-      {/* Navigation */}
-      <div className="flex items-center justify-between pt-4 border-t border-forest/10">
-        <Button
-          variant="ghost"
-          onClick={() => {
-            const prevIndex = Math.max(0, stepIndex - 1);
-            setCurrentStep(steps[prevIndex].id);
-          }}
-          disabled={stepIndex === 0}
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Previous
-        </Button>
-
-        {stepIndex < steps.length - 1 && (
-          <Button
-            variant="default"
-            onClick={() => {
-              const nextIndex = Math.min(steps.length - 1, stepIndex + 1);
-              setCurrentStep(steps[nextIndex].id);
-            }}
-            disabled={!canProceed}
-          >
-            Next
-            <ArrowRight className="w-4 h-4" />
-          </Button>
-        )}
-      </div>
     </div>
   );
 }

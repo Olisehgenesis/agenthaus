@@ -20,10 +20,17 @@ const SALT = "agenthaus-api-key-salt"; // Static salt for key derivation
  * Derive a 32-byte encryption key from the secret
  */
 function getEncryptionKey(): Buffer {
-  const secret =
-    process.env.ENCRYPTION_SECRET ||
-    process.env.DATABASE_URL ||
-    "agenthaus-dev-fallback-key-change-in-production";
+  const secret = process.env.ENCRYPTION_SECRET;
+
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("CRITICAL: ENCRYPTION_SECRET must be set in production to protect user data.");
+    }
+
+    // Fallback for development only
+    const fallback = process.env.DATABASE_URL || "agenthaus-dev-fallback-key-change-in-production";
+    return scryptSync(fallback, SALT, 32);
+  }
 
   return scryptSync(secret, SALT, 32);
 }

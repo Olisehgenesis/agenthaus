@@ -13,6 +13,9 @@
  * Telegram Bot API docs: https://core.telegram.org/bots/api
  */
 
+import { prisma } from "@/lib/db";
+import { decrypt } from "@/lib/crypto";
+
 const TELEGRAM_API = "https://api.telegram.org";
 
 // ─── Types (from Telegram Bot API) ──────────────────────────────────────────
@@ -262,5 +265,104 @@ function splitMessage(text: string, maxLen: number): string[] {
   }
 
   return chunks;
+}
+
+/**
+ * Synchronize all Telegram webhooks for active agents and the Master Bot.
+ */
+export async function syncAllWebhooks() {
+  // 1. Get the app URL
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+
+  if (!baseUrl) {
+    console.warn("⚠️ syncAllWebhooks: No base URL found. Skipping synchronization.");
+    return;
+  }
+
+  // 2. Sync Master Bot
+  const masterToken = process.env.MASTER_BOT_TOKEN;
+  const masterSecret = process.env.MASTER_BOT_SECRET || "master_secret_fallback";
+
+  if (masterToken) {
+    // Ensure "system" agent exists for logging/relations
+    try {
+      const firstUser = await prisma.user.findFirst({ select: { id: true } });
+      if (firstUser) {
+        await prisma.agent.upsert({
+          where: { id: "system" },
+          update: { status: "active" },
+          create: {
+            id: "system",
+            name: "AgentHaus Master Bot",
+            templateType: "custom",
+            status: "active",
+            ownerId: firstUser.id,
+            llmProvider: "groq",
+            llmModel: "llama-3.3-70b-versatile",
+            systemPrompt: "You are the AgentHaus Master Bot."
+          }
+        });
+        console.log("✅ System agent record ensured.");
+      }
+    } catch (err) {
+      console.warn("⚠️ Failed to ensure system agent record:", err);
+    }
+
+    console.log("🤖 Syncing Master Bot webhook...");
+    const webhookUrl = `${baseUrl}/api/channels/telegram/master`;
+    try {
+      // Use the internal tgApi helper
+      const url = `https://api.telegram.org/bot${masterToken}/setWebhook`;
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: webhookUrl,
+          secret_token: masterSecret,
+          allowed_updates: ["message", "callback_query"],
+        }),
+      });
+      console.log("✅ Master Bot webhook synchronized.");
+    } catch (err) {
+      console.error("❌ Master Bot sync failed:", err);
+    }
+  }
+
+  // 3. Sync all agent bots
+  const agents = await prisma.agent.findMany({
+    where: {
+      telegramBotToken: { not: null },
+      status: "active",
+    },
+    select: {
+      id: true,
+      telegramBotToken: true,
+      webhookSecret: true,
+    },
+  });
+
+  console.log(`🤖 Syncing webhooks for ${agents.length} agents...`);
+
+  for (const agent of agents) {
+    try {
+      const token = decrypt(agent.telegramBotToken!);
+      const secret = agent.webhookSecret || "agent_secret_fallback";
+      const webhookUrl = `${baseUrl}/api/channels/telegram/${agent.id}`;
+
+      const url = `https://api.telegram.org/bot${token}/setWebhook`;
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: webhookUrl,
+          secret_token: secret,
+          allowed_updates: ["message", "edited_message", "callback_query"],
+        }),
+      });
+      console.log(`✅ Webhook synced for agent ${agent.id}`);
+    } catch (err) {
+      console.error(`❌ Sync failed for agent ${agent.id}:`, err);
+    }
+  }
 }
 

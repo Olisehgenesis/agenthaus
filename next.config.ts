@@ -16,8 +16,10 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "agenthaus.space", pathname: "/images/**" },
       { protocol: "http", hostname: "localhost", pathname: "/images/**" },
       { protocol: "https", hostname: "res.cloudinary.com", pathname: "/**" },
+      { protocol: "https", hostname: "i.pravatar.cc", pathname: "/**" },
     ],
   },
 };
+
 
 export default nextConfig;

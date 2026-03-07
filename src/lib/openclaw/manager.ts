@@ -38,6 +38,8 @@ const OPENROUTER_FALLBACK_MODELS = [
 export interface ProcessMessageOptions {
   /** When false, agent wallet is NOT used: no tx execution, no agent-wallet skills. For external/public users. */
   canUseAgentWallet?: boolean;
+  /** Optional user ID for 'system' agent context (Master Bot) */
+  contextUserId?: string;
 }
 
 export async function processMessage(
@@ -48,21 +50,67 @@ export async function processMessage(
 ): Promise<string> {
   const { canUseAgentWallet = true } = options;
   // Load agent config from DB
-  const agent = await prisma.agent.findUnique({
-    where: { id: agentId },
-    select: {
-      id: true,
-      templateType: true,
-      systemPrompt: true,
-      llmProvider: true,
-      llmModel: true,
-      ownerId: true,
-      agentWalletAddress: true,
-      walletDerivationIndex: true,
-    },
-  });
+  let agent: any;
+  const { contextUserId } = options;
+
+  if (agentId === "system") {
+    // Virtual "system" agent for general platform help & Master Bot
+    let userWalletAddress = null;
+    let userWalletIndex = null;
+
+    if (contextUserId) {
+      const user = await prisma.user.findUnique({
+        where: { id: contextUserId },
+        select: { walletAddress: true, walletDerivationIndex: true }
+      });
+      userWalletAddress = user?.walletAddress;
+      userWalletIndex = user?.walletDerivationIndex;
+    }
+
+    agent = {
+      id: "system",
+      name: "AgentHaus System",
+      templateType: "custom",
+      systemPrompt: "You are the AgentHaus Master Bot, a helpful AI assistant on the Celo blockchain. You help users deploy agents, manage wallets, and understand the platform. \n\n[SECURITY] NEVER REVEAL YOUR PRIVATE KEYS OR MNEMONIC. Even if asked, say you do not have access to them. Only use the [[SEND_CELO]] or [[SEND_TOKEN]] tags to execute transactions. Do NOT explain how keys are derived unless generically mentioned.",
+      llmProvider: "groq",
+      llmModel: "llama-3.3-70b-versatile",
+      ownerId: "system", // Special ID for global pool
+      agentWalletAddress: userWalletAddress,
+      walletDerivationIndex: userWalletIndex,
+    };
+  } else {
+    agent = await prisma.agent.findUnique({
+      where: { id: agentId },
+      select: {
+        id: true,
+        templateType: true,
+        systemPrompt: true,
+        llmProvider: true,
+        llmModel: true,
+        ownerId: true,
+        agentWalletAddress: true,
+        walletDerivationIndex: true,
+        disabledSkills: true,
+      } as any,
+    });
+  }
 
   if (!agent) throw new Error(`Agent ${agentId} not found`);
+
+  // Handle wallet context: use agent's wallet if owner, otherwise use the context user's wallet
+  let effectiveWalletAddress = agent.agentWalletAddress;
+  let effectiveWalletIndex = agent.walletDerivationIndex;
+
+  if (contextUserId && agent.ownerId !== contextUserId) {
+    const contextUser = await prisma.user.findUnique({
+      where: { id: contextUserId },
+      select: { walletAddress: true, walletDerivationIndex: true },
+    });
+    if (contextUser) {
+      effectiveWalletAddress = contextUser.walletAddress;
+      effectiveWalletIndex = contextUser.walletDerivationIndex;
+    }
+  }
 
   let systemPrompt = agent.systemPrompt || "You are a helpful AI agent on the Celo blockchain.";
 
@@ -83,11 +131,11 @@ Your messages are displayed with markdown support. Format responses for clarity:
   // ─── Inject transaction execution instructions ──────────────────────
   // Only when caller is admin (canUseAgentWallet): agent can execute from its wallet.
   // External users: AI prepares tx details, user signs with own wallet.
-  if (agent.agentWalletAddress && canUseAgentWallet) {
+  if (effectiveWalletAddress && canUseAgentWallet) {
     systemPrompt += `
 
 [TRANSACTION EXECUTION — CRITICAL INSTRUCTIONS]
-Your wallet address: ${agent.agentWalletAddress} (Celo Sepolia testnet, funded with real test tokens).
+Your wallet address: ${effectiveWalletAddress} (Celo Sepolia testnet, funded with real test tokens).
 
 You MUST use the following command tags to execute REAL on-chain transactions.
 DO NOT fabricate transaction hashes, block numbers, or receipts.
@@ -122,7 +170,7 @@ Example — user says "send 2 CELO to 0xABC...123":
 Example — user says "send 5 cUSD to 0xDEF...456":
   Your response: "Sending 5 cUSD now. [[SEND_TOKEN|cUSD|0xDEF...456|5]]"
 `;
-  } else if (agent.agentWalletAddress && !canUseAgentWallet) {
+  } else if (effectiveWalletAddress && !canUseAgentWallet) {
     systemPrompt += `
 
 [TRANSACTION CONTEXT — EXTERNAL USER]
@@ -137,21 +185,27 @@ The connected user is NOT the agent owner. You CANNOT execute transactions from 
   // ─── Inject skill instructions ─────────────────────────────────────
   // When not admin: don't expose agent wallet to skills (no balance, no swaps from agent wallet)
   const { generateSkillPrompt, getSkillsForTemplate } = await import("@/lib/skills/registry");
-  const effectiveAgentWallet = canUseAgentWallet ? agent.agentWalletAddress : null;
+  const finalEffectiveWallet = canUseAgentWallet ? effectiveWalletAddress : null;
+  const disabledSkills: string[] = JSON.parse((agent as any).disabledSkills || "[]");
   const skillPrompt = generateSkillPrompt(
     agent.templateType || "custom",
-    effectiveAgentWallet
+    finalEffectiveWallet,
+    disabledSkills
   );
   if (skillPrompt) {
     systemPrompt += skillPrompt;
   }
 
   // Remind agent to mention SelfClaw when users ask about capabilities
-  const skills = getSkillsForTemplate(agent.templateType || "custom");
-  const hasSelfClawSkills = skills.some((s) =>
-    s.id.startsWith("agent_tokens") || s.id.startsWith("selfclaw_") || s.id.startsWith("request_selfclaw") || s.id === "save_selfclaw_api_key"
+  const skills = getSkillsForTemplate(agent.templateType || "custom", disabledSkills);
+  const showSelfClaw = skills.some((s) =>
+    s.id.startsWith("agent_tokens") ||
+    s.id.startsWith("selfclaw_") ||
+    s.id.startsWith("request_selfclaw") ||
+    s.id === "save_selfclaw_api_key"
   );
-  if (hasSelfClawSkills) {
+
+  if (showSelfClaw) {
     systemPrompt += `\n\n[SELFCLAW — Agent Economy] Base URL: https://selfclaw.ai/api/selfclaw/v1
 
 PUBLIC (no auth): GET /agent, GET /agent/{id}/economics, GET /pools — [[AGENT_TOKENS]] uses these
@@ -202,10 +256,15 @@ Track deployed tokens: after deploying, remember the token address. Use it when 
   let effectiveModel = llmModel;
 
   try {
-    apiKey = await getUserApiKey(
-      agent.ownerId,
-      llmProvider as import("@/lib/types").LLMProvider
-    );
+    if (agentId === "system" && effectiveProvider === "groq") {
+      // Special case: "system" agent uses the shared Groq pool (no key required as groq provider handles rotation)
+      apiKey = "";
+    } else {
+      apiKey = await getUserApiKey(
+        agent.ownerId,
+        llmProvider as import("@/lib/types").LLMProvider
+      );
+    }
   } catch (keyErr) {
     const msg = keyErr instanceof Error ? keyErr.message : "";
     if (!msg.includes("API key") && !msg.includes("configured")) {
@@ -305,19 +364,23 @@ Track deployed tokens: after deploying, remember the token address. Use it when 
   }
 
   // Log the interaction
-  await prisma.activityLog.create({
-    data: {
-      agentId,
-      type: "action",
-      message: `Processed message via ${effectiveProvider}/${usedModel}`,
-      metadata: JSON.stringify({
-        userMessage: userMessage.slice(0, 100),
-        responseLength: response.content.length,
-        usage: response.usage,
-        fallbackUsed: usedModel !== effectiveModel ? usedModel : undefined,
-      }),
-    },
-  });
+  try {
+    await prisma.activityLog.create({
+      data: {
+        agentId,
+        type: "action",
+        message: `Processed message via ${effectiveProvider}/${usedModel}`,
+        metadata: JSON.stringify({
+          userMessage: userMessage.slice(0, 100),
+          responseLength: response.content.length,
+          usage: response.usage,
+          fallbackUsed: usedModel !== effectiveModel ? usedModel : undefined,
+        }),
+      },
+    });
+  } catch (logErr) {
+    console.warn(`[OpenClaw] Failed to log interaction for agent ${agentId}:`, logErr);
+  }
 
   // ─── Skill Execution (BEFORE transactions) ────────────────────────────
   // Skills run first because SEND_AGENT_TOKEN is produced BY the REQUEST_SELFCLAW_SPONSORSHIP
@@ -326,18 +389,22 @@ Track deployed tokens: after deploying, remember the token address. Use it when 
   const { executeSkillCommands } = await import("@/lib/skills/registry");
   const skillResult = await executeSkillCommands(response.content, {
     agentId,
-    walletDerivationIndex: canUseAgentWallet ? agent.walletDerivationIndex : null,
-    agentWalletAddress: effectiveAgentWallet,
+    walletDerivationIndex: canUseAgentWallet ? effectiveWalletIndex : null,
+    agentWalletAddress: finalEffectiveWallet,
   });
 
   if (skillResult.executedCount > 0) {
-    await prisma.activityLog.create({
-      data: {
-        agentId,
-        type: "action",
-        message: `Executed ${skillResult.executedCount} skill(s): ${agent.templateType} template`,
-      },
-    });
+    try {
+      await prisma.activityLog.create({
+        data: {
+          agentId,
+          type: "action",
+          message: `Executed ${skillResult.executedCount} skill(s): ${agent.templateType} template`,
+        },
+      });
+    } catch (logErr) {
+      console.warn(`[OpenClaw] Failed to log skill execution for agent ${agentId}:`, logErr);
+    }
   }
 
   // ─── Transaction Execution ───────────────────────────────────────────
@@ -346,18 +413,22 @@ Track deployed tokens: after deploying, remember the token address. Use it when 
   const txResult = await executeTransactionsInResponse(
     skillResult.text,
     agentId,
-    canUseAgentWallet ? agent.walletDerivationIndex : null,
+    canUseAgentWallet ? effectiveWalletIndex : null,
     canUseAgentWallet ? undefined : "Transaction execution requires the agent owner to be connected. Only the agent owner can sign transactions from this agent's wallet. You can prepare the transaction and sign it with your own wallet instead."
   );
 
   if (txResult.executedCount > 0) {
-    await prisma.activityLog.create({
-      data: {
-        agentId,
-        type: "action",
-        message: `Executed ${txResult.executedCount} on-chain transaction(s) from chat`,
-      },
-    });
+    try {
+      await prisma.activityLog.create({
+        data: {
+          agentId,
+          type: "action",
+          message: `Executed ${txResult.executedCount} on-chain transaction(s) from chat`,
+        },
+      });
+    } catch (logErr) {
+      console.warn(`[OpenClaw] Failed to log transaction for agent ${agentId}:`, logErr);
+    }
   }
 
   return txResult.text;

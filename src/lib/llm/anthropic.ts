@@ -1,6 +1,7 @@
 /**
  * Anthropic Claude LLM Provider
  * Claude 3.5 Sonnet, Opus, Haiku
+ * also includes legacy Claude 3 Haiku/Opus versions
  * https://docs.anthropic.com/en/api
  */
 
@@ -148,5 +149,7 @@ export const ANTHROPIC_MODELS = [
   { id: "claude-opus-4-20250514", name: "Claude Opus 4" },
   { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet" },
   { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku" },
+  // legacy Claude‑3 family
   { id: "claude-3-opus-20240229", name: "Claude 3 Opus" },
+  { id: "claude-3-haiku-20240307", name: "Claude 3 Haiku" },
 ] as const;

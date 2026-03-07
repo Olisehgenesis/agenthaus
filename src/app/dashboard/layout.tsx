@@ -56,14 +56,11 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen flex-col overflow-hidden bg-gypsum lg:flex-row">
-      <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden pt-20 lg:pt-0">
-        <Header />
-        <main className="flex-1 overflow-auto p-6">
-          {children}
-        </main>
-      </div>
+    <div className="min-h-screen bg-gypsum font-mono text-forest selection:bg-celo selection:text-forest">
+      <Header />
+      <main className="mx-auto max-w-5xl p-6 pt-24 lg:pt-32">
+        {children}
+      </main>
     </div>
   );
 }

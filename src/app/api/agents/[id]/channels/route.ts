@@ -41,13 +41,12 @@ export async function GET(
     const agent = await prisma.agent.findUnique({
       where: { id },
       select: {
-        id: true,
-        name: true,
-        templateType: true,
-        channels: true,
-        cronJobs: true,
         telegramBotToken: true,
         webhookSecret: true,
+        channels: true,
+        cronJobs: true,
+        templateType: true,
+        externalSocials: true,
       },
     });
 
@@ -60,36 +59,23 @@ export async function GET(
     if (agent.channels) {
       try {
         channels = JSON.parse(agent.channels);
-      } catch {
-        channels = [];
+      } catch (e) {
+        console.error("Failed to parse channels JSON", e);
       }
     }
 
-    // Always include web channel
-    const webChannel: ChannelConfig = {
-      type: "web",
-      enabled: true,
-      connectedAt: agent.channels ? undefined : new Date().toISOString(),
-    };
-    if (!channels.find((c) => c.type === "web")) {
-      channels.unshift(webChannel);
-    }
+    const hasTelegramBot = !!agent.telegramBotToken;
 
-    // Get cron jobs
-    const cronJobs = await getCronJobs(id);
-    const defaultCrons = getDefaultCronJobs(agent.templateType);
-
+    // Return current state
     return NextResponse.json({
       channels,
-      cronJobs,
-      defaultCronJobs: defaultCrons,
-      hasTelegramBot: !!agent.telegramBotToken,
+      cronJobs: agent.cronJobs ? JSON.parse(agent.cronJobs) : [],
+      hasTelegramBot,
+      externalSocials: (agent as any).externalSocials ? JSON.parse((agent as any).externalSocials) : null,
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch channels" },
-      { status: 500 }
-    );
+    console.error("Failed to fetch channels:", error);
+    return NextResponse.json({ error: "Failed to fetch channels" }, { status: 500 });
   }
 }
 
@@ -108,11 +94,11 @@ export async function POST(
     const agent = await prisma.agent.findUnique({
       where: { id },
       select: {
-        id: true,
-        templateType: true,
-        channels: true,
         telegramBotToken: true,
         webhookSecret: true,
+        channels: true,
+        cronJobs: true,
+        templateType: true,
       },
     });
 
@@ -121,6 +107,15 @@ export async function POST(
     }
 
     switch (action) {
+      case "update_socials": {
+        const { socials } = body;
+        await prisma.agent.update({
+          where: { id },
+          data: { externalSocials: JSON.stringify(socials) } as any,
+        });
+        return NextResponse.json({ success: true });
+      }
+
       // ── Telegram ────────────────────────────────────────────────────
       case "connect_telegram": {
         const { botToken } = body;

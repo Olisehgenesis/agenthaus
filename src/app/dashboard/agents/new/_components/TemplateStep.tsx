@@ -60,75 +60,66 @@ interface TemplateStepProps {
 
 export function TemplateStep({ selectedTemplate, onSelect }: TemplateStepProps) {
   return (
-    <div className="space-y-4">
-      <div className="grid md:grid-cols-2 gap-4">
+    <div className="space-y-8">
+      <div className="grid md:grid-cols-2 gap-6">
         {AGENT_TEMPLATES.map((template) => (
-          <Card
+          <div
             key={template.id}
-            className={`cursor-pointer transition-all duration-300 hover:border-forest/20 ${
-              selectedTemplate === template.id
-                ? "border-celo ring-1 ring-celo/20"
-                : ""
-            }`}
             onClick={() => onSelect(template.id)}
+            className={`group relative cursor-pointer`}
           >
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${template.color} text-2xl`}
-                  >
+            <div className={`absolute inset-0 bg-forest translate-x-1.5 translate-y-1.5 transition-transform ${selectedTemplate === template.id ? 'translate-x-2.5 translate-y-2.5' : 'group-hover:translate-x-2 group-hover:translate-y-2'}`} />
+            <div className={`relative bg-white border-2 border-forest p-6 h-full transition-transform ${selectedTemplate === template.id ? 'bg-celo -translate-y-1' : 'group-hover:-translate-y-0.5'}`}>
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 border-2 border-forest bg-white flex items-center justify-center text-3xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                     {template.icon}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-forest">{template.name}</h3>
+                    <h3 className="text-xl font-black uppercase tracking-tight leading-none">{template.name}</h3>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-forest/40 mt-2">v1.2 // SECURE</p>
                   </div>
                 </div>
                 {selectedTemplate === template.id && (
-                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-forest">
-                    <Check className="w-4 h-4 text-forest" />
+                  <div className="w-8 h-8 border-2 border-forest bg-forest flex items-center justify-center">
+                    <Check className="w-5 h-5 text-white stroke-[3px]" />
                   </div>
                 )}
               </div>
-              <p className="text-sm text-forest-muted mb-4">{template.description}</p>
-              <div className="flex flex-wrap gap-1.5">
+              <p className="text-sm font-bold leading-relaxed mb-6">{template.description}</p>
+              <div className="flex flex-wrap gap-2">
                 {template.features.slice(0, 3).map((feature) => (
-                  <Badge key={feature} variant="secondary" className="text-[10px]">
+                  <div key={feature} className="border-2 border-forest bg-gypsum px-2 py-1 text-[10px] font-black uppercase">
                     {feature}
-                  </Badge>
+                  </div>
                 ))}
-                {template.features.length > 3 && (
-                  <Badge variant="outline" className="text-[10px]">
-                    +{template.features.length - 3} more
-                  </Badge>
-                )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ))}
       </div>
 
       {/* Skills preview for selected template */}
       {selectedTemplate && (
-        <Card className="border-forest/15">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Zap className="w-4 h-4 text-amber-400" />
-              <span className="text-sm font-semibold text-forest">Agent Skills</span>
-              <Badge variant="secondary" className="text-[10px]">OpenClaw-compatible</Badge>
+        <div className="border-4 border-forest bg-white p-6 shadow-hard">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 border-2 border-forest bg-celo flex items-center justify-center">
+              <Zap className="w-6 h-6 stroke-[2.5px]" />
             </div>
-            <p className="text-xs text-forest-muted mb-3">
-              Skills are auto-injected into the agent&apos;s system prompt. The agent invokes them via command tags in its responses to fetch real data and execute on-chain actions.
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {(TEMPLATE_SKILLS[selectedTemplate] || []).map((s) => (
-                <Badge key={s.name} variant="outline" className="text-[10px] gap-1">
-                  {s.icon} {s.name}
-                </Badge>
-              ))}
+            <div>
+              <h4 className="text-lg font-black uppercase tracking-tighter">Injection manifest</h4>
+              <p className="text-[10px] font-bold uppercase text-forest/40 tracking-widest leading-none">OpenClaw auto-injected capabilities</p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {(TEMPLATE_SKILLS[selectedTemplate] || []).map((s) => (
+              <div key={s.name} className="border-2 border-forest bg-white p-3 flex flex-col items-center gap-2 hover:bg-celo transition-colors cursor-default">
+                <span className="text-xl">{s.icon}</span>
+                <span className="text-[10px] font-black uppercase text-center leading-tight">{s.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

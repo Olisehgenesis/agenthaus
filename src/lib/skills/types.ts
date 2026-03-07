@@ -29,6 +29,8 @@ export type SkillCategory =
 
 // ─── Skill Definition ─────────────────────────────────────────────────────────
 
+import { z } from "zod";
+
 export interface SkillParam {
   name: string;
   description: string;
@@ -49,6 +51,8 @@ export interface SkillDefinition {
   commandTag: string;
   /** Parameters the skill accepts (in order) */
   params: SkillParam[];
+  /** Zod schema for validated tool calling (optional) */
+  zodSchema?: z.ZodObject<any>;
   /** Example usages for the system prompt */
   examples: { input: string; output: string }[];
   /** Whether this skill requires an agent wallet */
@@ -56,6 +60,7 @@ export interface SkillDefinition {
   /** Whether this skill modifies on-chain state (vs read-only) */
   mutatesState: boolean;
 }
+
 
 // ─── Skill Execution Context ──────────────────────────────────────────────────
 

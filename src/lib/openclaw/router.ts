@@ -206,10 +206,17 @@ async function handlePairing(
     data: { isActive: false },
   });
 
+  // Try to find a User linked to this sender identity (e.g. "tg:12345")
+  const linkedUser = await prisma.user.findFirst({
+    where: { telegramId: ctx.senderId.replace(/^tg:/, "") },
+    select: { id: true },
+  });
+
   // Create new binding
   const binding = await prisma.channelBinding.create({
     data: {
       agentId: resolved.agentId,
+      userId: linkedUser?.id || null,
       channelType: ctx.channelType,
       senderIdentifier: ctx.senderId,
       senderName: ctx.senderName || null,

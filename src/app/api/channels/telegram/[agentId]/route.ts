@@ -46,6 +46,9 @@ export async function POST(
   { params }: { params: Promise<{ agentId: string }> }
 ) {
   const { agentId } = await params;
+  const debug = process.env.DEBUG_TELEGRAM === "true";
+
+  if (debug) console.log(`[TG DEBUG] Received webhook for agent: ${agentId}`);
 
   try {
     // Look up agent
@@ -58,16 +61,25 @@ export async function POST(
         telegramBotToken: true,
         telegramChatIds: true,
         webhookSecret: true,
+        ownerId: true,
+        owner: {
+          select: {
+            walletAddress: true,
+            telegramId: true,
+          },
+        },
       },
     });
 
     if (!agent || !agent.telegramBotToken) {
+      if (debug) console.log(`[TG DEBUG] Agent not found or no bot token: ${agentId}`);
       return NextResponse.json({ ok: true });
     }
 
     // Verify webhook secret
     if (agent.webhookSecret) {
       if (!verifyWebhookSecret(request, agent.webhookSecret)) {
+        if (debug) console.log(`[TG DEBUG] Invalid webhook secret for agent: ${agentId}`);
         return NextResponse.json({ ok: true });
       }
     }
@@ -79,8 +91,10 @@ export async function POST(
 
     // Parse the Telegram update
     const update: TelegramUpdate = await request.json();
+    if (debug) console.log(`[TG DEBUG] Update:`, JSON.stringify(update));
     const incoming = parseUpdate(update, agentId);
     if (!incoming) {
+      if (debug) console.log(`[TG DEBUG] Failed to parse update or no text content`);
       return NextResponse.json({ ok: true });
     }
 
@@ -119,6 +133,7 @@ export async function POST(
     };
 
     const route = await routeMessage(senderCtx);
+    if (debug) console.log(`[TG DEBUG] Route result:`, JSON.stringify(route));
 
     if (route.systemReply) {
       await sendMessage(
@@ -141,13 +156,24 @@ export async function POST(
     }
 
     let canUseAgentWallet = false;
+    let contextUserId: string | undefined = undefined;
+
     if (route.bindingId) {
       const binding = await prisma.channelBinding.findUnique({
         where: { id: route.bindingId },
-        select: { bindingType: true },
+        select: { bindingType: true, userId: true } as any,
       });
-      canUseAgentWallet =
-        binding?.bindingType === "pairing" || binding?.bindingType === "direct";
+
+      const isOwner = agent.ownerId && (binding as any)?.userId === agent.ownerId;
+      const isManualOwnerCheck = agent.owner.telegramId === incoming.senderId.replace(/^tg:/, "");
+
+      if (isOwner || isManualOwnerCheck) {
+        canUseAgentWallet = true;
+      } else if ((binding as any)?.userId) {
+        // Non-owner but is a registered user
+        contextUserId = (binding as any).userId;
+        canUseAgentWallet = true; // Will use the user's wallet in processMessage
+      }
     }
 
     if (!canUseAgentWallet && isLikelyWalletCommand(incoming.text)) {
@@ -183,7 +209,7 @@ export async function POST(
         chatId: incoming.chatId,
         dedicated: true,
       },
-      { canUseAgentWallet }
+      { canUseAgentWallet, contextUserId }
     );
 
     // Send reply back to Telegram

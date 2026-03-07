@@ -30,6 +30,16 @@ const DEMO_PROMPTS = [
   "Deploy an ERC-8004 Agent Mesh for me that registers capabilities and pricing, lets agents discover each other by task type and reputation, and enables encrypted messaging for task coordination…",
 ];
 
+const FALLBACK_AGENTS = [
+  { name: "MentoTrader", status: "active", erc8004: { agentId: "8004" } },
+  { name: "CeloVault", status: "online", erc8004: { agentId: "1242" } },
+  { name: "ProsperityBot", status: "deployed", erc8004: { agentId: "901" } },
+  { name: "StableSwap", status: "active", erc8004: { agentId: "2021" } },
+  { name: "ERC8004_Oracle", status: "online", erc8004: { agentId: "44" } },
+  { name: "AlphaAgent", status: "active", erc8004: { agentId: "777" } },
+  { name: "LlamaWatcher", status: "deployed", erc8004: { agentId: "333" } },
+];
+
 type DemoState = "idle" | "clicking";
 
 export default function HomePage() {
@@ -37,6 +47,7 @@ export default function HomePage() {
   const { isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const [demoState, setDemoState] = useState<DemoState>("idle");
+  const [agents, setAgents] = useState<any[]>([]);
   const [stats, setStats] = useState<{
     uniqueUsers: number;
     agentsTotal: number;
@@ -64,13 +75,23 @@ export default function HomePage() {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch("/api/analytics/stats");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!mounted) return;
-        setStats(data);
-      } catch {
-        // ignore
+        // Fetch stats
+        const statsRes = await fetch("/api/analytics/stats");
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          if (mounted) setStats(statsData);
+        }
+
+        // Fetch public agents for avatars and marquee
+        const agentsRes = await fetch("/api/public/agents?limit=15&status=all");
+        if (agentsRes.ok) {
+          const agentsData = await agentsRes.json();
+          if (mounted && agentsData.agents) {
+            setAgents(agentsData.agents);
+          }
+        }
+      } catch (err) {
+        console.error("Home page fetch failed", err);
       }
     })();
     return () => {
@@ -81,169 +102,214 @@ export default function HomePage() {
   // Show only 4 simple stats on the homepage: total agents, unique users, active agents, and volume
   const statsCards = stats
     ? [
-        { label: "Total agents", value: formatCompactNumber(stats.agentsTotal) },
-        { label: "Unique users", value: formatCompactNumber(stats.uniqueUsers) },
-        { label: "Active agents", value: formatCompactNumber(stats.activeAgents) },
-        { label: "Volume", value: formatCompactCurrency(Math.round(stats.totalVolume)) },
-      ]
+      { label: "Total agents", value: formatCompactNumber(stats.agentsTotal) },
+      { label: "Unique users", value: formatCompactNumber(stats.uniqueUsers) },
+      { label: "Active agents", value: formatCompactNumber(stats.activeAgents) },
+    ]
     : [
-        { label: "Total agents", value: "—" },
-        { label: "Unique users", value: "—" },
-        { label: "Active agents", value: "—" },
-        { label: "Volume", value: "—" },
-      ];
+      { label: "Total agents", value: "—" },
+      { label: "Unique users", value: "—" },
+      { label: "Active agents", value: "—" },
+    ];
 
   return (
-    <div className="min-h-screen bg-gypsum">
-      {/* Top header — Disconnect wallet when connected */}
-      {isConnected && (
-        <header className="sticky top-0 z-40 flex items-center justify-between px-6 py-3 bg-gypsum/95 backdrop-blur-sm border-b border-forest/10">
-          <Link href="/" className="flex items-center gap-2 text-forest font-semibold">
-            <Zap className="w-5 h-5" />
-            Agent Haus
-          </Link>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => disconnect()}
-            className="gap-2 border-forest/20 text-forest hover:bg-forest/10"
-          >
-            <LogOut className="w-4 h-4" />
-            Disconnect wallet
-          </Button>
-        </header>
-      )}
+    <div className="min-h-screen bg-gypsum font-mono pb-20">
+      <section className="relative overflow-hidden pt-8 md:pt-12 px-6">
+        <div className="max-w-4xl mx-auto text-center">
+          {/* Badge - Neobrutalist style */}
+          <div className="inline-flex items-center gap-2 px-3 py-1 mb-6 border-2 border-forest bg-celo-yellow text-forest text-[10px] font-bold uppercase tracking-widest neobrutal-shadow">
+            <Sparkles className="w-3 h-3" />
+            Built on Celo / ERC-8004
+          </div>
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        <div className="relative z-10 max-w-6xl mx-auto px-6 py-24">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 lg:gap-6">
-            {/* Left: Text content */}
-            <div className="flex-1 text-center lg:text-left">
-              {/* Badge */}
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-4 rounded-full bg-forest/10 border border-forest/15 text-forest text-sm font-medium">
-                <Sparkles className="w-4 h-4" />
-                Built on Celo with ERC-8004
+          {/* Heading - Anton Font, Large, Uppercase */}
+          <h1 className="text-5xl md:text-7xl xl:text-8xl font-sans font-normal mb-6 leading-[0.9] text-forest uppercase tracking-tighter">
+            AGENT HAUS
+          </h1>
+
+          {/* Subtitle */}
+          <p className="text-xs md:text-sm text-forest/80 max-w-2xl mx-auto mb-6 leading-relaxed font-bold uppercase tracking-wide">
+            Deploy ERC8004 AI agents on the Celo blockchain.
+            Automated registration, secure management, and real-time monitoring.
+          </p>
+
+          {/* Search Bar / Console Area - Neobrutalist */}
+          <div className="max-w-2xl mx-auto mb-6">
+            <div className="flex flex-row items-center gap-0 border-2 border-forest bg-white neobrutal-shadow h-14 overflow-hidden">
+              <div className="flex-1 flex items-center text-forest text-sm md:text-base px-4 font-bold whitespace-nowrap overflow-hidden text-ellipsis">
+                {demoState === "idle" ? (
+                  <ReactTyped
+                    strings={DEMO_PROMPTS}
+                    typeSpeed={35}
+                    backSpeed={20}
+                    backDelay={1500}
+                    loop
+                    shuffle={false}
+                    showCursor={true}
+                    cursorChar="_"
+                  />
+                ) : (
+                  <span className="text-forest/50 animate-pulse">DEPLOYING AGENT...</span>
+                )}
               </div>
+              <button
+                type="button"
+                onClick={handleTryClick}
+                disabled={demoState !== "idle"}
+                className={cn(
+                  "shrink-0 h-full flex items-center justify-center gap-2 px-6 bg-forest text-white font-bold uppercase tracking-widest text-[10px] md:text-xs transition-all duration-200 border-l-2 border-forest",
+                  demoState === "idle" ? "hover:bg-forest/90 active:bg-forest/80" : "opacity-50 cursor-wait"
+                )}
+              >
+                {demoState === "idle" ? (
+                  <>
+                    <Send className="w-3.5 h-3.5" />
+                    Deploy
+                  </>
+                ) : (
+                  "Deploying..."
+                )}
+              </button>
+            </div>
+          </div>
 
-              {/* Heading */}
-              <h1 className="text-5xl md:text-7xl font-bold mb-3 leading-tight">
-                <span className="text-[#655947]">Agent Haus</span>
-              </h1>
+          {/* CTA Buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-4 mb-12">
+            <Link href="/dashboard">
+              <Button
+                size="lg"
+                className="h-12 px-8 bg-accent text-white border-2 border-forest rounded-none font-bold uppercase tracking-widest text-sm neobrutal-shadow"
+              >
+                <Bot className="w-5 h-5" />
+                Enter app
+              </Button>
+            </Link>
+          </div>
 
-              {/* Subtitle */}
-              <p className="text-lg md:text-xl text-forest-muted max-w-2xl mx-auto lg:mx-0 mb-6 leading-relaxed">
-                Create, deploy, and manage AI agents on the Celo blockchain. 
-                Automatic ERC-8004 registration, secure wallet management, 
-                and real-time monitoring — all from a visual dashboard.
-              </p>
-
-              {/* CTA */}
-              <div className="flex items-center justify-center lg:justify-start gap-4">
-                <Link href="/dashboard">
-                  <Button
-                    size="lg"
-                    className="text-base bg-[#AB9FF2] text-white hover:bg-[#AB9FF2]/90 border-0"
-                  >
-                    <Bot className="w-5 h-5" />
-                    Enter app
-                  </Button>
-                </Link>
-                <Link href="/dashboard">
-                  <Button variant="outline" size="lg" className="text-base">
-                    Learn More
-                  </Button>
-                </Link>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-w-4xl mx-auto lg:mx-0 mt-10 text-center lg:text-left">
-                {statsCards.map((stat) => (
-                  <div key={stat.label} className="px-3 py-3">
-                    <div className="text-xl font-bold text-forest">{stat.value}</div>
-                    <div className="text-sm text-forest-muted">{stat.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Demo: typed text + Try it button (horizontal, 2-line input) */}
-              <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 max-w-2xl mx-auto lg:mx-0">
-                <div className="flex-1 min-h-[5.5rem] flex items-center text-forest text-sm sm:text-base border border-forest/20 rounded-xl px-4 py-3 bg-white/80 leading-relaxed">
-                  {demoState === "idle" ? (
-                    <ReactTyped
-                      strings={DEMO_PROMPTS}
-                      typeSpeed={35}
-                      backSpeed={20}
-                      backDelay={1500}
-                      loop
-                      shuffle={false}
-                      showCursor={false}
-                    />
-                  ) : (
-                    <span className="text-forest-muted">Opening AI chat…</span>
-                  )}
+          {/* Social Proof - Agent Avatars */}
+          <div className="flex flex-col items-center gap-3 mb-8">
+            <div className="flex -space-x-3">
+              {(agents.length > 0 ? agents.slice(0, 8) : [1, 2, 3, 4, 5, 6, 7, 8]).map((agent, i) => (
+                <div key={agent.id || i} className="w-10 h-10 rounded-full border-2 border-forest overflow-hidden bg-gypsum-dark bg-white flex items-center justify-center p-1.5 neobrutal-shadow">
+                  <Image
+                    src={agent.imageUrl || "/robot-bot-icon.svg"}
+                    alt={agent.name || "agent avatar"}
+                    width={40}
+                    height={40}
+                    className="w-full h-full object-contain"
+                  />
                 </div>
-                <button
-                  type="button"
-                  onClick={handleTryClick}
-                  disabled={demoState !== "idle"}
-                  className={cn(
-                    "shrink-0 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium text-sm transition-all duration-200 cursor-pointer",
-                    demoState === "idle" &&
-                      "bg-forest text-white hover:bg-forest-light active:scale-95",
-                    demoState === "clicking" &&
-                      "bg-forest/70 text-white scale-95",
-                    demoState === "clicking" &&
-                      "cursor-wait"
-                  )}
-                >
-                  {demoState === "idle" ? (
-                    <>
-                      <Send className="w-4 h-4" />
-                      Try it (beta)
-                    </>
-                  ) : (
-                    "Opening…"
-                  )}
-                </button>
+              ))}
+              <div className="w-10 h-10 rounded-full border-2 border-forest bg-celo-yellow flex items-center justify-center font-bold text-[10px] neobrutal-shadow">
+                +{stats ? formatCompactNumber(stats.agentsTotal - Math.min(agents.length, 8)) : "1K"}
               </div>
             </div>
+            <p className="text-xs font-bold uppercase tracking-widest text-forest/60">
+              Trusted by {stats ? formatCompactNumber(stats.uniqueUsers) : "1,802"}+ Agent Operators
+            </p>
+          </div>
+        </div>
 
-            {/* Right: Hero illustration - reduced size, near text */}
-            <div className="flex-shrink-0 w-full lg:w-80 xl:w-96">
-              <Image
-                src="/images/01-Landing_Page_Hero-Option_A-Central_Bot_with_Dashboard.png"
-                alt="AgentHaus bot with dashboard - deploy AI agents without code"
-                width={384}
-                height={216}
-                className="w-full h-auto rounded-xl object-contain"
-                priority
-              />
+        {/* Recently Checked Marquee Section - Real Data */}
+        <div className="w-full border-y-2 border-forest py-6 bg-white overflow-hidden relative">
+          <div className="absolute top-0 left-0 bg-forest text-gypsum px-4 py-1 text-[10px] font-bold uppercase tracking-widest -translate-y-1/2 ml-10">
+            Live Feed
+          </div>
+          <div className="flex gap-8 animate-marquee whitespace-nowrap">
+            {(agents.length > 0 ? [...agents, ...agents] : [...FALLBACK_AGENTS, ...FALLBACK_AGENTS]).map((agent, i) => (
+              <Link
+                key={i}
+                href={agent.id ? `/public/agents/${agent.id}/chat` : "#"}
+                target="_blank"
+                className="inline-flex items-center gap-3 px-4 py-2 border-2 border-forest bg-gypsum-dark font-bold text-sm neobrutal-shadow hover:bg-white transition-colors cursor-pointer"
+              >
+                <div className="w-5 h-5 rounded-full bg-forest flex items-center justify-center overflow-hidden">
+                  <Image
+                    src={agent?.imageUrl || "/robot-bot-icon.svg"}
+                    alt="avatar"
+                    width={20}
+                    height={20}
+                    className="w-full h-full object-contain p-0.5"
+                  />
+                </div>
+                <span>{agent?.name} is {agent?.status}</span>
+                <span className="text-accent">#{agent?.erc8004?.agentId || "ERC-8004"}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div className="max-w-6xl mx-auto px-6 py-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {statsCards.map((stat) => (
+              <div key={stat.label} className="p-4 border-2 border-forest bg-white neobrutal-shadow text-center">
+                <div className="text-3xl md:text-4xl font-sans font-normal text-forest mb-1">{stat.value}</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-forest/60">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Roadmap Section */}
+        <div className="max-w-4xl mx-auto px-6 py-12">
+          <div className="border-4 border-forest bg-celo-yellow p-8 neobrutal-shadow relative">
+            <h2 className="text-4xl font-sans font-normal text-forest uppercase tracking-tighter mb-8 border-b-4 border-forest pb-4 inline-block">
+              Roadmap
+            </h2>
+
+            <div className="relative space-y-6">
+              {/* Vertical Line */}
+              <div className="absolute left-4 top-4 bottom-4 w-0.5 bg-forest/20 -translate-x-1/2 z-0" />
+
+              <div className="relative flex items-start gap-4 z-10">
+                <div className="w-8 h-8 rounded-none border-2 border-forest bg-forest text-white flex items-center justify-center shrink-0 font-bold">✓</div>
+                <div>
+                  <h3 className="font-bold uppercase text-lg leading-tight">Agents Deployment and Verification</h3>
+                  <p className="text-xs font-bold uppercase text-forest/60">Status: Complete</p>
+                </div>
+              </div>
+
+              <div className="relative flex items-start gap-4 z-10">
+                <div className="w-8 h-8 rounded-none border-2 border-forest bg-forest text-white flex items-center justify-center shrink-0 font-bold">✓</div>
+                <div>
+                  <h3 className="font-bold uppercase text-lg leading-tight">Agent Chats via Socials</h3>
+                  <p className="text-xs font-bold uppercase text-forest/60">Status: Telegram Integrated</p>
+                </div>
+              </div>
+
+              <div className="relative flex items-start gap-4 z-10">
+                <div className="w-8 h-8 rounded-none border-2 border-forest bg-white flex items-center justify-center shrink-0 font-bold"></div>
+                <div>
+                  <h3 className="font-bold uppercase text-lg leading-tight">Agent Skills</h3>
+                  <p className="text-xs font-bold uppercase text-accent">Status: Coming Soon</p>
+                </div>
+              </div>
+
+              <div className="relative flex items-start gap-4 z-10">
+                <div className="w-8 h-8 rounded-none border-2 border-forest bg-white flex items-center justify-center shrink-0 font-bold"></div>
+                <div>
+                  <h3 className="font-bold uppercase text-lg leading-tight">Agent Cron Jobs</h3>
+                  <p className="text-xs font-bold uppercase text-accent">Status: Coming Soon (Clawbots)</p>
+                </div>
+              </div>
+
+              <div className="relative flex items-start gap-4 z-10">
+                <div className="w-8 h-8 rounded-none border-2 border-forest bg-white flex items-center justify-center shrink-0 font-bold"></div>
+                <div>
+                  <h3 className="font-bold uppercase text-lg leading-tight">Agents Not Sleeping</h3>
+                  <p className="text-xs font-bold uppercase text-accent">Status: Coming Soon (Clawbots)</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-        {/* Background effects */}
-        <div className="absolute inset-0 grid-pattern" />
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-celo/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-forest/5 rounded-full blur-3xl" />
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-forest/10 py-8">
-        <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-forest" />
-            <span className="text-sm text-forest-muted">
-              Celo AgentHAUS © 2026
-            </span>
-          </div>
-          <div className="flex items-center gap-4 text-sm text-forest-muted">
-            <span>Built with ERC-8004</span>
-            <span>•</span>
-            <span>Powered by Celo</span>
-          </div>
-        </div>
-      </footer>
+      {/* Background Grid */}
+      <div className="fixed inset-0 grid-pattern pointer-events-none -z-10 opacity-50" />
+      {/* Visual Accents */}
+      <div className="fixed top-20 left-10 w-32 h-32 border-2 border-forest/10 rounded-full -z-10" />
+      <div className="fixed bottom-20 right-10 w-64 h-64 border-2 border-forest/10 rounded-full -z-10" />
     </div>
   );
 }

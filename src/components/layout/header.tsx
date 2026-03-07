@@ -6,29 +6,33 @@ import { Bell, Search } from "lucide-react";
 
 export function Header() {
   return (
-    <header className="flex items-center justify-between h-16 px-6 border-b border-forest/10 bg-white/80 backdrop-blur-sm">
+    <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-20 px-8 border-b-4 border-forest bg-white">
       {/* Search */}
-      <div className="flex items-center gap-3 flex-1 max-w-md">
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-forest-muted" />
+      <div className="flex items-center gap-4 flex-1 max-w-xl">
+        <div className="relative w-full group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-forest" />
           <input
             type="text"
-            placeholder="Search agents, transactions..."
-            className="w-full h-9 pl-10 pr-4 bg-gypsum border border-forest/10 rounded-lg text-sm text-forest placeholder:text-forest-muted/60 focus:outline-none focus:ring-2 focus:ring-celo/50 focus:border-forest-light transition-all"
+            placeholder="SEARCH AGENTS / OPERATIONS..."
+            className="w-full h-12 pl-12 pr-6 bg-white border-2 border-forest rounded-none text-sm font-black uppercase tracking-widest text-forest placeholder:text-forest/30 focus:outline-none focus:bg-celo transition-all shadow-hard"
           />
         </div>
       </div>
 
       {/* Right Side */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-6">
         {/* Notifications */}
-        <button className="relative p-2 rounded-lg text-forest-muted hover:text-forest hover:bg-gypsum-dark transition-colors cursor-pointer">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-celo rounded-full border border-white" />
+        <button className="relative w-12 h-12 border-2 border-forest bg-white flex items-center justify-center hover:bg-celo transition-colors cursor-pointer shadow-hard active:translate-y-px active:shadow-hard-active">
+          <Bell className="w-6 h-6" />
+          <span className="absolute top-0 right-0 w-4 h-4 bg-celo border-2 border-forest -translate-y-1/2 translate-x-1/2 flex items-center justify-center text-[10px] font-black">
+            3
+          </span>
         </button>
 
         {/* Wallet Connect */}
-        <ConnectWalletButton size="md" showAddress />
+        <div className="border-2 border-forest p-1 bg-celo shadow-hard">
+          <ConnectWalletButton size="md" showAddress />
+        </div>
       </div>
     </header>
   );

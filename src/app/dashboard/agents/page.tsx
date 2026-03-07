@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAccount } from "wagmi";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ import {
   DollarSign,
   MoreVertical,
   ExternalLink,
+  ArrowUpRight,
   Pause,
   Play,
   Trash2,
@@ -125,126 +127,116 @@ export default function AgentsPage() {
 
   if (!isConnected) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-        <Wallet className="w-16 h-16 text-forest-faint mb-4" />
-        <h2 className="text-xl font-bold text-forest mb-2">Connect Your Wallet</h2>
-        <p className="text-forest-muted max-w-sm">
-          Connect your wallet to view and manage your AI agents.
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 bg-white border-4 border-forest shadow-hard">
+        <Wallet className="w-20 h-20 text-forest mb-6" />
+        <h2 className="text-4xl font-black uppercase tracking-tighter text-forest mb-4">Access Denied</h2>
+        <p className="text-forest text-lg max-w-sm font-medium mb-8">
+          Connect your wallet to manage your AI agent fleet.
         </p>
+        <div className="border-4 border-forest shadow-hard bg-celo p-1">
+          <ConnectWalletButton size="lg" />
+        </div>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="w-8 h-8 text-forest animate-spin" />
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-12 h-12 text-forest animate-spin" />
+        <span className="mt-4 font-bold uppercase tracking-widest">Scanning Network...</span>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-12">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-        <div className="flex-1 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-forest">My Agents</h1>
-            <p className="text-forest-muted text-sm mt-1">
-              Manage and monitor your deployed AI agents
-            </p>
-          </div>
-          <Link href="/dashboard/agents/new">
-            <Button variant="glow">
-              <Plus className="w-4 h-4" />
-              New Agent
-            </Button>
-          </Link>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-8 border-b-4 border-forest">
+        <div>
+          <h1 className="text-6xl font-black uppercase tracking-tighter text-forest leading-none">
+            Registry
+          </h1>
+          <p className="text-forest font-bold uppercase tracking-widest mt-4">
+            Total Capacity: {agents.length} Nodes Operational
+          </p>
         </div>
-        <div className="hidden lg:block w-56 flex-shrink-0">
-          <Image
-            src="/images/04-Dashboard_Main_Overview-Option_C-Bots_on_Agent_Cards.png"
-            alt="AgentHaus bots on agent cards"
-            width={224}
-            height={126}
-            className="w-full h-auto rounded-xl object-contain"
-          />
-        </div>
+        <Link href="/dashboard/agents/new">
+          <Button size="lg" className="text-xl px-12 h-16">
+            <Plus className="w-6 h-6 stroke-[3px]" />
+            New Deployment
+          </Button>
+        </Link>
       </div>
 
       {/* Agents Grid */}
       {agents.length === 0 ? (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <Bot className="w-12 h-12 text-forest-faint mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-forest mb-2">No Agents Yet</h3>
-            <p className="text-forest-muted mb-6">
-              Create your first AI agent to get started on Celo.
-            </p>
-            <Link href="/dashboard/agents/new">
-              <Button variant="glow">
-                <Plus className="w-4 h-4" />
-                Create Your First Agent
-              </Button>
-            </Link>
-          </CardContent>
+        <Card className="p-24 text-center bg-gypsum-dark border-4 border-dashed border-forest/20 shadow-none">
+          <Bot className="w-20 h-20 text-forest/10 mx-auto mb-6" />
+          <h3 className="text-2xl font-black uppercase tracking-tighter mb-4">No Agents Online</h3>
+          <p className="text-forest font-medium max-w-sm mx-auto mb-8">
+            Deploy your first autonomous node to start interacting with the Celo ecosystem.
+          </p>
+          <Link href="/dashboard/agents/new">
+            <Button size="lg">Initialize First Agent</Button>
+          </Link>
         </Card>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {agents.map((agent) => (
-            <Card key={agent.id} className="group hover:border-forest/20 transition-all duration-300">
-              <CardContent className="p-6">
+            <div key={agent.id} className="group relative">
+              <div className="absolute inset-0 bg-forest translate-x-1.5 translate-y-1.5 group-hover:translate-x-2.5 group-hover:translate-y-2.5 transition-transform" />
+              <div className="relative bg-white border-2 border-forest p-6 flex flex-col h-full transition-transform group-hover:-translate-y-0.5">
                 {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 shrink-0 rounded-full overflow-hidden bg-blue-500/20 border-2 border-blue-400/40 flex items-center justify-center">
+                <div className="flex items-start justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="h-16 w-16 border-2 border-forest bg-celo flex items-center justify-center text-3xl">
                       {agent.imageUrl ? (
                         <Image
                           src={ipfsToPublicGatewayUrl(agent.imageUrl)}
                           alt={agent.name}
-                          width={48}
-                          height={48}
+                          width={64}
+                          height={64}
                           className="w-full h-full object-cover"
                           unoptimized={agent.imageUrl.startsWith("ipfs://")}
                         />
                       ) : (
-                        <span className="text-2xl">{getTemplateIcon(agent.templateType)}</span>
+                        getTemplateIcon(agent.templateType)
                       )}
                     </div>
                     <div>
-                      <div className="flex items-center gap-1.5">
-                      <h3 className="font-semibold text-forest">{agent.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-black uppercase leading-tight">{agent.name}</h3>
                         {agent.verification?.selfxyzVerified && (
-                          <span title="SelfClaw Verified">
-                            <BadgeCheck className="w-4 h-4 text-forest-light flex-shrink-0" />
-                          </span>
+                          <BadgeCheck className="w-5 h-5 text-forest" />
                         )}
                       </div>
-                      <p className="text-xs text-forest-muted capitalize">{agent.templateType} agent</p>
-                      <p className="text-[10px] text-forest-faint mt-0.5">{DEPLOYMENT_ATTRIBUTION}</p>
+                      <p className="text-xs font-bold uppercase text-forest/50 mt-1">
+                        {agent.templateType} NODE
+                      </p>
                     </div>
                   </div>
                   <div className="relative">
                     <button
                       onClick={() => setMenuOpen(menuOpen === agent.id ? null : agent.id)}
-                      className="p-1 rounded hover:bg-gypsum-dark transition-colors cursor-pointer"
+                      className="w-10 h-10 border-2 border-forest flex items-center justify-center hover:bg-celo transition-colors cursor-pointer"
                     >
-                      <MoreVertical className="w-4 h-4 text-forest-muted" />
+                      <MoreVertical className="w-5 h-5" />
                     </button>
                     {menuOpen === agent.id && (
-                      <div className="absolute right-0 top-8 z-10 w-44 bg-white border border-forest/10 rounded-lg shadow-xl p-1">
+                      <div className="absolute right-0 top-12 z-20 w-56 bg-white border-4 border-forest shadow-hard p-1">
                         <button
                           onClick={() =>
                             agent.status === "active"
                               ? handlePause(agent.id)
                               : handleResume(agent.id)
                           }
-                          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-forest hover:bg-gypsum rounded-md cursor-pointer"
+                          className="flex items-center gap-3 w-full px-4 py-3 text-sm font-black uppercase hover:bg-celo transition-colors text-left"
                         >
                           {agent.status === "active" ? (
-                            <><Pause className="w-4 h-4" /> Pause Agent</>
+                            <><Pause className="w-4 h-4" /> Pause Node</>
                           ) : (
-                            <><Play className="w-4 h-4" /> Resume Agent</>
+                            <><Play className="w-4 h-4" /> Resume Node</>
                           )}
                         </button>
                         {agent.agentWalletAddress && (
@@ -252,16 +244,17 @@ export default function AgentsPage() {
                             href={`${getBlockExplorer(agent.erc8004ChainId ?? chainId ?? 42220)}/address/${agent.agentWalletAddress}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-forest hover:bg-gypsum rounded-md"
+                            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-black uppercase hover:bg-celo transition-colors"
                           >
-                            <ExternalLink className="w-4 h-4" /> View On-Chain
+                            <ExternalLink className="w-4 h-4" /> Explorer
                           </a>
                         )}
+                        <div className="h-1 bg-forest mx-1 my-1" />
                         <button
                           onClick={() => handleDelete(agent.id)}
-                          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md cursor-pointer"
+                          className="flex items-center gap-3 w-full px-4 py-3 text-sm font-black uppercase bg-red-500 text-white hover:bg-red-600 transition-colors text-left"
                         >
-                          <Trash2 className="w-4 h-4" /> Delete Agent
+                          <Trash2 className="w-4 h-4" /> Terminate
                         </button>
                       </div>
                     )}
@@ -269,95 +262,62 @@ export default function AgentsPage() {
                 </div>
 
                 {/* Description */}
-                <p className="text-sm text-forest-muted mb-4 line-clamp-2">
-                  {agent.description || "No description"}
+                <p className="text-sm font-bold leading-relaxed mb-6 flex-grow">
+                  {agent.description || "NO DATA AVAILABLE"}
                 </p>
 
-                {/* Status & Reputation */}
-                <div className="flex items-center gap-2 mb-4">
-                  <Badge className={getStatusColor(agent.status)}>
-                    {agent.status === "active" && <span className="w-1.5 h-1.5 bg-forest rounded-full mr-1 animate-pulse" />}
+                {/* Status Section */}
+                <div className="grid grid-cols-2 gap-2 mb-6">
+                  <div className={`border-2 border-forest p-2 text-center text-[10px] font-black uppercase ${agent.status === "active" ? "bg-green-400" : "bg-amber-400"
+                    }`}>
                     {agent.status}
-                  </Badge>
-                  {agent.reputationScore > 0 && (
-                    <div className="flex items-center gap-1 text-xs text-forest-muted">
-                      <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
-                      {agent.reputationScore}
+                  </div>
+                  {agent.verification?.selfxyzVerified ? (
+                    <div className="border-2 border-forest bg-celo p-2 text-center text-[10px] font-black uppercase">
+                      Verified
+                    </div>
+                  ) : (
+                    <div className="border-2 border-forest bg-gypsum p-2 text-center text-[10px] font-black uppercase">
+                      Unverified
                     </div>
                   )}
-                  {agent.erc8004AgentId && (
-                    <Badge variant="outline" className="text-[10px]">
-                      ERC-8004 #{agent.erc8004AgentId}
-                    </Badge>
-                  )}
-                  {agent.verification?.selfxyzVerified && (
-                    <Badge variant="outline" className="text-[10px] border-forest/30 text-forest gap-1">
-                      <BadgeCheck className="w-3 h-3" />
-                      Verified
-                    </Badge>
-                  )}
                 </div>
 
-                {/* Wallet Address */}
-                {agent.agentWalletAddress && (
-                  <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-gypsum">
-                    <Wallet className="w-3.5 h-3.5 text-forest flex-shrink-0" />
-                    <span className="text-xs font-mono text-forest/80">{formatAddress(agent.agentWalletAddress)}</span>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        navigator.clipboard.writeText(agent.agentWalletAddress!);
-                      }}
-                      className="text-forest-muted hover:text-forest transition-colors cursor-pointer ml-auto"
-                      title="Copy address"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                    </button>
+                {/* Stats Bar */}
+                <div className="space-y-4 pt-6 border-t-2 border-forest">
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] font-black uppercase mb-1.5">
+                      <div className="flex items-center gap-1.5 cursor-help" onClick={() => setSpendingModalAgent(agent)}>
+                        <span>Spending</span>
+                        <Info className="w-3 h-3" />
+                      </div>
+                      <span>
+                        {formatCurrency(agent.spendingUsed)} / {formatCurrency(agent.spendingLimit)}
+                      </span>
+                    </div>
+                    <div className="h-3 border-2 border-forest bg-gypsum overflow-hidden">
+                      <div
+                        className="h-full bg-forest transition-all"
+                        style={{ width: `${Math.min(100, (agent.spendingUsed / agent.spendingLimit) * 100)}%` }}
+                      />
+                    </div>
                   </div>
-                )}
 
-                {/* Spending */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setSpendingModalAgent(agent);
-                      }}
-                      className="flex items-center gap-1.5 text-forest-muted hover:text-celo transition-colors cursor-pointer"
-                      title="Adjust spending limit"
-                    >
-                      <span>Spending</span>
-                      <Info className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="text-forest/70">
-                      {formatCurrency(agent.spendingUsed)} / {formatCurrency(agent.spendingLimit)}
-                    </span>
-                  </div>
-                  <Progress value={agent.spendingUsed} max={agent.spendingLimit} />
-                </div>
-
-                {/* Stats */}
-                <div className="flex items-center justify-between pt-3 border-t border-forest/10">
-                  <div className="flex items-center gap-1 text-xs text-forest-muted">
-                    <Activity className="w-3 h-3" />
-                    {agent.transactions?.length ?? 0} txns
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-forest-muted">
-                    <DollarSign className="w-3 h-3" />
-                    {agent.llmModel.split("/").pop()?.split(":")[0] || agent.llmModel}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-[10px] font-black uppercase">
+                      <Activity className="w-4 h-4" />
+                      {agent.transactions?.length ?? 0} Ops
+                    </div>
+                    <Link href={`/dashboard/agents/${agent.id}`}>
+                      <Button size="sm" variant="outline" className="h-8 px-4 text-[10px]">
+                        Details
+                        <ArrowUpRight className="w-3 h-3 h-3 h-3" />
+                      </Button>
+                    </Link>
                   </div>
                 </div>
-
-                {/* Action */}
-                <Link href={`/dashboard/agents/${agent.id}`} className="block mt-4">
-                  <Button variant="secondary" size="sm" className="w-full">
-                    View Details
-                    <ExternalLink className="w-3 h-3" />
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       )}

@@ -1,20 +1,20 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { Playfair_Display, Geist_Mono } from "next/font/google";
+import { Anton, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
-const playfair = Playfair_Display({
-  variable: "--font-playfair",
+const anton = Anton({
+  variable: "--font-anton",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
-  style: ["normal", "italic"],
+  weight: ["400"],
   display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const spaceMono = Space_Mono({
+  variable: "--font-space-mono",
   subsets: ["latin"],
+  weight: ["400", "700"],
 });
 
 export const metadata: Metadata = {
@@ -36,7 +36,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${playfair.variable} ${geistMono.variable} antialiased bg-gypsum text-forest`}
+        className={`${anton.variable} ${spaceMono.variable} antialiased bg-gypsum text-forest`}
       >
         <Providers cookies={cookies}>{children}</Providers>
       </body>

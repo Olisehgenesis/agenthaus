@@ -117,12 +117,19 @@ export function getAgentWalletClient(index: number): WalletClient {
  * Index 0 is reserved for the platform/admin wallet.
  */
 export async function getNextDerivationIndex(): Promise<number> {
-  const result = await prisma.agent.aggregate({
+  const agentMax = await prisma.agent.aggregate({
     _max: { walletDerivationIndex: true },
   });
 
+  const userMax = await (prisma.user as any).aggregate({
+    _max: { walletDerivationIndex: true },
+  });
+
+  const maxAgentIndex = agentMax._max.walletDerivationIndex ?? 0;
+  const maxUserIndex = userMax._max.walletDerivationIndex ?? 0;
+
   // Start from index 1 (index 0 = platform wallet)
-  return (result._max.walletDerivationIndex ?? 0) + 1;
+  return Math.max(maxAgentIndex, maxUserIndex) + 1;
 }
 
 // ─── Balance Queries ─────────────────────────────────────────────────────────

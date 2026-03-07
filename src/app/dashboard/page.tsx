@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAccount, useChainId } from "wagmi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { Badge } from "@/components/ui/badge";
 import {
   Bot,
@@ -18,6 +19,7 @@ import {
   Clock,
   Loader2,
   Wallet,
+  CheckCircle2,
 } from "lucide-react";
 import { formatAddress, formatCurrency, getTemplateIcon, formatDate, formatCompactNumber, formatCompactCurrency } from "@/lib/utils";
 import { DEPLOYMENT_ATTRIBUTION } from "@/lib/constants";
@@ -85,163 +87,167 @@ export default function DashboardPage() {
 
   if (!isConnected) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-        <Wallet className="w-16 h-16 text-forest-faint mb-4" />
-        <h2 className="text-xl font-bold text-forest mb-2">Connect Your Wallet</h2>
-        <p className="text-forest-muted max-w-sm">
-          Connect your wallet to view your dashboard, manage agents, and interact with the Celo blockchain.
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 bg-white border-4 border-forest shadow-hard">
+        <Wallet className="w-20 h-20 text-forest mb-6" />
+        <h2 className="text-4xl font-black uppercase tracking-tighter text-forest mb-4">Connect Wallet</h2>
+        <p className="text-forest text-lg max-w-sm font-medium mb-8">
+          Connect your wallet to access your AI agent dashboard and manage your Celo assets.
         </p>
+        <div className="border-4 border-forest shadow-hard bg-celo p-1">
+          <ConnectWalletButton size="lg" />
+        </div>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="w-8 h-8 text-forest animate-spin" />
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-12 h-12 text-forest animate-spin" />
+        <span className="mt-4 font-bold uppercase tracking-widest">Loading...</span>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Welcome */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-12">
+      {/* Welcome Section */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-8 border-b-2 border-forest">
         <div>
-          <h1 className="text-2xl font-bold text-forest">Dashboard</h1>
-          <p className="text-forest-muted text-sm mt-1">
-            Welcome back, {address ? formatAddress(address) : "user"}
-            <Badge variant="outline" className="ml-2 text-[10px]">
-              {chainId === 42220 ? "Celo Mainnet" : chainId === 11142220 ? "Celo Sepolia Testnet" : `Chain ${chainId}`}
-            </Badge>
-          </p>
+          <h1 className="text-6xl font-black uppercase tracking-tighter text-forest leading-none">
+            Dashboard
+          </h1>
+          <div className="flex items-center gap-3 mt-4">
+            <span className="bg-forest text-white px-3 py-1 font-bold text-sm uppercase">
+              {address ? formatAddress(address) : "UNKNOWN"}
+            </span>
+            <span className="bg-celo border-2 border-forest px-3 py-1 font-bold text-sm uppercase">
+              {chainId === 42220 ? "Celo Mainnet" : "Celo Testnet"}
+            </span>
+          </div>
         </div>
         <Link href="/dashboard/agents/new">
-          <Button variant="glow">
-            <Plus className="w-4 h-4" />
+          <Button size="lg" className="text-xl px-12 h-16">
+            <Plus className="w-6 h-6 stroke-[3px]" />
             Create Agent
           </Button>
         </Link>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: "Total Agents", value: formatCompactNumber(stats?.totalAgents ?? 0), icon: Bot, color: "text-forest" },
-          { label: "Active", value: stats?.activeAgents ?? 0, icon: Activity, color: "text-forest-light" },
-          { label: "Transactions", value: stats?.totalTransactions ?? 0, icon: TrendingUp, color: "text-blue-600" },
-          { label: "Value Moved", value: formatCompactCurrency(stats?.totalValueTransferred ?? 0), icon: DollarSign, color: "text-accent" },
-          { label: "Avg Reputation", value: stats?.averageReputation ? `${stats.averageReputation}/5` : "—", icon: Star, color: "text-amber-600" },
-          { label: "Gas Spent", value: stats?.totalGasSpent ? `${stats.totalGasSpent} CELO` : "0 CELO", icon: Fuel, color: "text-orange-600" },
+          { label: "Total Agents", value: stats?.totalAgents ?? 0, icon: Bot },
+          { label: "Active Nodes", value: stats?.activeAgents ?? 0, icon: Activity },
+          { label: "Transactions", value: stats?.totalTransactions ?? 0, icon: TrendingUp },
+          { label: "Value (USD)", value: formatCompactCurrency(stats?.totalValueTransferred ?? 0), icon: DollarSign },
         ].map((stat) => (
-          <Card key={stat.label}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <stat.icon className={`w-4 h-4 ${stat.color}`} />
-                <span className="text-xs text-forest-muted">{stat.label}</span>
-              </div>
-              <div className="text-lg font-bold text-forest">{stat.value}</div>
-            </CardContent>
-          </Card>
+          <div key={stat.label} className="bg-white border-2 border-forest p-6 neobrutal-shadow hover:-translate-y-1 transition-transform">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-black uppercase tracking-widest text-forest">
+                {stat.label}
+              </span>
+              <stat.icon className="w-6 h-6 text-forest stroke-[2.5px]" />
+            </div>
+            <div className="text-4xl font-black text-forest">
+              {stat.value}
+            </div>
+          </div>
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Active Agents */}
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Your Agents</CardTitle>
-                <Link href="/dashboard/agents">
-                  <Button variant="ghost" size="sm" className="text-xs">
-                    View All <ArrowUpRight className="w-3 h-3" />
-                  </Button>
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {agents.length === 0 ? (
-                <div className="text-center py-8">
-                  <Bot className="w-10 h-10 text-forest-faint mx-auto mb-3" />
-                  <p className="text-sm text-forest-muted mb-3">No agents yet</p>
-                  <Link href="/dashboard/agents/new">
-                    <Button variant="secondary" size="sm">
-                      <Plus className="w-3 h-3" /> Create First Agent
-                    </Button>
-                  </Link>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {agents.map((agent) => (
-                    <Link key={agent.id} href={`/dashboard/agents/${agent.id}`}>
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-gypsum hover:bg-gypsum-dark transition-colors cursor-pointer">
-                        <div className="flex items-center gap-3">
-                          <div className="text-xl">{getTemplateIcon(agent.templateType)}</div>
-                          <div>
-                            <div className="text-sm font-medium text-forest">{agent.name}</div>
-                            <div className="text-xs text-forest-muted capitalize">{agent.templateType}</div>
-                            <div className="text-[10px] text-forest-faint mt-0.5">{DEPLOYMENT_ATTRIBUTION}</div>
-                          </div>
-                        </div>
-                        <Badge variant={agent.status === "active" ? "default" : "warning"}>
-                          {agent.status}
-                        </Badge>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+      <div className="grid lg:grid-cols-5 gap-12">
+        {/* Agents List */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-3xl font-black uppercase tracking-tighter">Your Agents</h2>
+            <Link href="/dashboard/agents" className="text-sm font-bold uppercase underline decoration-4 underline-offset-4 hover:text-accent">
+              View All
+            </Link>
+          </div>
 
-        {/* Recent Activity */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Recent Activity</CardTitle>
-                <Badge variant="secondary">{activity.length} events</Badge>
+          <div className="space-y-4">
+            {agents.length === 0 ? (
+              <div className="border-2 border-forest p-12 text-center bg-gypsum-dark">
+                <Bot className="w-16 h-16 text-forest/20 mx-auto mb-4" />
+                <p className="font-bold uppercase">No records found</p>
               </div>
-            </CardHeader>
-            <CardContent>
-              {activity.length === 0 ? (
-                <div className="text-center py-8">
-                  <Activity className="w-10 h-10 text-forest-faint mx-auto mb-3" />
-                  <p className="text-sm text-forest-muted">
-                    No activity yet. Create and deploy an agent to get started.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {activity.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-start gap-3 p-3 rounded-lg bg-gypsum"
-                    >
-                      <div className={`w-2 h-2 mt-2 rounded-full flex-shrink-0 ${
-                        item.type === "action" ? "bg-forest" :
-                        item.type === "warning" ? "bg-amber-500" :
-                        item.type === "error" ? "bg-red-500" : "bg-blue-500"
-                      }`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-forest">{item.message}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-forest-muted">{item.agentName}</span>
-                          <span className="text-forest-faint">•</span>
-                          <span className="text-xs text-forest-muted flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {formatDate(item.createdAt)}
-                          </span>
+            ) : (
+              agents.map((agent) => (
+                <Link key={agent.id} href={``}>
+                  <div className="group relative">
+                    <div className="absolute inset-0 bg-forest translate-x-1 translate-y-1 group-hover:translate-x-2 group-hover:translate-y-2 transition-transform" />
+                    <div className="relative bg-white border-2 border-forest p-4 flex items-center justify-between group-hover:-translate-y-0.5 transition-transform">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 border-2 border-forest bg-celo flex items-center justify-center text-2xl">
+                          {getTemplateIcon(agent.templateType)}
                         </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="font-black uppercase text-lg leading-tight">{agent.name}</div>
+                            {agent.status === "active" && (
+                              <CheckCircle2 className="w-5 h-5 text-blue-500 fill-blue-500/10" />
+                            )}
+                          </div>
+                          <div className="text-xs font-bold uppercase text-forest/60">{agent.templateType} • AGENTHAUS v1</div>
+                        </div>
+                      </div>
+                      <div className={`px-3 py-1 text-xs font-black uppercase border-2 border-forest ${agent.status === "active" ? "bg-green-400" : "bg-amber-400"
+                        }`}>
+                        {agent.status}
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Activity Feed */}
+        <div className="lg:col-span-3 space-y-6">
+          <h2 className="text-3xl font-black uppercase tracking-tighter">Activity Feed</h2>
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard/logs" className="text-xs font-bold uppercase underline decoration-2 underline-offset-4 hover:text-accent">
+              System Logs
+            </Link>
+            <div className="bg-forest text-white px-3 py-1 text-xs font-bold uppercase">
+              {activity.length} Events
+            </div>
+          </div>
+
+          <div className="border-2 border-forest bg-white neobrutal-shadow min-h-[400px]">
+            {activity.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-[400px] p-12 text-center">
+                <Activity className="w-16 h-16 text-forest/10 mb-4" />
+                <p className="font-bold uppercase text-lg">System Idle</p>
+                <p className="text-sm font-medium mt-2">Deploy an agent to begin logging</p>
+              </div>
+            ) : (
+              <div className="divide-y-2 divide-forest">
+                {activity.map((item) => (
+                  <div key={item.id} className="p-4 flex gap-4 hover:bg-gypsum transition-colors">
+                    <div className="w-10 h-10 border-2 border-forest bg-white flex items-center justify-center flex-shrink-0">
+                      <Clock className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-4">
+                        <p className="font-bold text-sm uppercase bg-forest text-white px-2 py-0.5 inline-block">
+                          {item.agentName}
+                        </p>
+                        <span className="text-[10px] font-black uppercase text-forest/40">
+                          {formatDate(item.createdAt)}
+                        </span>
+                      </div>
+                      <p className="text-sm font-bold mt-2 leading-snug">
+                        {item.message}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

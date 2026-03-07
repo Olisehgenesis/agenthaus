@@ -3,23 +3,23 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-none text-sm font-bold uppercase tracking-tight transition-all duration-100 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 cursor-pointer border-2 border-forest",
   {
     variants: {
       variant: {
-        default: "bg-celo text-forest hover:bg-celo-hover shadow-sm font-semibold",
-        destructive: "bg-red-500 text-white hover:bg-red-600 shadow-sm",
-        outline: "border border-forest/20 bg-transparent text-forest hover:bg-forest/5 hover:border-forest/30",
-        secondary: "bg-white text-forest border border-forest/10 hover:bg-gypsum-dark hover:border-forest/20",
-        ghost: "text-forest/60 hover:bg-forest/5 hover:text-forest",
-        link: "text-forest-light underline-offset-4 hover:underline",
-        glow: "bg-celo text-forest font-semibold hover:bg-celo-hover shadow-[0_0_20px_rgba(252,255,82,0.3)] hover:shadow-[0_0_30px_rgba(252,255,82,0.5)]",
+        default: "bg-celo text-forest shadow-hard hover:-translate-y-1 hover:shadow-hard-hover active:translate-y-px active:shadow-hard-active",
+        destructive: "bg-red-500 text-forest shadow-hard hover:-translate-y-1 hover:shadow-hard-hover active:translate-y-px active:shadow-hard-active",
+        outline: "bg-white text-forest shadow-hard hover:-translate-y-1 hover:shadow-hard-hover active:translate-y-px active:shadow-hard-active",
+        secondary: "bg-gypsum text-forest shadow-hard hover:-translate-y-1 hover:shadow-hard-hover active:translate-y-px active:shadow-hard-active",
+        ghost: "border-transparent text-forest hover:bg-forest/5",
+        link: "border-transparent text-forest underline-offset-4 hover:underline",
+        glow: "bg-celo text-forest shadow-hard hover:-translate-y-1 hover:shadow-hard-hover active:translate-y-px active:shadow-hard-active",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-12 rounded-lg px-8 text-base",
-        icon: "h-10 w-10",
+        default: "h-12 px-6 py-3",
+        sm: "h-10 px-4 text-xs",
+        lg: "h-14 px-10 text-lg",
+        icon: "h-12 w-12",
       },
     },
     defaultVariants: {
@@ -31,7 +31,7 @@ const buttonVariants = cva(
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+  VariantProps<typeof buttonVariants> {
   loading?: boolean;
 }
 

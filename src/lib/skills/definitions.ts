@@ -8,6 +8,7 @@
  * its handler and exposes the public API.
  */
 
+import { z } from "zod";
 import type { SkillDefinition } from "./types";
 
 const SKILL_DEFINITIONS: SkillDefinition[] = [
@@ -22,12 +23,17 @@ const SKILL_DEFINITIONS: SkillDefinition[] = [
       { name: "to", description: "Recipient 0x address", required: true, example: "0xABC...123" },
       { name: "amount", description: "Amount in CELO", required: true, example: "1.5" },
     ],
+    zodSchema: z.object({
+      to: z.string().describe("Recipient 0x address"),
+      amount: z.string().describe("Amount in CELO (e.g. 1.5)"),
+    }),
     examples: [
       { input: "send 2 CELO to 0xABC...123", output: "[[SEND_CELO|0xABC...123|2]]" },
     ],
     requiresWallet: true,
     mutatesState: true,
   },
+
   {
     id: "send_token",
     name: "Send Token",

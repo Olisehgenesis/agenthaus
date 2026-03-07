@@ -145,29 +145,93 @@ export function InfoModal({ open, onClose, agent, verificationStatus, channelDat
         <div>
           <h3 className="text-sm font-medium text-forest mb-2 flex items-center gap-2">
             <Send className="w-4 h-4" />
-            Connect
+            Connect & Socials
           </h3>
           <div className="space-y-2">
             <div className="flex items-center justify-between p-2 rounded-lg bg-gypsum/80">
               <span className="text-xs text-forest/80">💬 Web Chat</span>
               <Badge variant="default" className="text-[10px] bg-forest/20 text-forest-light border-forest/30">Active</Badge>
             </div>
-            {botUsername ? (
+
+            {/* Dedicated Bot */}
+            {botUsername && (
               <a
                 href={`https://t.me/${botUsername}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center justify-between p-2 rounded-lg bg-gypsum/80 hover:bg-gypsum transition-colors"
               >
-                <span className="text-xs text-forest/80">📱 Telegram</span>
+                <span className="text-xs text-forest/80">📱 Telegram Bot</span>
                 <span className="text-[10px] text-blue-400">@{botUsername} →</span>
               </a>
-            ) : (
-              <div className="flex items-center justify-between p-2 rounded-lg bg-gypsum/80">
-                <span className="text-xs text-forest-muted">📱 Telegram</span>
-                <span className="text-[10px] text-forest-muted">Not connected</span>
-              </div>
             )}
+
+            {/* Custom Telegram Link/Username */}
+            {agent.externalSocials && (() => {
+              const s = JSON.parse(agent.externalSocials);
+              if (!s.telegram) return null;
+              const link = s.telegram.startsWith("t.me") || s.telegram.startsWith("http")
+                ? (s.telegram.startsWith("http") ? s.telegram : `https://${s.telegram}`)
+                : `https://t.me/${s.telegram.replace(/^@/, "")}`;
+              return (
+                <a
+                  href={link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between p-2 rounded-lg bg-gypsum/80 hover:bg-gypsum transition-colors"
+                >
+                  <span className="text-xs text-forest/80">📱 Telegram</span>
+                  <span className="text-[10px] text-blue-400">{s.telegram} →</span>
+                </a>
+              );
+            })()}
+
+            {/* Fallback to Master Bot if paired and no other TG */}
+            {!botUsername && (!agent.externalSocials || !JSON.parse(agent.externalSocials).telegram) && (
+              <a
+                href="https://t.me/agenthausv1bot"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between p-2 rounded-lg bg-gypsum/80 hover:bg-gypsum transition-colors"
+              >
+                <div className="flex flex-col">
+                  <span className="text-xs text-forest/80">📱 Telegram</span>
+                  <span className="text-[9px] text-forest-muted">via Master Bot</span>
+                </div>
+                <span className="text-[10px] text-blue-400">@agenthausv1bot →</span>
+              </a>
+            )}
+
+            {/* Twitter/Website */}
+            {agent.externalSocials && (() => {
+              const s = JSON.parse(agent.externalSocials);
+              return (
+                <>
+                  {s.twitter && (
+                    <a
+                      href={s.twitter.startsWith("http") ? s.twitter : `https://${s.twitter}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2 rounded-lg bg-gypsum/80 hover:bg-gypsum transition-colors"
+                    >
+                      <span className="text-xs text-forest/80">🐦 Twitter / X</span>
+                      <span className="text-[10px] text-blue-400">View →</span>
+                    </a>
+                  )}
+                  {s.website && (
+                    <a
+                      href={s.website.startsWith("http") ? s.website : `https://${s.website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2 rounded-lg bg-gypsum/80 hover:bg-gypsum transition-colors"
+                    >
+                      <span className="text-xs text-forest/80">🌐 Website</span>
+                      <span className="text-[10px] text-blue-400">Visit →</span>
+                    </a>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
 

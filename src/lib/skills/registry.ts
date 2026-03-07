@@ -128,7 +128,7 @@ export function getSkillsByCategory(category: SkillCategory): SkillDefinition[] 
 /**
  * Get skills for a specific agent template.
  */
-export function getSkillsForTemplate(templateId: string): SkillDefinition[] {
+export function getSkillsForTemplate(templateId: string, disabledSkills: string[] = []): SkillDefinition[] {
   const SELFCLAW_SKILLS = [
     "agent_identity",
     "agent_tokens",
@@ -168,7 +168,7 @@ export function getSkillsForTemplate(templateId: string): SkillDefinition[] {
   };
 
   const skillIds = TEMPLATE_SKILLS[templateId] || TEMPLATE_SKILLS.custom;
-  return SKILL_DEFINITIONS.filter((s) => skillIds.includes(s.id));
+  return SKILL_DEFINITIONS.filter((s) => skillIds.includes(s.id) && !disabledSkills.includes(s.id));
 }
 
 /**
@@ -246,10 +246,10 @@ export async function executeSkillCommands(
 
 /**
  * Generate skill instructions for the system prompt.
- * Only includes skills that are assigned to the agent's template.
+ * Only includes skills that are assigned to the agent's template and not disabled.
  */
-export function generateSkillPrompt(templateId: string, walletAddress: string | null): string {
-  const skills = getSkillsForTemplate(templateId);
+export function generateSkillPrompt(templateId: string, walletAddress: string | null, disabledSkills: string[] = []): string {
+  const skills = getSkillsForTemplate(templateId, disabledSkills);
   // Filter out transfer skills — they have their own prompt section
   const nonTransferSkills = skills.filter(
     (s) => s.id !== "send_celo" && s.id !== "send_token"

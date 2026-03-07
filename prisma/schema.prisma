@@ -8,7 +8,9 @@ datasource db {
 
 model User {
   id            String   @id @default(uuid())
+  email         String?  @unique
   walletAddress String   @unique
+  walletDerivationIndex Int?     @unique
   
   // Per-user encrypted LLM API keys (never stored in env)
   openrouterApiKey  String?  // AES-256-GCM encrypted
@@ -19,6 +21,9 @@ model User {
   deepseekApiKey    String?  // AES-256-GCM encrypted
   zaiApiKey         String?  // AES-256-GCM encrypted
   anthropicApiKey   String?  // AES-256-GCM encrypted
+  
+  telegramId        String?  @unique
+  telegramUsername  String?
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -43,9 +48,11 @@ model Agent {
   
   // Channel integrations (per-agent, multi-tenant)
   telegramBotToken      String?  // AES-256-GCM encrypted bot token from @BotFather
-  telegramChatIds       String?  // JSON: allowed chat IDs (empty = allow all)
+  telegramChatIds       String?           @db.Text // JSON array of allowed chat IDs
   discordBotToken       String?  // AES-256-GCM encrypted Discord bot token
-  webhookSecret         String?  // Unique secret for validating inbound webhooks
+  webhookSecret         String?           @unique
+  disabledSkills        String?           @db.Text // JSON array of skill IDs that are disabled
+  externalSocials       String?           @db.Text // JSON: { telegram, twitter, website }
   channels              String?  // JSON: [{ type, enabled, config }]
   cronJobs              String?  // JSON: [{ id, name, cron, skillPrompt, enabled, lastRun }]
   

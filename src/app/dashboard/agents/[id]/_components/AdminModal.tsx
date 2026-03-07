@@ -4,10 +4,17 @@ import React from "react";
 import Link from "next/link";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { Shield, Coins, Wallet, ExternalLink, AlertCircle, Loader2, Send, CheckCircle, XCircle, Key, RefreshCw } from "lucide-react";
-import { get8004ScanAgentUrl } from "@/lib/constants";
+import { Shield, Coins, Wallet, ExternalLink, AlertCircle, Loader2, Send, CheckCircle, XCircle, Key, RefreshCw, Zap } from "lucide-react";
+import { get8004ScanAgentUrl, LLM_MODELS } from "@/lib/constants";
 import type { AgentData, VerificationStatus, ChannelData } from "../_types";
+import type { LLMProvider } from "@/lib/types";
+import { Select } from "@/components/ui/select";
 import { PublicKeyDisplay } from "./InfoModal";
+import { SkillsCard } from "./SkillsCard";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 interface AdminModalProps {
   open: boolean;
@@ -32,6 +39,7 @@ interface AdminModalProps {
   updateMetadataError?: string | null;
   /** User must be on agent's chain to update metadata */
   connectedChainId?: number;
+  onSocialsUpdated?: () => void;
 }
 
 export function AdminModal({
@@ -53,7 +61,11 @@ export function AdminModal({
   isUpdatingMetadata = false,
   updateMetadataError = null,
   connectedChainId,
+  onSocialsUpdated,
 }: AdminModalProps) {
+  const [socials, setSocials] = React.useState<{ telegram?: string, twitter?: string, website?: string }>(
+    (agent as any).externalSocials ? JSON.parse((agent as any).externalSocials) : {}
+  );
   const [showTelegramForm, setShowTelegramForm] = React.useState(false);
   const [telegramToken, setTelegramToken] = React.useState("");
   const [telegramConnecting, setTelegramConnecting] = React.useState(false);
@@ -64,7 +76,26 @@ export function AdminModal({
   const [adminPairingLoading, setAdminPairingLoading] = React.useState(false);
   const [adminPairedCount, setAdminPairedCount] = React.useState(0);
 
+  // LLM configuration state (allow owner to change provider/model)
+  const [llmProvider, setLlmProvider] = React.useState<LLMProvider>(agent.llmProvider as LLMProvider);
+  const [llmModel, setLlmModel] = React.useState<string>(agent.llmModel);
+  const [updatingLLM, setUpdatingLLM] = React.useState(false);
+  const [llmUpdateError, setLlmUpdateError] = React.useState<string | null>(null);
+
+  // Advanced settings state
+  const [systemPrompt, setSystemPrompt] = React.useState(agent.systemPrompt || "");
+  const [webUrl, setWebUrl] = React.useState(agent.configuration?.webUrl || "");
+  const [contactEmail, setContactEmail] = React.useState(agent.configuration?.contactEmail || "");
+  const [updatingAdvanced, setUpdatingAdvanced] = React.useState(false);
+
   const telegramChannel = channelData?.channels?.find((c) => c.type === "telegram" && c.enabled);
+
+  // dynamically compute list of models for selected provider
+  const providerModels = React.useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    return LLM_MODELS[llmProvider] || [];
+  }, [llmProvider]);
   const botUsername = telegramChannel?.botUsername?.replace(/^@/, "");
   const hasTelegramBot = !!botUsername;
 
@@ -148,7 +179,86 @@ export function AdminModal({
       <div className="p-6 space-y-5">
         <h2 className="text-lg font-semibold text-forest">Admin</h2>
 
+        {/* System Prompt Section */}
         <div>
+          <h3 className="text-sm font-medium text-forest mb-2 flex items-center gap-2">
+            <Zap className="w-4 h-4" />
+            System Prompt
+          </h3>
+          <p className="text-[10px] text-forest-muted mb-2 uppercase font-bold">
+            The core behavioral logic and personality of your agent.
+          </p>
+          <Textarea
+            value={systemPrompt}
+            onChange={(e) => setSystemPrompt(e.target.value)}
+            className="min-h-[150px] text-xs font-mono bg-gypsum border-forest/10"
+            placeholder="You are a helpful assistant..."
+          />
+        </div>
+
+        {/* Network Manifest Section */}
+        <div>
+          <h3 className="text-sm font-medium text-forest mb-2 flex items-center gap-2">
+            <ExternalLink className="w-4 h-4" />
+            Network Manifest
+          </h3>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-bold text-forest-muted">Web URL</label>
+              <Input
+                value={webUrl}
+                onChange={(e) => setWebUrl(e.target.value)}
+                placeholder="https://agent.xyz"
+                className="h-9 text-xs bg-gypsum border-forest/10"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-bold text-forest-muted">Contact Email</label>
+              <Input
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+                placeholder="admin@agent.xyz"
+                className="h-9 text-xs bg-gypsum border-forest/10"
+              />
+            </div>
+          </div>
+        </div>
+
+        <Button
+          size="sm"
+          className="w-full"
+          disabled={updatingAdvanced}
+          onClick={async () => {
+            setUpdatingAdvanced(true);
+            try {
+              const res = await fetch(`/api/agents/${agent.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  systemPrompt,
+                  configuration: {
+                    ...agent.configuration,
+                    webUrl,
+                    contactEmail
+                  }
+                }),
+              });
+              if (!res.ok) throw new Error("Failed to update advanced settings");
+              toast.success("Agent settings updated");
+              // Update local state
+              agent.systemPrompt = systemPrompt;
+              agent.configuration = { ...agent.configuration, webUrl, contactEmail };
+            } catch (err: any) {
+              toast.error(err.message || "Update failed");
+            } finally {
+              setUpdatingAdvanced(false);
+            }
+          }}
+        >
+          {updatingAdvanced ? <><Loader2 className="w-3 h-3 animate-spin mr-2" /> Saving...</> : "Save Advanced Settings"}
+        </Button>
+
+        <div className="border-t-2 border-forest/5 pt-4">
           <h3 className="text-sm font-medium text-forest mb-2 flex items-center gap-2">
             <Key className="w-4 h-4" />
             Agent ID
@@ -350,6 +460,142 @@ export function AdminModal({
           </div>
         )}
 
+        {/* Skill Toggles */}
+        <div>
+          <h3 className="text-sm font-medium text-forest mb-2 flex items-center gap-2">
+            <Zap className="w-4 h-4" />
+            Skill Toggles
+          </h3>
+          <p className="text-xs text-forest-muted mb-3">
+            Enable or disable specific capabilities for your agent.
+          </p>
+          <SkillsCard agentId={agent.id} templateType={agent.templateType} />
+
+          <Card className="border border-forest/10 p-6 space-y-4">
+            <h3 className="text-sm font-semibold text-forest flex items-center gap-2">
+              🌐 External Socials
+            </h3>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-forest-muted">Telegram Username / Link</label>
+                <input
+                  className="w-full h-9 rounded-lg bg-gypsum border border-forest/10 px-3 text-sm"
+                  placeholder="@myagent_bot or t.me/..."
+                  value={socials.telegram || ""}
+                  onChange={(e) => setSocials({ ...socials, telegram: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-forest-muted">Twitter / X</label>
+                <input
+                  className="w-full h-9 rounded-lg bg-gypsum border border-forest/10 px-3 text-sm"
+                  placeholder="x.com/myagent"
+                  value={socials.twitter || ""}
+                  onChange={(e) => setSocials({ ...socials, twitter: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-forest-muted">Website</label>
+                <input
+                  className="w-full h-9 rounded-lg bg-gypsum border border-forest/10 px-3 text-sm"
+                  placeholder="https://agenthaus.space"
+                  value={socials.website || ""}
+                  onChange={(e) => setSocials({ ...socials, website: e.target.value })}
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-xs"
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/agents/${agent.id}/channels`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "update_socials", socials }),
+                    });
+                    if (res.ok) {
+                      toast.success("Social links updated");
+                      onSocialsUpdated?.();
+                    }
+                  } catch (err) {
+                    toast.error("Failed to update socials");
+                  }
+                }}
+              >
+                Save Socials
+              </Button>
+            </div>
+          </Card>
+        </div>
+
+        {/* LLM provider/model editing */}
+        <div>
+          <h3 className="text-sm font-medium text-forest mb-2 flex items-center gap-2">
+            <Zap className="w-4 h-4" />
+            LLM Configuration
+          </h3>
+          <div className="space-y-2">
+            <Select
+              label="Provider"
+              value={llmProvider}
+              onChange={(e) => {
+                const p = e.target.value as LLMProvider;
+                setLlmProvider(p);
+                // reset model to provider default
+                const ms = (LLM_MODELS as any)[p] || [];
+                setLlmModel(ms[0]?.id || "");
+              }}
+              options={[
+                { value: "openrouter", label: "OpenRouter (Free Models)" },
+                { value: "groq", label: "Groq (Fast Inference)" },
+                { value: "openai", label: "OpenAI (ChatGPT)" },
+                { value: "anthropic", label: "Anthropic (Claude)" },
+                { value: "grok", label: "Grok (xAI)" },
+                { value: "gemini", label: "Google Gemini" },
+                { value: "deepseek", label: "DeepSeek" },
+                { value: "zai", label: "Z.AI (GLM-4)" },
+              ]}
+            />
+            <Select
+              label="Model"
+              value={llmModel}
+              onChange={(e) => setLlmModel(e.target.value)}
+              options={providerModels.map((m) => ({ value: m.id, label: m.name }))}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                setUpdatingLLM(true);
+                setLlmUpdateError(null);
+                try {
+                  const res = await fetch(`/api/agents/${agent.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ llmProvider, llmModel }),
+                  });
+                  if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.error || "Failed to update LLM");
+                  }
+                  // update parent agent object
+                  agent.llmProvider = llmProvider;
+                  agent.llmModel = llmModel;
+                } catch (err: any) {
+                  setLlmUpdateError(err?.message || "Unknown error");
+                } finally {
+                  setUpdatingLLM(false);
+                }
+              }}
+              disabled={updatingLLM}
+            >
+              {updatingLLM ? (<><Loader2 className="w-3 h-3 animate-spin mr-1" />Saving...</>) : "Save LLM"}
+            </Button>
+            {llmUpdateError && <p className="text-xs text-red-400">{llmUpdateError}</p>}
+          </div>
+        </div>
+
         {agent.agentWalletAddress && (
           <div>
             <h3 className="text-sm font-medium text-forest mb-2 flex items-center gap-2">
@@ -409,8 +655,8 @@ export function AdminModal({
                     onClick={onUpdateMetadata}
                     title={
                       connectedChainId != null &&
-                      agent.erc8004ChainId != null &&
-                      connectedChainId !== agent.erc8004ChainId
+                        agent.erc8004ChainId != null &&
+                        connectedChainId !== agent.erc8004ChainId
                         ? `Switch to chain ${agent.erc8004ChainId} (agent was registered there)`
                         : undefined
                     }

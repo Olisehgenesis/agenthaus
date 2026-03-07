@@ -223,6 +223,8 @@ export const LLM_MODELS = {
     { id: "claude-opus-4-20250514", name: "Claude Opus 4" },
     { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet" },
     { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku" },
+    // historical Claude‑3 models
+    { id: "claude-3-haiku-20240307", name: "Claude 3 Haiku" },
   ],
 } as const;
 

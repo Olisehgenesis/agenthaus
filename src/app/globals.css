@@ -11,30 +11,35 @@
  */
 
 :root {
-  --background: #FCF6F1;
-  --foreground: #476520;
+  --background: #F5F3F0;
+  --foreground: #141414;
 
   /* Core palette */
-  --gypsum: #FCF6F1;
-  --gypsum-dark: #F0E7DE;
-  --gypsum-darker: #E3D9CF;
+  --gypsum: #F5F3F0;
+  --gypsum-dark: #E8E5E0;
+  --gypsum-darker: #D8D5D0;
 
-  --forest: #476520;
-  --forest-light: #5A8229;
-  --forest-muted: #8BA870;
-  --forest-faint: #C5D4B3;
+  --forest: #141414;
+  --forest-light: #2A2A2A;
+  --forest-muted: #4A4A4A;
+  --forest-faint: #E5E5E5;
 
   --celo-yellow: #FCFF52;
   --celo-yellow-hover: #F0F34A;
-  --celo-yellow-muted: #FCFF5233; /* 20% opacity */
+  --celo-yellow-muted: #FCFF5233;
 
-  --accent: #4E44CE;
-  --accent-light: #6B62D9;
-  --accent-muted: #9B94E8;
+  --accent: #141414;
+  --accent-light: #2A2A2A;
+  --accent-muted: #4A4A4A;
 
-  /* Connect / wallet primary (replaces forest for connect buttons) */
-  --connect: #AB9FF2;
-  --connect-hover: #AB9FF2E6;
+  /* Connect / wallet primary */
+  --connect: #141414;
+  --connect-hover: #2A2A2A;
+
+  --border-width: 2px;
+  --hard-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
+  --hard-shadow-hover: 6px 6px 0px 0px rgba(0, 0, 0, 1);
+  --hard-shadow-active: 2px 2px 0px 0px rgba(0, 0, 0, 1);
 }
 
 @theme inline {
@@ -42,42 +47,36 @@
   --color-foreground: var(--foreground);
 
   /* Gypsum (background shades) */
-  --color-gypsum: #FCF6F1;
-  --color-gypsum-dark: #F0E7DE;
-  --color-gypsum-darker: #E3D9CF;
+  --color-gypsum: #F5F3F0;
+  --color-gypsum-dark: #E8E5E0;
+  --color-gypsum-darker: #D8D5D0;
 
-  /* Forest (text / structure) */
-  --color-forest: #476520;
-  --color-forest-light: #5A8229;
-  --color-forest-muted: #8BA870;
-  --color-forest-faint: #C5D4B3;
+  --color-forest: #141414;
+  --color-forest-light: #2A2A2A;
+  --color-forest-muted: #4A4A4A;
+  --color-forest-faint: #E5E5E5;
 
-  /* Prosperity Yellow (CTAs / highlights) */
   --color-celo: #FCFF52;
   --color-celo-hover: #F0F34A;
 
-  /* Accent (verification, links, secondary actions) */
-  --color-accent: #4E44CE;
-  --color-accent-light: #6B62D9;
-  --color-accent-muted: #9B94E8;
+  --color-accent: #141414;
+  --color-accent-light: #2A2A2A;
+  --color-accent-muted: #4A4A4A;
 
-  /* Connect / wallet primary */
-  --color-connect: #AB9FF2;
+  --color-connect: #141414;
 
-  /* Wood (earthy accents) */
-  --color-wood: #655947;
+  --font-sans: var(--font-anton);
+  --font-mono: var(--font-space-mono);
 
-  /* Sand (warmer midtone, section dividers) */
-  --color-sand: #E7E3D4;
-
-  --font-sans: var(--font-playfair);
-  --font-mono: var(--font-geist-mono);
+  --hard-shadow: var(--hard-shadow);
+  --hard-shadow-hover: var(--hard-shadow-hover);
+  --hard-shadow-active: var(--hard-shadow-active);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), "Playfair Display", Georgia, serif;
+  font-family: var(--font-mono), monospace;
 }
 
 /* Custom scrollbar */
@@ -99,36 +98,43 @@ body {
   background: var(--forest-faint);
 }
 
-/* Glow effects (forest-tinted) */
+/* Glow effects (black-tinted) */
 .glow-forest {
-  box-shadow: 0 0 20px rgba(71, 101, 32, 0.12), 0 0 60px rgba(71, 101, 32, 0.04);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.12), 0 0 60px rgba(0, 0, 0, 0.04);
 }
 
 .glow-text {
-  text-shadow: 0 0 20px rgba(71, 101, 32, 0.3);
+  text-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
 }
 
 .glow-yellow {
   box-shadow: 0 0 20px rgba(252, 255, 82, 0.25), 0 0 60px rgba(252, 255, 82, 0.08);
 }
 
-/* Accent glow (#4E44CE) */
+/* Accent glow (#000000) */
 .glow-accent {
-  box-shadow: 0 0 20px rgba(78, 68, 206, 0.2), 0 0 60px rgba(78, 68, 206, 0.08);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.2), 0 0 60px rgba(0, 0, 0, 0.08);
 }
 
-/* Grid pattern background */
+/* Grid pattern background (subtle black) */
 .grid-pattern {
-  background-image: 
-    linear-gradient(rgba(71, 101, 32, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(71, 101, 32, 0.04) 1px, transparent 1px);
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
   background-size: 60px 60px;
 }
 
 /* Animated gradient */
 @keyframes gradient-shift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
 }
 
 .animate-gradient {
@@ -138,8 +144,15 @@ body {
 
 /* Pulse animation for status indicators */
 @keyframes pulse-glow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .animate-pulse-glow {
@@ -148,11 +161,47 @@ body {
 
 /* Typing dots for "AI is thinking" */
 @keyframes typing-dots {
-  0%, 33% { opacity: 0.3; }
-  34%, 66% { opacity: 0.6; }
-  67%, 100% { opacity: 1; }
+
+  0%,
+  33% {
+    opacity: 0.3;
+  }
+
+  34%,
+  66% {
+    opacity: 0.6;
+  }
+
+  67%,
+  100% {
+    opacity: 1;
+  }
 }
 
 .typing-dots {
   animation: typing-dots 1.2s ease-in-out infinite;
+}
+
+.neobrutal-shadow {
+  box-shadow: var(--hard-shadow);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.neobrutal-shadow:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--hard-shadow-hover);
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
 }

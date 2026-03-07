@@ -28,39 +28,80 @@ export interface ChatCompletionResponse {
   };
 }
 
+/**
+ * Get the next available Groq API key from the environment.
+ * Supports rotation/failover for up to 4 keys.
+ */
+function getGroqKeys(): string[] {
+  const keys = [
+    process.env.GROQ_API_KEY_1,
+    process.env.GROQ_API_KEY_2,
+    process.env.GROQ_API_KEY_3,
+    process.env.GROQ_API_KEY_4,
+    process.env.GROQ_API_KEY, // Legacy fallback
+  ].filter(Boolean) as string[];
+
+  return keys;
+}
+
 export async function chatCompletion(
   messages: ChatMessage[],
   model: string = "llama-3.3-70b-versatile",
   apiKey?: string
 ): Promise<ChatCompletionResponse> {
-  const key = apiKey || process.env.GROQ_API_KEY;
+  const keys = apiKey ? [apiKey] : getGroqKeys();
 
-  if (!key) {
+  if (keys.length === 0) {
     throw new Error(
-      "Groq API key not configured. Add your Groq API key in Settings."
+      "Groq API key not configured. Add GROQ_API_KEY_1 through GROQ_API_KEY_4 in .env"
     );
   }
 
-  const response = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      max_tokens: 2048,
-      temperature: 0.7,
-    }),
-  });
+  let lastError: Error | null = null;
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Groq API error (${response.status}): ${error}`);
+  for (const key of keys) {
+    try {
+      const response = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          max_tokens: 2048,
+          temperature: 0.7,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        const error = new Error(`Groq API error (${response.status}): ${errorText}`);
+
+        // If rate limited, try next key
+        if (response.status === 429 && !apiKey) {
+          console.warn("⚠️ Groq rate limit hit, rotating key...");
+          lastError = error;
+          continue;
+        }
+
+        throw error;
+      }
+
+      return response.json();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      // Only continue loop if it's a rate limit error (already handled above) 
+      // or if we want to rotate on other transient errors.
+      if (!apiKey && (lastError.message.includes("429") || lastError.message.includes("fetch failed"))) {
+        continue;
+      }
+      throw lastError;
+    }
   }
 
-  return response.json();
+  throw lastError || new Error("All Groq API keys failed.");
 }
 
 /**
@@ -71,33 +112,55 @@ export async function chatCompletionStream(
   model: string = "llama-3.3-70b-versatile",
   apiKey?: string
 ): Promise<ReadableStream<Uint8Array>> {
-  const key = apiKey || process.env.GROQ_API_KEY;
+  const keys = apiKey ? [apiKey] : getGroqKeys();
 
-  if (!key) {
+  if (keys.length === 0) {
     throw new Error("Groq API key not configured.");
   }
 
-  const response = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      max_tokens: 2048,
-      temperature: 0.7,
-      stream: true,
-    }),
-  });
+  let lastError: Error | null = null;
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Groq stream error (${response.status}): ${error}`);
+  for (const key of keys) {
+    try {
+      const response = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          max_tokens: 2048,
+          temperature: 0.7,
+          stream: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        const error = new Error(`Groq stream error (${response.status}): ${errorText}`);
+
+        if (response.status === 429 && !apiKey) {
+          console.warn("⚠️ Groq rate limit hit during stream init, rotating key...");
+          lastError = error;
+          continue;
+        }
+
+        throw error;
+      }
+
+      return response.body!;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (!apiKey && (lastError.message.includes("429") || lastError.message.includes("fetch failed"))) {
+        continue;
+      }
+      throw lastError;
+    }
   }
 
-  return response.body!;
+  throw lastError || new Error("All Groq API keys failed for streaming.");
 }
 
 // Available Groq models
